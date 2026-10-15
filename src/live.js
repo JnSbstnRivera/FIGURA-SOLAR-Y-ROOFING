@@ -11,14 +11,6 @@ const themeButton = doc("[data-theme-toggle]");
 const sceneButtons = [...document.querySelectorAll("[data-scene]")];
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const narrow = matchMedia("(max-width: 560px)");
-// En pantallas angostas la ficha baja de la tarjeta: se recorta la franja izquierda que tenía reservada.
-const VIEW = svg.getAttribute("viewBox").trim().split(" ").map(Number);
-const fitView = () => {
-  const [fx, fy] = D.ficha;
-  svg.setAttribute("viewBox", narrow.matches ? `${(VIEW[2] * fx).toFixed(1)} ${(VIEW[3] * fy).toFixed(1)} ${(VIEW[2] * (1 - fx)).toFixed(1)} ${(VIEW[3] * (1 - fy)).toFixed(1)}` : VIEW.join(" "));
-};
-fitView();
-narrow.addEventListener("change", fitView);
 const $ = (s) => svg.querySelector(s);
 const $$ = (s) => [...svg.querySelectorAll(s)];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -36,7 +28,6 @@ for (const el of $$("[data-flow]")) (flows[el.dataset.flow] ??= []).push({ el, s
 const suns = $$("[data-sun]");
 const leds = $$("[data-led]").map((el) => ({ el, i: +el.dataset.led }));
 const invLed = $('[data-part="inv-led"]');
-const needle = $('[data-part="needle"]');
 const lcd = $('[data-part="lcd"]');
 const fan = $('[data-part="fan"]');
 const UP = axisVector(P, [0, 0, 1]);
@@ -226,24 +217,20 @@ const CHANNEL = {
 };
 
 // ---------- textos ----------
-const angleOf = (hour) => D.dial.aNoon + ((hour - 12) / 24) * Math.PI * 2;
-const needleAt = (hour) => {
-  const a = angleOf(hour);
-  const [cx, cy] = D.dial.c;
-  const r = D.dial.r - 3.2;
-  return lineOnTop([cx - Math.sin(a) * 2.6, cy + Math.cos(a) * 2.6], [cx + Math.sin(a) * r, cy - Math.cos(a) * r], D.dial.top + 0.2, P);
-};
 const clock = (h) => {
   const m = Math.round((((h % 24) + 24) % 24) * 60) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 };
 const toward = (net) => (net >= -0.005 ? "a" : "de");
 const batteryText = (s, short) => (S.baterias ? `${short ? "bat." : "batería"} ${Math.round(s.soc * 100)} %` : "sin batería");
-const say = (h, s) =>
+// Lo que pasa en este momento, al lado de la hora del reproductor.
+const say = (s) =>
   narrow.matches
-    ? `${clock(h)} · ${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
-    : `${MESES_CORTOS[S.mes]} · ${clock(h)} · placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
-function explain(h) {
+    ? `${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
+    : `placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
+// La frase completa es para el lector de pantalla; la corta va en el panel, porque los números
+// de placas, batería y LUMA ya están en el reproductor.
+function explain(h, brief = false) {
   const s = sample(h);
   let what;
   if (!S.baterias) {
@@ -258,6 +245,7 @@ function explain(h) {
   else what = "las placas cubren justo lo que usa la casa";
   const day = `${s.net >= -0.005 ? "enviados a" : "tomados de"} LUMA en el día: ${Math.abs(s.net).toFixed(1)} kWh`;
   const bat = S.baterias ? `batería ${Math.round(s.soc * 100)} %` : "sin batería";
+  if (brief) return `${cap(MESES[S.mes])}, ${clock(h)}: ${what}; la casa usa ${s.load.toFixed(1)} kW.`;
   return `${cap(MESES[S.mes])}, ${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${s.load.toFixed(1)} kW, ${bat}; ${day}.`;
 }
 
@@ -278,13 +266,17 @@ function updateFicha() {
     anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
   };
   if (!ficha.show || still.matches) ficha.show = { ...ficha.goal };
-  F.nuevas.textContent = `${S.nuevas} × ${D.vatios} W · ${kw(S.nuevas * D.vatios)} kW`;
-  F.existentes.textContent = S.existentes.n ? `${S.existentes.n} × ${S.existentes.w} W · ${kw(S.existentes.n * S.existentes.w)} kW` : "ninguna";
-  F.bat.textContent = S.baterias ? `${S.baterias} Powerwall · ${fmt(S.baterias * BASE.bateria, 1)} kWh` : "sin batería";
+  const watts = S.nuevas * D.vatios + S.existentes.n * S.existentes.w;
+  F.kw.textContent = `${kw(watts)} kW`;
+  F.placas.textContent = S.existentes.n ? `${S.nuevas} nuevas + ${S.existentes.n} de ${S.existentes.w} W` : `${S.nuevas} de ${D.vatios} W`;
+  F.bat.textContent = S.baterias ? `${S.baterias} Powerwall` : "Sin batería";
   F.mesNombre.textContent = cap(MESES[S.mes]);
+  F.mesUsa.textContent = `usa ${fmt(consumo)} kWh`;
+  F.anioUsa.textContent = `usa ${fmt(anual)} kWh`;
+  F.sug.textContent = `${sug.nuevas} nuevas · ${sug.baterias} PW`;
   const same = S.nuevas === sug.nuevas && S.baterias === sug.baterias;
   const delta = S.nuevas - sug.nuevas;
-  F.nota.textContent = same ? "Es lo que sugiere el cotizador." : `Sugerido: ${sug.nuevas} nuevas y ${sug.baterias} Powerwall${delta ? ` (${delta > 0 ? "+" : "−"}${Math.abs(delta)})` : ""}.`;
+  F.nota.textContent = same ? "es lo que tienes" : delta ? `tienes ${delta > 0 ? "+" : "−"}${Math.abs(delta)} placas` : "cambiaste las baterías";
   renderFicha();
   if (!ficha.frame && !still.matches) {
     ficha.last = 0;
@@ -295,10 +287,11 @@ function renderFicha() {
   const v = ficha.show;
   const consumo = S.meses[S.mes];
   const anual = S.meses.reduce((a, b) => a + b, 0);
-  F.prod.textContent = `${fmt(v.prod)} kWh/mes · ${fmt(v.dia, 1)} al día`;
-  F.respaldo.textContent = S.baterias ? `${Math.round(v.resp)} h con el consumo de ${MESES[S.mes]}` : "—";
-  F.mes.textContent = `usa ${fmt(consumo)} kWh · cubre ${consumo > 0 ? `${Math.round(v.mes)} %` : "—"}`;
-  F.anio.textContent = `usa ${fmt(anual)} kWh · cubre ${anual > 0 ? `${Math.round(v.anio)} %` : "—"}`;
+  F.prod.textContent = `${fmt(v.prod)} kWh/mes`;
+  F.dia.textContent = `${fmt(v.dia, 1)} kWh al día`;
+  F.respaldo.textContent = S.baterias ? `${fmt(S.baterias * BASE.bateria, 1)} kWh · respaldo ${Math.round(v.resp)} h` : "toda la noche de LUMA";
+  F.mes.textContent = consumo > 0 ? `cubre ${Math.round(v.mes)} %` : "—";
+  F.anio.textContent = anual > 0 ? `cubre ${Math.round(v.anio)} %` : "—";
 }
 function fichaTick(now) {
   const dt = ficha.last ? Math.min((now - ficha.last) / 1000, 1 / 30) : 1 / 60;
@@ -441,10 +434,16 @@ const cols = Array.from({ length: 12 }, (_, i) => {
   const val = mk("text", { class: "sr-val", "text-anchor": "middle" }, g);
   return { i, cx: 0, g, hit, label, placas, luma, val, show: { c: 0, p: 0 } };
 });
+// En una ventana ancha pero baja la gráfica se achata para que la columna de controles quepa sin bajar.
+const short = matchMedia("(min-width: 1100px) and (max-height: 720px)");
+const shorter = matchMedia("(min-width: 1100px) and (max-height: 680px)");
 function layoutChart() {
   const width = Math.max(300, Math.round(chartSvg.parentElement.clientWidth));
-  if (width === CH.W) return;
+  const height = shorter.matches ? 110 : short.matches ? 122 : 166;
+  if (width === CH.W && height === CH.H) return;
   CH.W = width;
+  CH.H = height;
+  CH.base = height - 26;
   CH.x1 = width - 66;
   chartSvg.setAttribute("viewBox", `0 0 ${width} ${CH.H}`);
   colW = (CH.x1 - CH.x0) / 12;
@@ -453,12 +452,16 @@ function layoutChart() {
     c.cx = CH.x0 + colW * (c.i + 0.5);
     c.hit.setAttribute("x", (c.cx - colW / 2 + 1).toFixed(1));
     c.hit.setAttribute("width", (colW - 2).toFixed(1));
+    c.hit.setAttribute("height", CH.base - CH.top + 34);
     c.label.setAttribute("x", c.cx.toFixed(1));
+    c.label.setAttribute("y", CH.base + 16);
     c.val.setAttribute("x", c.cx.toFixed(1));
   }
   prodLine.setAttribute("x2", CH.x1);
   prodText.setAttribute("x", CH.x1 + 8);
   baseLine.setAttribute("x2", CH.x1);
+  baseLine.setAttribute("y1", CH.base);
+  baseLine.setAttribute("y2", CH.base);
   gridTop = 0;
   if (samples) renderChart();
 }
@@ -674,15 +677,15 @@ chartSvg.addEventListener("pointercancel", endDrag);
 // ---------- bucle de la figura ----------
 let hour = D.start;
 let target = D.start;
-let touring = !still.matches;
-let wait = 1.4;
+let playing = !still.matches;
+let rate = 0.25;
+let wait = 1.2;
+let scrubbing = false;
 let visible = false;
 let frame = 0;
 let last = 0;
-let idle = 0;
 let quiet = 0;
 let spin = 0;
-const RATE = 0.45;
 const PERIOD = 6;
 const phase = {};
 const shown = {};
@@ -707,29 +710,35 @@ function draw(dt, calm) {
   invLed.style.opacity = (0.15 + 0.85 * smooth(0.02, 0.3, s.pv)).toFixed(3);
   if (!calm) spin = (spin + (40 + 150 * s.load) * dt) % 360;
   fan.setAttribute("transform", `rotate(${spin.toFixed(1)})`);
-  needle.setAttribute("d", needleAt(hour));
-  const text = say(hour, s);
+  const text = say(s);
   if (readout.textContent !== text) readout.textContent = text;
   const value = (s.net >= -0.005 ? "+" : "−") + Math.abs(s.net).toFixed(1);
   if (lcd.textContent !== value) lcd.textContent = value;
-  const line = explain(hour);
+  const line = explain(hour, true);
   if (nowLine.textContent !== line) nowLine.textContent = line;
-  for (const button of sceneButtons) button.setAttribute("aria-pressed", String(!touring && Math.abs(target - +button.dataset.scene) < 0.01));
+  const time = clock(hour);
+  if (clockOut.textContent !== time) {
+    clockOut.textContent = time;
+    scrub.setAttribute("aria-valuetext", time);
+  }
+  if (!scrubbing) scrub.value = String(((hour % 24) + 24) % 24);
+  for (const button of sceneButtons) button.setAttribute("aria-pressed", String(!playing && Math.abs(target - +button.dataset.scene) < 0.01));
 }
 
 function tick(now) {
   const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60;
   last = now;
   const calm = still.matches;
-  if (touring && !calm) {
+  if (playing && !calm && !scrubbing) {
     if (wait > 0) wait -= dt;
-    else target += RATE * dt;
+    else target += rate * dt;
     if (target >= 24) {
       target -= 24;
       hour -= 24;
     }
   }
-  hour = calm ? target : hour + (target - hour) * (1 - Math.exp(-dt / 0.45));
+  // Con el día corriendo la hora sigue al reloj tal cual; un salto (escena, flechas) llega suave.
+  hour = calm || scrubbing ? target : hour + (target - hour) * (1 - Math.exp(-dt / (playing ? 0.12 : 0.45)));
   if (Math.abs(target - hour) < 1e-4) hour = target;
   for (const o of moving) {
     if (!stepSpring(o, dt)) moving.delete(o);
@@ -744,25 +753,54 @@ const run = () => {
     frame = requestAnimationFrame(tick);
   }
 };
-const steer = (next, hold = 3600) => {
-  touring = false;
+// Saltar a una hora no cambia si el día corre o está en pausa, como en un reproductor.
+const steer = (next) => {
   target = clamp(next, 0, 23.99);
+  wait = 0;
   stage.setAttribute("aria-valuenow", target.toFixed(2));
   stage.setAttribute("aria-valuetext", explain(target));
-  clearTimeout(idle);
-  idle = setTimeout(() => {
-    touring = !still.matches;
-    wait = 0;
-    run();
-  }, hold);
   clearTimeout(quiet);
   quiet = setTimeout(() => (status.textContent = explain(target)), 700);
-  if (still.matches) {
+  if (still.matches || !frame) {
     hour = target;
     draw(0, true);
   }
   run();
 };
+
+// ---------- reproductor del día ----------
+const playButton = doc("[data-play]");
+const clockOut = doc("[data-clock]");
+const scrub = doc("[data-scrub]");
+const speedButtons = [...document.querySelectorAll("[data-speed]")];
+const setPlaying = (on) => {
+  playing = on && !still.matches;
+  playButton.setAttribute("aria-pressed", String(playing));
+  playButton.setAttribute("aria-label", playing ? "Pausar el día" : "Reproducir el día");
+  playButton.classList.toggle("is-paused", !playing);
+  if (playing) {
+    target = hour;
+    run();
+  }
+};
+playButton.addEventListener("click", () => setPlaying(!playing));
+for (const button of speedButtons) {
+  button.addEventListener("click", () => {
+    rate = +button.dataset.speed;
+    for (const b of speedButtons) b.setAttribute("aria-pressed", String(b === button));
+    if (!playing) setPlaying(true);
+  });
+}
+scrub.addEventListener("input", () => {
+  scrubbing = true;
+  target = hour = clamp(parseFloat(scrub.value), 0, 23.99);
+  if (!frame) draw(0, true);
+  run();
+});
+scrub.addEventListener("change", () => {
+  scrubbing = false;
+  steer(parseFloat(scrub.value));
+});
 
 new IntersectionObserver(
   (entries) => {
@@ -771,14 +809,14 @@ new IntersectionObserver(
   },
   { rootMargin: "120px 0px" },
 ).observe(stage);
-stage.addEventListener("pointermove", (event) => {
-  const box = svg.getBoundingClientRect();
-  steer(clamp((event.clientX - box.left) / box.width, 0, 1) * 24);
-});
-stage.addEventListener("pointerleave", () => steer(target));
 stage.addEventListener("keydown", (event) => {
+  if (event.key === " ") {
+    event.preventDefault();
+    setPlaying(!playing);
+    return;
+  }
   const step = event.shiftKey ? 3 : 1;
-  const base = touring ? hour : target;
+  const base = target;
   let to = null;
   if (event.key === "ArrowRight" || event.key === "ArrowUp") to = Math.floor(base + 1e-6) + step;
   if (event.key === "ArrowLeft" || event.key === "ArrowDown") to = Math.ceil(base - 1e-6) - step;
@@ -789,7 +827,8 @@ stage.addEventListener("keydown", (event) => {
   steer(to);
 });
 stage.addEventListener("focus", () => (status.textContent = explain(target)));
-for (const button of sceneButtons) button.addEventListener("click", () => steer(+button.dataset.scene, 12000));
+for (const button of sceneButtons) button.addEventListener("click", () => steer(+button.dataset.scene));
+setPlaying(playing);
 
 // ---------- tema ----------
 const setTheme = (theme) => {
@@ -813,6 +852,8 @@ try {
 setTheme(saved === "dark" ? "dark" : "light");
 layoutChart();
 new ResizeObserver(() => layoutChart()).observe(chartSvg.parentElement);
+short.addEventListener("change", layoutChart);
+shorter.addEventListener("change", layoutChart);
 recompute({ calm: true });
 stage.setAttribute("aria-valuetext", explain(target));
 draw(0, true);

@@ -14,15 +14,12 @@ import { BASE, LIMITES, EJEMPLO, MESES, SALIDA, PUESTA, kwhPorPlacaDia, sugerenc
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const W = 760;
-const H = 600;
-// La esquina de arriba a la izquierda queda libre para la ficha: el dibujo se arma corrido a la derecha y abajo.
-const FICHA = 0.2;
-const FICHA_Y = 0.14;
 const AZ = 52;
 const EL = 33;
 
 // ---------- mundo: x = sur, y = este, z = arriba (unas 10.5 unidades por metro) ----------
-const PLATE = { x: -84, y: -110, w: 160, d: 218, r: 10 };
+// Base ceñida a la casa, el equipo y el poste, para que la casa salga lo más grande posible.
+const PLATE = { x: -74, y: -102, w: 134, d: 186, r: 10 };
 const PLATE_H = 10;
 const FOOT_H = 5;
 
@@ -65,26 +62,28 @@ const LB = { x0: -41, x1: -36, y0: 24, y1: 28.6, z0: 35.5, z1: 39.2 };
 const SOCKET = { x0: -60, x1: -50, y0: 24, y1: 31, z0: 17, z1: 31 };
 const METER_C = [-55, 31, 24];
 const MAST = { x: -55, y: 28.6, z0: 31, z1: 60 };
-const POLE = { x: -40, y: 98, z0: 1.2, z1: 101, r0: 2.9, r1: 2.1 };
+const POLE = { x: -44, y: 72, z0: 1.2, z1: 88, r0: 2.9, r1: 2.2 };
 const poleR = (z) => POLE.r0 + ((POLE.r1 - POLE.r0) * (z - POLE.z0)) / (POLE.z1 - POLE.z0);
-const DIAL = { c: [56, 64], r: 14, z0: 3, z1: 9 };
 const AC = { x0: -44, x1: -30, y0: 12.5, y1: 18.5, z0: TOPZ + 2.4, z1: TOPZ + 12 };
 const DC_Y = 29.5;
 const DC_Z = 43;
 
-const P = ((p) => ({ ...p, origin: [p.origin[0] + W * FICHA, p.origin[1] + H * FICHA_Y] }))(k.fitProjection(
-  [
-    ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
-    [POLE.x, POLE.y, POLE.z1 + 1.4],
-    [MAST.x, MAST.y, 64],
-    [SLAB.x, SLAB.y, TOPZ],
-    [ROWS_XS[ROWS - 1] - PANEL.l, ARRAY_Y0, zLow + 5],
-    [AC.x0, AC.y0, AC.z1],
-  ],
-  W * (1 - FICHA),
-  H * (1 - FICHA_Y),
-  { pad: 16, azimuth: AZ, elevation: EL },
-));
+// El lienzo toma la proporción exacta del dibujo: sin franjas vacías, la casa llena la tarjeta.
+const FIT = [
+  ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
+  [POLE.x, POLE.y, POLE.z1 + 1.4],
+  [MAST.x, MAST.y, 64],
+  [SLAB.x, SLAB.y, TOPZ],
+  [ROWS_XS[ROWS - 1] - PANEL.l, ARRAY_Y0, zLow + 5],
+  [AC.x0, AC.y0, AC.z1],
+];
+const PAD = 12;
+const H = (() => {
+  const flat = FIT.map((p) => k.iso(p, { origin: [0, 0], scale: 1, azimuth: AZ, elevation: EL }));
+  const span = (i) => Math.max(...flat.map((q) => q[i])) - Math.min(...flat.map((q) => q[i]));
+  return Math.round(((W - 2 * PAD) * span(1)) / span(0) + 2 * PAD);
+})();
+const P = k.fitProjection(FIT, W, H, { pad: PAD, azimuth: AZ, elevation: EL });
 const V = G.viewOf(P);
 const KS = G.scaleOf(P);
 const at = (p) => k.iso(p, P);
@@ -209,13 +208,13 @@ back.push(Dots(plateScrews.map(([x, y]) => at([x, y, 0])), { size: 0.5 }));
 record(A.slab(PLATE, -PLATE_H, PLATE_H, { name: "stand.plate", ground: true }, 8));
 
 // placa de rótulo, con el único texto grabado del dibujo
-const LABEL = { x: 56, y: -88, w: 11, d: 40, r: 1.2 };
+const LABEL = { x: 49.2, y: -88, w: 8.6, d: 28, r: 1.2 };
 {
   const z = 0.8;
   const cx = LABEL.x + LABEL.w / 2;
-  const text = k.faceTextSvg(k.topMatrix([cx - 1.2, LABEL.y + LABEL.d / 2], z, P, "y"), "WINDMAR HOME", { size: 2.6, tone: "mid", anchor: "middle" });
+  const text = k.faceTextSvg(k.topMatrix([cx - 1.1, LABEL.y + LABEL.d / 2], z, P, "y"), "WINDMAR HOME", { size: 2.3, tone: "mid", anchor: "middle" });
   const rule = (dx, from, to) => Ln(k.lineOnTop([cx + dx, LABEL.y + from], [cx + dx, LABEL.y + to], z, P), { tone: "lo", free: true });
-  const extra = Ln(k.planOutline(k.insetPlan(LABEL, 1.6), z, P, 4), { tone: "faint" }) + text + rule(1.6, 8, 32) + rule(3.2, 11, 29) + Dots([at([cx, LABEL.y + 3.4, z]), at([cx, LABEL.y + LABEL.d - 3.4, z])], { size: 0.45 });
+  const extra = Ln(k.planOutline(k.insetPlan(LABEL, 1.4), z, P, 4), { tone: "faint" }) + text + rule(1.4, 6, LABEL.d - 6) + rule(2.8, 8, LABEL.d - 8) + Dots([at([cx, LABEL.y + 3, z]), at([cx, LABEL.y + LABEL.d - 3, z])], { size: 0.45 });
   box("stand.label", [LABEL.x, LABEL.y, 0], [LABEL.x + LABEL.w, LABEL.y + LABEL.d, z], { tone: "lo" }, { r: LABEL.r, steps: 4, extra });
 }
 
@@ -483,11 +482,11 @@ cyl("pole.base", POLE.x, POLE.y, 4.2, 0, POLE.z0, { tone: "lo" }, { steps: 32 })
 const PF = G.frameOf([POLE.x, POLE.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
 turned("pole", PF, [[POLE.z0, POLE.r0], [POLE.z1, POLE.r1]], { tone: "mid" }, { inner: Ln(G.arcOf(PF, 40, poleR(40), P, { slope: (POLE.r1 - POLE.r0) / (POLE.z1 - POLE.z0) }), { tone: "faint" }) });
 cyl("pole.cap", POLE.x, POLE.y, 2.4, POLE.z1, POLE.z1 + 1.2, { tone: "mid" }, { steps: 24 });
-const TX = { x: POLE.x + poleR(86) + 4.2 - 0.05, y: POLE.y, r: 4.2, z0: 80, z1: 93 };
+const TX = { x: POLE.x + poleR(76) + 4.2 - 0.05, y: POLE.y, r: 4.2, z0: 70, z1: 82 };
 cyl("transformer", TX.x, TX.y, TX.r, TX.z0, TX.z1, { tone: "mid" }, { steps: 40, inner: Ln(k.sideArc(TX.x, TX.y, TX.r, TX.z0 + 4, P, 24), { tone: "faint" }) });
 cyl("transformer.lid", TX.x, TX.y, TX.r + 0.4, TX.z1, TX.z1 + 1, { tone: "mid" }, { steps: 40 });
 for (const dy of [-1.8, 1.8]) cyl("transformer.bushing", TX.x + 0.6, TX.y + dy, 0.7, TX.z1 + 1, TX.z1 + 3, { tone: "mid" }, { steps: 16 });
-const BR = { x0: POLE.x - 1.3, x1: POLE.x + 1.3, y0: 93, y1: POLE.y - poleR(66), z0: 64.5, z1: 67.5 };
+const BR = { x0: POLE.x - 1.3, x1: POLE.x + 1.3, y0: POLE.y - 5, y1: POLE.y - poleR(59), z0: 57.5, z1: 60.5 };
 box("pole.bracket", [BR.x0, BR.y0, BR.z0], [BR.x1, BR.y1, BR.z1], { tone: "mid" }, { r: 0.3 });
 
 // ---------- conductos de energía ----------
@@ -515,7 +514,7 @@ const WH = G.frameOf([MAST.x, MAST.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
 turned("weatherhead", WH, [[MAST.z1, 1.9], [61.6, 1.9], [62.6, 1.5, 1], [63.2, 0.8, 1], [63.4, 0, 1]], { tone: "mid" });
 {
   const start = [MAST.x, MAST.y + 1.9, 61];
-  const end = [BR.x0 + 1.3, BR.y0, 66];
+  const end = [BR.x0 + 1.3, BR.y0, 59];
   const a = [start[0], start[1] + 3, start[2]];
   const b = [end[0], end[1] - 3, end[2]];
   const sag = [];
@@ -527,53 +526,7 @@ turned("weatherhead", WH, [[MAST.z1, 1.9], [61.6, 1.9], [62.6, 1.5, 1], [63.2, 0
   pipe("drop", [start, a, ...sag, b, end], 0.55, { channel: "red", limp: true, bend: 1.6, maxLength: 10 });
 }
 
-// ---------- reloj de 24 h ----------
-const D0 = { x: DIAL.c[0] - DIAL.r - 2.5, y: DIAL.c[1] - DIAL.r - 2.5, w: 2 * DIAL.r + 5, d: 2 * DIAL.r + 5, r: 4 };
-const aNoon = (() => {
-  const far = [-Math.cos((AZ * Math.PI) / 180), -Math.sin((AZ * Math.PI) / 180)];
-  return Math.atan2(far[0], -far[1]);
-})();
-const angleOf = (hour) => aNoon + ((hour - 12) / 24) * Math.PI * 2;
-const dialFront = [];
-{
-  const [cx, cy] = DIAL.c;
-  const top = DIAL.z1;
-  const rf = DIAL.r;
-  dialFront.push(`<path class="iso-halo" d="${k.haloOf(D0, 0, 3, P)}" style="opacity:.18"/>`);
-  dialFront.push(S(k.slabOf(D0, 0, DIAL.z0, P, 6, 0.6), { tone: "mid" }));
-  dialFront.push(Dots(k.corners(D0, 3.4).map(([x, y]) => at([x, y, DIAL.z0])), { size: 0.45 }));
-  dialFront.push(S(k.cylinder(cx, cy, rf, DIAL.z0, DIAL.z1 - DIAL.z0, P, 72, 0.8), { tone: "hi", crease: "lo" }));
-  dialFront.push(Ln(k.knurl(cx, cy, rf, top - 2.6, top, 96, P, 0.3), { tone: "lo" }));
-  dialFront.push(Ln(k.sideArc(cx, cy, rf, top - 2.6, P, 48), { tone: "faint" }));
-  const sector = [];
-  const r0 = 3.2;
-  const r1 = rf - 3.2;
-  for (let i = 0; i <= 48; i++) {
-    const a = angleOf(SALIDA + ((PUESTA - SALIDA) * i) / 48);
-    sector.push(at([cx + Math.sin(a) * r1, cy - Math.cos(a) * r1, top]));
-  }
-  for (let i = 48; i >= 0; i--) {
-    const a = angleOf(SALIDA + ((PUESTA - SALIDA) * i) / 48);
-    sector.push(at([cx + Math.sin(a) * r0, cy - Math.cos(a) * r0, top]));
-  }
-  dialFront.push(`<path class="sr-day" d="${k.pathOf(sector, true)}"/>`);
-  dialFront.push(Ln(k.ring(cx, cy, rf - 1.6, top, P, 72), { tone: "lo" }));
-  dialFront.push(Ln(k.ring(cx, cy, r1, top, P, 72), { tone: "faint" }));
-  const ticks = k.radialTicks(cx, cy, rf - 1.6, 24, 6, top, [1.2, 2.6], P, aNoon);
-  dialFront.push(Ln(ticks.minor, { tone: "lo" }), Ln(ticks.major, { tone: "mid" }));
-  const CF = G.frameOf([cx + rf, cy, (DIAL.z0 + DIAL.z1) / 2], [1, 0, 0], [0, 1, 0], [0, 0, 1]);
-  dialFront.push(S(G.disc(0, 1.2, 1, CF, P), { tone: "mid" }));
-  dialFront.push(S(G.disc(1.2, 3.6, 1.9, CF, P), { tone: "mid" }));
-}
-const needleAt = (hour) => {
-  const a = angleOf(hour);
-  const [cx, cy] = DIAL.c;
-  const r = DIAL.r - 3.2;
-  return k.lineOnTop([cx - Math.sin(a) * 2.6, cy + Math.cos(a) * 2.6], [cx + Math.sin(a) * r, cy - Math.cos(a) * r], DIAL.z1 + 0.2, P);
-};
 const START = 12.5;
-dialFront.push(`<path data-part="needle" class="iso-line" data-tone="lit" data-free="start" d="${needleAt(START)}" style="stroke-width:1.1"/>`);
-dialFront.push(Ln(k.ring(DIAL.c[0], DIAL.c[1], 1.3, DIAL.z1 + 0.2, P, 20), { tone: "hi" }));
 
 // ---------- orden de pintado ----------
 A.settle(R, P);
@@ -581,7 +534,7 @@ R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
 const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
-const DATA = { P, ficha: [FICHA, FICHA_Y], start: START, flows: FLOWS, dial: { c: DIAL.c, r: DIAL.r, top: DIAL.z1, aNoon }, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES };
+const DATA = { P, start: START, flows: FLOWS, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES };
 Object.assign(DATA.flows, {
   dc: "pv",
   "trunk-a": "row3",
@@ -600,12 +553,12 @@ Object.assign(DATA.flows, {
 });
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil, la acometida al poste y un reloj de 24 horas en la base. Los trazos naranja corren por los conductos en el sentido en que va la energía.";
-const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [...back, `<g class="sr-scene">${groups.join("")}</g>`, `<g class="sr-dial">${dialFront.join("")}</g>`] });
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Los trazos naranja corren por los conductos en el sentido en que va la energía.";
+const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [...back, `<g class="sr-scene">${groups.join("")}</g>`] });
 
 const CSS = readFileSync(join(HERE, "page.css"), "utf8");
-const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1></header>`;
-const about = `<p>Mueve la hora del día y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador.</p>`;
+const intro = `<header class="sr-head"><div><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1></div><button type="button" class="sr-btn sr-theme" data-theme-toggle aria-pressed="false">Tema oscuro</button></header>`;
+const about = `<p>Corre el día con el reproductor, o salta de hora con las escenas, y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador.</p>`;
 const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
@@ -628,7 +581,6 @@ const controls = `
       <button type="button" class="sr-btn" data-scene="10">Mañana</button>
       <button type="button" class="sr-btn" data-scene="15">Tarde</button>
       <button type="button" class="sr-btn" data-scene="21">Noche</button>
-      <button type="button" class="sr-btn sr-push" data-theme-toggle aria-pressed="false">Tema oscuro</button>
     </div>
     <p class="sr-now" data-now></p>
   </section>
@@ -649,15 +601,19 @@ const controls = `
     </figure>
   </section>
 </div>`;
-const ficha = `<aside class="sr-ficha" aria-label="Ficha del sistema"><p class="sr-f-title">Ficha del sistema</p><dl>
-<div><dt>Placas nuevas</dt><dd data-f="nuevas"></dd></div>
-<div><dt>Ya tenía</dt><dd data-f="existentes"></dd></div>
-<div><dt>Producción</dt><dd data-f="prod"></dd></div>
-<div><dt>Baterías</dt><dd data-f="bat"></dd></div>
-<div><dt>Respaldo</dt><dd data-f="respaldo"></dd></div>
-<div><dt data-f="mesNombre"></dt><dd data-f="mes"></dd></div>
-<div><dt>En el año</dt><dd data-f="anio"></dd></div>
-</dl><p class="sr-f-note" data-f="nota"></p></aside>`;
+// Ficha del sistema: una franja de datos arriba de la tarjeta, para que la casa use todo el alto.
+const ficha = `<div class="sr-kpis" role="group" aria-label="Ficha del sistema"><div class="sr-kpi"><span class="sr-kpi-l">Placas</span><span class="sr-kpi-v" data-f="kw"></span><span class="sr-kpi-s" data-f="placas"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Producción</span><span class="sr-kpi-v" data-f="prod"></span><span class="sr-kpi-s" data-f="dia"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Baterías</span><span class="sr-kpi-v" data-f="bat"></span><span class="sr-kpi-s" data-f="respaldo"></span></div><div class="sr-kpi"><span class="sr-kpi-l" data-f="mesNombre"></span><span class="sr-kpi-v" data-f="mes"></span><span class="sr-kpi-s" data-f="mesUsa"></span></div><div class="sr-kpi"><span class="sr-kpi-l">En el año</span><span class="sr-kpi-v" data-f="anio"></span><span class="sr-kpi-s" data-f="anioUsa"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Cotizador</span><span class="sr-kpi-v" data-f="sug"></span><span class="sr-kpi-s" data-f="nota"></span></div></div>`;
+// Reproductor del día, como uno de música: play/pausa, la hora y lo que pasa en ese momento,
+// la barra de 24 horas (la franja clara es el sol, de 6:25 a 18:25) y la velocidad.
+const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+const pct = (h) => `${((h / 24) * 100).toFixed(2)}%`;
+const player = `<div class="sr-player" role="group" aria-label="Reproductor del día">` +
+  `<button type="button" class="sr-play" data-play aria-label="Pausar el día" aria-pressed="true"><span class="sr-i-pause">${icon("M7 5h3.5v14H7zM13.5 5H17v14h-3.5z")}</span><span class="sr-i-play">${icon("M8 5.5v13l11-6.5z")}</span></button>` +
+  `<span class="sr-np"><span class="sr-clock" data-clock>12:30</span><span class="sr-readout" data-readout aria-hidden="true"></span></span>` +
+  `<input class="sr-scrub" type="range" data-scrub min="0" max="24" step="0.05" value="${START}" aria-label="Hora del día" style="--sr-sale:${pct(SALIDA)};--sr-pone:${pct(PUESTA)}">` +
+  `<span class="sr-speeds" role="group" aria-label="Velocidad del día">` +
+  [["Normal", 0.25], ["Rápido", 1], ["Súper rápido", 3]].map(([label, rate], i) => `<button type="button" class="sr-speed" data-speed="${rate}" aria-pressed="${i === 0}">${label}</button>`).join("") +
+  `</span></div>`;
 
 const caption =
   `Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home. El techo lleva el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, sin uniones. En la esquina se ven el concreto con una grieta reparada, el imprimador y la capa; cada pata de la estructura, el tubo de ventilación, la bota del aire y la unidad de aire van sobre sellos de Roof Patch. ` +
@@ -669,34 +625,37 @@ const plate = k
   .plateHtml({
     fig: "Fig 1",
     title: "Solar y Roofing",
-    hint: "Puntero o ← → cambia la hora",
+    hint: "",
     readout: "",
     keys: [
       { mark: "dashed", label: "Energía: corre en el sentido del flujo, más rápido con más kW" },
-      { mark: "lit", label: "Aguja: la hora del día" },
-      { mark: "flat", label: "Horas de sol en el reloj" },
       { mark: "raised", label: "Capas del techo en la esquina: concreto, imprimador, silicona" },
       { mark: "dim", label: "Placas que ya tenía el cliente: vidrio claro" },
     ],
     caption,
-    body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Mueve el puntero o usa las flechas para cambiar la hora del día." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>${ficha}`,
+    body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Usa las flechas para cambiar la hora del día y la barra espaciadora para pausar." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>${player}`,
   })
   .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
-  .replace('data-mark="flat"', 'data-mark="flat" data-day');
+  // la lectura en vivo va dentro del reproductor, no en la esquina
+  .replace('<span class="iso-plate-corner" data-corner="readout" data-readout></span>', "")
+  .replace('<div class="iso-stage', `${ficha}<div class="iso-stage`);
+if (plate.includes('data-corner="readout"')) throw new Error("readout corner still in the plate");
 // La leyenda y el pie van plegados debajo de las dos columnas: solo ocupan lugar si se abren.
 const legendAt = plate.indexOf('<figcaption class="iso-legend">');
 const legendEnd = plate.indexOf("</figcaption>", legendAt) + "</figcaption>".length;
 const legendBody = plate.slice(legendAt, legendEnd).replace('<figcaption class="iso-legend">', '<div class="iso-legend sr-notes">').replace(/<\/figcaption>$/, "</div>");
-const legend = `<details class="sr-more"><summary>Más información: cómo leer la figura y de dónde salen los números</summary>${about}${legendBody}</details>`;
-const layout = `<div class="sr-layout"><div class="sr-main">${plate.slice(0, legendAt) + plate.slice(legendEnd)}</div><aside class="sr-side" aria-label="Controles">${controls}</aside></div>${legend}`;
+const legend = `<details class="sr-more"><summary>Cómo leer la figura y de dónde salen los números</summary>${about}${legendBody}</details>`;
+// En pantalla ancha el título, los controles y "Más información" van en la columna derecha,
+// y la tarjeta con la casa ocupa todo el alto de la ventana a la izquierda.
+const layout = `<div class="sr-layout">${intro}<div class="sr-main">${plate.slice(0, legendAt) + plate.slice(legendEnd)}</div><aside class="sr-side" aria-label="Controles">${controls}${legend}</aside></div>`;
 
 const strip = (file) => readFileSync(join(HERE, file), "utf8").replace(/^export /gm, "");
 const notice = `/* Kit de figuras isométricas Anatomy (github.com/wheresryan22/anatomy), licencia MIT, © 2026 Ryan. Ver vendor/anatomy/LICENSE. */\n`;
 const LIVE = strip("live.js").replace("__DATA__", JSON.stringify(DATA));
 const page = k
-  .pageHtml({ title: "Solar y Roofing · Windmar Home", theme: "light", body: `<style>${CSS}</style>${intro}${layout}`, script: notice + kitScript() + strip("model.mjs") + LIVE, width: 760 })
+  .pageHtml({ title: "Solar y Roofing · Windmar Home", theme: "light", body: `<style>${CSS}</style>${layout}`, script: notice + kitScript() + strip("model.mjs") + LIVE, width: 760 })
   .replace('<html lang="en">', '<html lang="es">')
-  .replace("<head>", `<head><meta name="description" content="Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.">`);
+  .replace("<head>", `<head><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"><meta name="description" content="Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.">`);
 mkdirSync(join(ROOT, "public"), { recursive: true });
 writeFileSync(join(ROOT, "public", "index.html"), page);
 console.log("wrote public/index.html", `${(page.length / 1024).toFixed(0)} KB`, `${R.items.length} items`, `${R.solids.length} solids`, `${R.routes.length} routes`, `scale ${KS.toFixed(3)}`);

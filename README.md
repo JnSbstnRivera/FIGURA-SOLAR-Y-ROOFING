@@ -8,9 +8,9 @@ Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Wi
 
 ## Qué se puede hacer
 
-En pantalla ancha todo cabe en una sola pantalla: la figura a la izquierda, con la ficha en su esquina, y los controles a la derecha, con placas y baterías arriba. Solo se baja si se abre "Más información" o la tabla de los 12 meses. En pantallas angostas los controles quedan justo debajo de la figura.
+En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con todo el alto de la ventana, y el título y los controles a la derecha, con placas y baterías arriba. La ficha va al lado de la casa (en columna en una laptop, en una franja arriba en una pantalla más alta) y el reproductor del día flota en la esquina de abajo a la derecha, donde el dibujo no tiene nada. Solo se baja si se abre "Cómo leer la figura y de dónde salen los números" o la tabla de los 12 meses. En el teléfono la casa va primero, luego el reproductor, la ficha y los controles.
 
-- **Cambiar la hora** con el puntero sobre la figura, con las flechas del teclado o con las escenas (Madrugada, Mañana, Tarde, Noche). Si nadie la toca, el día corre solo.
+- **Correr el día como en un reproductor de música:** play y pausa, la barra de 24 horas (la franja clara es el sol, de 6:25 a 18:25) y tres velocidades: Normal (media hora cada 2 segundos), Rápido (una hora por segundo) y Súper rápido (tres horas por segundo). Al lado de la hora se lee lo que pasa en ese momento: kW de las placas, % de batería y kWh enviados a LUMA o tomados de LUMA en el día. También se salta de hora con las escenas (Madrugada, Mañana, Tarde, Noche) o con el teclado sobre la figura: flechas (con Mayús, de 3 en 3 horas) y la barra espaciadora para pausar. Pasar el mouse por encima ya no cambia la hora. Con el movimiento reducido del sistema el día no corre solo y queda la barra.
 - **Escribir el consumo de cada mes**, como en la factura de LUMA: eliges un mes y escribes sus kWh, arrastras su barra en la gráfica o llenas los 12 meses de una vez. Con el promedio y el mes pico, la regla del cotizador de LUMA de Sun Bot sugiere las placas nuevas y las baterías.
 - **Sumar y quitar:**
   - placas nuevas de 410 W;
@@ -18,11 +18,15 @@ En pantalla ancha todo cabe en una sola pantalla: la figura a la izquierda, con 
   - de 0 a 4 Powerwall.
 
   Las placas caen al techo y se asientan, y las baterías entran deslizándose. Las que el cliente ya tenía se ven con vidrio claro. "Volver a lo sugerido" regresa a lo que dice el cotizador.
-- **Leer la ficha** de la esquina: placas y kW, producción al mes, baterías, horas de respaldo de noche y cuánto cubren las placas el mes elegido y el año.
+- **Leer la ficha** al lado de la casa: placas y kW, producción al mes, baterías, horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
-- **Pasar a tema oscuro** y volver al claro.
+- **Pasar a tema oscuro** y volver al claro. Los dos usan la paleta oficial de Windmar Home y la letra Montserrat.
 
 ![De noche, en tema oscuro: la batería alimenta la casa](docs/oscuro.png)
+
+<img src="docs/telefono.png" width="260" alt="En el teléfono: la casa, el reproductor y la ficha">
+
+
 
 Las placas nuevas bajan al techo cuando se suman:
 
@@ -54,8 +58,8 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 |---|---|
 | `src/build.mjs` | Arma la figura: geometría, orden de pintado y la página |
 | `src/model.mjs` | Regla de dimensionamiento y modelo de energía del día; corre en la construcción y en la página |
-| `src/live.js` | Lo que se mueve: hora, flujo de energía, placas y baterías que entran y salen, ficha, gráfica, escenas y tema |
-| `src/page.css` | Estilos de la página |
+| `src/live.js` | Lo que se mueve: el reproductor del día, el flujo de energía, placas y baterías que entran y salen, ficha, gráfica, escenas y tema |
+| `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
 | `public/index.html` | La página construida, la que publica Vercel |
 | `vendor/anatomy/` | Kit de figuras isométricas Anatomy, con su licencia MIT |
 | `docs/` | Capturas |
