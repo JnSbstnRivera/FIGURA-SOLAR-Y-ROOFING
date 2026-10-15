@@ -605,44 +605,44 @@ const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puer
 const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
+// Panel de controles: en pantalla ancha va a la derecha de la figura; placas y baterías primero.
 const controls = `
 <div class="sr-controls">
-  <div class="sr-row" role="group" aria-label="Escenas del día">
-    <span class="sr-tag">Escena</span>
-    <button type="button" class="sr-btn" data-scene="5">Madrugada</button>
-    <button type="button" class="sr-btn" data-scene="10">Mañana</button>
-    <button type="button" class="sr-btn" data-scene="15">Tarde</button>
-    <button type="button" class="sr-btn" data-scene="21">Noche</button>
-    <button type="button" class="sr-btn sr-push" data-theme-toggle aria-pressed="false">Tema oscuro</button>
-  </div>
-  <p class="sr-now" data-now></p>
-  <section class="sr-group" aria-label="Consumo del cliente por mes">
+  <section class="sr-group" aria-label="Placas y baterías">
+    <p class="sr-tag">Placas y baterías</p>
+    <div class="sr-system">
+      <span class="sr-lab">Placas nuevas de ${BASE.vatios} W</span>${stepper("nuevas", "una placa nueva")}
+      <span class="sr-lab">Placas que ya tenía</span><span class="sr-inline">${stepper("existentes", "una placa que ya tenía")}<label>de <input class="sr-input sr-w" type="number" data-vatios min="${LIMITES.vatios[0]}" max="${LIMITES.vatios[1]}" step="5" inputmode="numeric" value="${EJEMPLO.existentes.w}" aria-label="Vatios de cada placa que ya tenía"> W</label></span>
+      <span class="sr-lab">Powerwall de ${BASE.bateria} kWh</span>${stepper("baterias", "una batería")}
+    </div>
+    <div class="sr-row"><button type="button" class="sr-btn" data-reset>Volver a lo sugerido</button><p class="sr-warn" data-warn></p></div>
+  </section>
+  <section class="sr-group" aria-label="Escenas del día">
+    <p class="sr-tag">Hora del día</p>
     <div class="sr-row">
-      <span class="sr-tag">Consumo</span>
+      <button type="button" class="sr-btn" data-scene="5">Madrugada</button>
+      <button type="button" class="sr-btn" data-scene="10">Mañana</button>
+      <button type="button" class="sr-btn" data-scene="15">Tarde</button>
+      <button type="button" class="sr-btn" data-scene="21">Noche</button>
+      <button type="button" class="sr-btn sr-push" data-theme-toggle aria-pressed="false">Tema oscuro</button>
+    </div>
+    <p class="sr-now" data-now></p>
+  </section>
+  <section class="sr-group" aria-label="Consumo del cliente por mes">
+    <p class="sr-tag">Consumo del cliente</p>
+    <div class="sr-row">
       <label>Mes <select class="sr-input" data-mes>${monthOptions}</select></label>
       <label><input class="sr-input" type="number" data-mes-kwh min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="${EJEMPLO.meses[EJEMPLO.mes]}" aria-label="Consumo del mes elegido en kWh"> kWh</label>
-      <label class="sr-push">Llenar los 12 meses con <input class="sr-input" type="number" data-todos min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="600"> kWh</label>
+    </div>
+    <div class="sr-row">
+      <label>Llenar los 12 meses con <input class="sr-input" type="number" data-todos min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="600"> kWh</label>
       <button type="button" class="sr-btn" data-fill>Llenar</button>
     </div>
     <figure class="sr-chart">
-      <div class="sr-chart-head"><span class="sr-chart-title">Consumo de cada mes y lo que cubren las placas</span><span class="sr-chart-keys"><span class="sr-key"><i class="sr-sw" data-k="placas"></i>Cubierto por las placas</span><span class="sr-key"><i class="sr-sw" data-k="luma"></i>De LUMA</span><span class="sr-key"><i class="sr-sw sr-sw-line"></i>Producción al mes</span></span></div>
-      <div class="sr-chart-body"><svg class="sr-chart-svg" data-chart-svg viewBox="0 0 680 196" role="group" aria-label="Consumo de cada mes. Arrastra una barra o usa las flechas arriba y abajo para cambiar el consumo de ese mes."></svg><div class="sr-tip" data-tip hidden></div></div>
+      <div class="sr-chart-head"><span class="sr-chart-title">Consumo de cada mes y lo que cubren las placas</span><span class="sr-chart-keys"><span class="sr-key"><i class="sr-sw" data-k="placas"></i>Cubren las placas</span><span class="sr-key"><i class="sr-sw" data-k="luma"></i>De LUMA</span><span class="sr-key"><i class="sr-sw sr-sw-line"></i>Producción al mes</span></span></div>
+      <div class="sr-chart-body"><svg class="sr-chart-svg" data-chart-svg role="group" aria-label="Consumo de cada mes. Arrastra una barra o usa las flechas arriba y abajo para cambiar el consumo de ese mes."></svg><div class="sr-tip" data-tip hidden></div></div>
       <details class="sr-table"><summary>Ver tabla de los 12 meses</summary><table><thead><tr><th>Mes</th><th>Consumo</th><th>Producción</th><th>Cubren las placas</th><th>De LUMA</th></tr></thead><tbody data-table></tbody></table></details>
     </figure>
-  </section>
-  <section class="sr-group" aria-label="Placas y baterías">
-    <div class="sr-row">
-      <span class="sr-tag">Placas</span>
-      ${stepper("nuevas", "una placa nueva")}<span>nuevas de ${BASE.vatios} W</span>
-      ${stepper("existentes", "una placa que ya tenía")}<span>que ya tenía, de</span>
-      <label><input class="sr-input" type="number" data-vatios min="${LIMITES.vatios[0]}" max="${LIMITES.vatios[1]}" step="5" inputmode="numeric" value="${EJEMPLO.existentes.w}" aria-label="Vatios de cada placa que ya tenía"> W</label>
-    </div>
-    <div class="sr-row">
-      <span class="sr-tag">Baterías</span>
-      ${stepper("baterias", "una batería")}<span>Powerwall de ${BASE.bateria} kWh</span>
-      <button type="button" class="sr-btn sr-push" data-reset>Volver a lo sugerido</button>
-    </div>
-    <p class="sr-warn" data-warn></p>
   </section>
 </div>`;
 const ficha = `<aside class="sr-ficha" aria-label="Ficha del sistema"><p class="sr-f-title">Ficha del sistema</p><dl>
@@ -678,14 +678,18 @@ const plate = k
     body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Mueve el puntero o usa las flechas para cambiar la hora del día." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>${ficha}`,
   })
   .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
-  .replace('data-mark="flat"', 'data-mark="flat" data-day')
-  .replace('<figcaption class="iso-legend">', `${controls}<figcaption class="iso-legend">`);
+  .replace('data-mark="flat"', 'data-mark="flat" data-day');
+// La leyenda y el pie van debajo de las dos columnas, a todo el ancho.
+const legendAt = plate.indexOf('<figcaption class="iso-legend">');
+const legendEnd = plate.indexOf("</figcaption>", legendAt) + "</figcaption>".length;
+const legend = plate.slice(legendAt, legendEnd).replace('<figcaption class="iso-legend">', '<div class="iso-legend sr-notes">').replace(/<\/figcaption>$/, "</div>");
+const layout = `<div class="sr-layout"><div class="sr-main">${plate.slice(0, legendAt) + plate.slice(legendEnd)}</div><aside class="sr-side" aria-label="Controles">${controls}</aside></div>${legend}`;
 
 const strip = (file) => readFileSync(join(HERE, file), "utf8").replace(/^export /gm, "");
 const notice = `/* Kit de figuras isométricas Anatomy (github.com/wheresryan22/anatomy), licencia MIT, © 2026 Ryan. Ver vendor/anatomy/LICENSE. */\n`;
 const LIVE = strip("live.js").replace("__DATA__", JSON.stringify(DATA));
 const page = k
-  .pageHtml({ title: "Solar y Roofing · Windmar Home", theme: "light", body: `<style>${CSS}</style>${intro}${plate}`, script: notice + kitScript() + strip("model.mjs") + LIVE, width: 720 })
+  .pageHtml({ title: "Solar y Roofing · Windmar Home", theme: "light", body: `<style>${CSS}</style>${intro}${layout}`, script: notice + kitScript() + strip("model.mjs") + LIVE, width: 760 })
   .replace('<html lang="en">', '<html lang="es">')
   .replace("<head>", `<head><meta name="description" content="Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.">`);
 mkdirSync(join(ROOT, "public"), { recursive: true });

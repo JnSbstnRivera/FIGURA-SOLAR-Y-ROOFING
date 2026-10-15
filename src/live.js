@@ -373,7 +373,8 @@ const NS = "http://www.w3.org/2000/svg";
 const chartSvg = doc("[data-chart-svg]");
 const tip = doc("[data-tip]");
 const table = doc("[data-table]");
-const CH = { x0: 46, x1: 606, top: 16, base: 158 };
+// La gráfica se dibuja al ancho real de su columna (1 unidad = 1 px), así el texto no se achica.
+const CH = { x0: 40, x1: 0, top: 18, base: 162, W: 0, H: 190 };
 const mk = (tag, attrs, parent) => {
   const el = document.createElementNS(NS, tag);
   for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
@@ -382,29 +383,49 @@ const mk = (tag, attrs, parent) => {
 };
 const gridG = mk("g", {}, chartSvg);
 const colsG = mk("g", {}, chartSvg);
-const prodLine = mk("line", { class: "sr-prod", x1: CH.x0, x2: CH.x1 }, chartSvg);
-const prodText = mk("text", { class: "sr-prod-text", x: CH.x1 + 8 }, chartSvg);
-mk("line", { class: "sr-grid sr-baseline", x1: CH.x0, x2: CH.x1, y1: CH.base, y2: CH.base }, chartSvg);
-const colW = (CH.x1 - CH.x0) / 12;
-const barW = Math.min(24, colW * 0.5);
+const prodLine = mk("line", { class: "sr-prod", x1: CH.x0 }, chartSvg);
+const prodText = mk("text", { class: "sr-prod-text" }, chartSvg);
+const baseLine = mk("line", { class: "sr-grid sr-baseline", x1: CH.x0, y1: CH.base, y2: CH.base }, chartSvg);
+let colW = 0;
+let barW = 0;
 const cols = Array.from({ length: 12 }, (_, i) => {
-  const cx = CH.x0 + colW * (i + 0.5);
   const g = mk("g", { class: "sr-col", tabindex: 0, role: "slider", "aria-valuemin": D.limites.mes[0], "aria-valuemax": D.limites.mes[1] }, colsG);
-  mk("rect", { class: "sr-hit", x: cx - colW / 2 + 1, y: CH.top - 10, width: colW - 2, height: CH.base - CH.top + 34 }, g);
+  const hit = mk("rect", { class: "sr-hit", y: CH.top - 10, height: CH.base - CH.top + 34 }, g);
   const placas = mk("path", { class: "sr-bar-placas" }, g);
   const luma = mk("path", { class: "sr-bar-luma" }, g);
-  const label = mk("text", { class: "sr-axis-text sr-month", x: cx, y: CH.base + 16, "text-anchor": "middle" }, g);
+  const label = mk("text", { class: "sr-axis-text sr-month", y: CH.base + 16, "text-anchor": "middle" }, g);
   label.textContent = MESES_CORTOS[i];
-  const val = mk("text", { class: "sr-val", x: cx, "text-anchor": "middle" }, g);
-  return { i, cx, g, placas, luma, val, show: { c: 0, p: 0 } };
+  const val = mk("text", { class: "sr-val", "text-anchor": "middle" }, g);
+  return { i, cx: 0, g, hit, label, placas, luma, val, show: { c: 0, p: 0 } };
 });
+function layoutChart() {
+  const width = Math.max(300, Math.round(chartSvg.parentElement.clientWidth));
+  if (width === CH.W) return;
+  CH.W = width;
+  CH.x1 = width - 66;
+  chartSvg.setAttribute("viewBox", `0 0 ${width} ${CH.H}`);
+  colW = (CH.x1 - CH.x0) / 12;
+  barW = Math.min(24, colW * 0.55);
+  for (const c of cols) {
+    c.cx = CH.x0 + colW * (c.i + 0.5);
+    c.hit.setAttribute("x", (c.cx - colW / 2 + 1).toFixed(1));
+    c.hit.setAttribute("width", (colW - 2).toFixed(1));
+    c.label.setAttribute("x", c.cx.toFixed(1));
+    c.val.setAttribute("x", c.cx.toFixed(1));
+  }
+  prodLine.setAttribute("x2", CH.x1);
+  prodText.setAttribute("x", CH.x1 + 8);
+  baseLine.setAttribute("x2", CH.x1);
+  gridTop = 0;
+  if (samples) renderChart();
+}
+let gridTop = 0;
 const chart = { top: 1000, topShow: 1000, prod: 0, prodShow: 0, frozen: null, dirty: true };
 const niceTop = (value) => {
   const raw = Math.max(100, value * 1.12);
   const step = [100, 200, 250, 500, 1000].find((s) => raw / s <= 5) ?? 1000;
   return Math.ceil(raw / step) * step;
 };
-let gridTop = 0;
 function drawGrid(top) {
   if (gridTop === top) return;
   gridTop = top;
@@ -535,7 +556,7 @@ const showTip = (c) => {
   line(`${fmt(Math.max(0, consumo - prod))} kWh`, "de LUMA");
   if (prod > consumo) line(`${fmt(prod - consumo)} kWh`, "sobran y van a LUMA");
   const box = chartSvg.getBoundingClientRect();
-  const scale = box.width / 680;
+  const scale = box.width / CH.W;
   tip.style.left = `${c.cx * scale}px`;
   tip.style.top = `${CH.top * scale}px`;
   tip.hidden = false;
@@ -543,7 +564,7 @@ const showTip = (c) => {
 let drag = null;
 const valueAt = (clientY) => {
   const box = chartSvg.getBoundingClientRect();
-  const y = ((clientY - box.top) / box.height) * 196;
+  const y = ((clientY - box.top) / box.height) * CH.H;
   const top = chart.frozen ?? chart.top;
   return clamp(Math.round(((CH.base - y) / (CH.base - CH.top)) * top / 10) * 10, D.limites.mes[0], D.limites.mes[1]);
 };
@@ -747,6 +768,8 @@ try {
   saved = localStorage.getItem("sr-theme");
 } catch {}
 setTheme(saved === "dark" ? "dark" : "light");
+layoutChart();
+new ResizeObserver(() => layoutChart()).observe(chartSvg.parentElement);
 recompute({ calm: true });
 stage.setAttribute("aria-valuetext", explain(target));
 draw(0, true);
