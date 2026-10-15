@@ -2,6 +2,8 @@
 
 Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Windmar Home** en Puerto Rico: el techo sellado, las placas, el inversor, la batería y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA.
 
+**En línea:** https://figura-solar-y-roofing.vercel.app
+
 ![La figura a las 3 de la tarde, con 32 placas y 2 Powerwall](docs/max-1500.png)
 
 ## Qué se puede hacer
@@ -30,6 +32,8 @@ npm run audit
 Construye y además audita la geometría: que ningún conducto atraviese nada, que cada extremo llegue a una pieza y que el orden de pintado sea el correcto. Tiene que terminar en `audit passed`.
 
 `npm run capture` y `npm run lines` sacan capturas y revisan que cada línea termine sobre algo; usan Google Chrome.
+
+Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre `node src/build.mjs` y sirve `public/`.
 
 ## Estructura
 
