@@ -9,15 +9,14 @@ import * as G from "../vendor/anatomy/kit/lathe.mjs";
 import { tubePieces, tubeSvg } from "../vendor/anatomy/kit/tube.mjs";
 import * as A from "../vendor/anatomy/kit/audit.mjs";
 import { kitScript } from "../vendor/anatomy/scripts/inline-kit.mjs";
-import { BASE, LIMITES, SALIDA, PUESTA, porPlaca, sistemaPara } from "./model.mjs";
+import { BASE, LIMITES, EJEMPLO, MESES, SALIDA, PUESTA, kwhPorPlacaDia, sugerencia } from "./model.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const W = 600;
-const H = 450;
+const H = 480;
 const AZ = 52;
 const EL = 33;
-const EJEMPLO = { promedio: 600, pico: 700 };
 
 // ---------- mundo: x = sur, y = este, z = arriba (unas 10.5 unidades por metro) ----------
 const PLATE = { x: -84, y: -110, w: 160, d: 218, r: 10 };
@@ -55,10 +54,9 @@ const TRUNK_Y = RAIL_END + 2.2;
 const TEE = { x: 36 - PANEL.l * Math.cos(BETA) - 3, y: TRUNK_Y, z: ZC, r: 1.9 };
 
 const INV = { x0: -26, x1: -10, y0: 24, y1: 32, z0: 14, z1: 32 };
-const BATS = [
-  { x0: -1, x1: 15, y0: 26, y1: 34, z0: 1.6, z1: 19 },
-  { x0: 17, x1: 33, y0: 26, y1: 34, z0: 1.6, z1: 19 },
-];
+// Powerwall a escala real (algo más anchos para que se lea la columna de luces); caben 4 junto a la pared
+const BAT = { w: 7.6, gap: 2, y0: 26, y1: 28.6, z0: 1.6, z1: 15.2 };
+const BATS = Array.from({ length: 4 }, (_, k) => ({ x0: -1 + k * (BAT.w + BAT.gap), x1: -1 + k * (BAT.w + BAT.gap) + BAT.w, y0: BAT.y0, y1: BAT.y1, z0: BAT.z0, z1: BAT.z1 }));
 const MAIN = { x0: -44, x1: -33, y0: 24, y1: 29, z0: 16, z1: 31 };
 const LB = { x0: -41, x1: -36, y0: 24, y1: 28.6, z0: 35.5, z1: 39.2 };
 const SOCKET = { x0: -60, x1: -50, y0: 24, y1: 31, z0: 17, z1: 31 };
@@ -82,7 +80,7 @@ const P = k.fitProjection(
   ],
   W,
   H,
-  { pad: 24, azimuth: AZ, elevation: EL },
+  { pad: 24, headroom: 36, azimuth: AZ, elevation: EL },
 );
 const V = G.viewOf(P);
 const KS = G.scaleOf(P);
@@ -310,7 +308,7 @@ for (let row = 0; row < ROWS; row++) {
 for (const { row, c, index } of SLOTS) {
   const xs = ROWS_XS[row];
   const yc = colY(c);
-  const attrs = ` data-slot="${index}"`;
+  const attrs = ` data-slot="${index}" data-kind="rack"`;
   const y0 = yc - (PANEL.w + PANEL.gap) / 2 - (c === 0 ? 1.4 : 0);
   const y1 = yc + (PANEL.w + PANEL.gap) / 2 + (c === COLS - 1 ? 1.4 : 0);
   RAIL_D.forEach((d, ri) => {
@@ -340,7 +338,7 @@ for (const { row, c, index } of SLOTS) {
   }
   const glass = path3([pt(-iu, -iv), pt(iu, -iv), pt(iu, iv), pt(-iu, iv)], true);
   const extra = `<path class="sr-sun" data-sun d="${glass}"/>` + Ln(glass, { tone: "lo" }) + Ln(cells.join(""), { tone: "faint" });
-  prism(`panel.s${index}`, F, [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]], 0, PANEL.t, { tone: "hi" }, { extra, wrap: "sr-panel", attrs });
+  prism(`panel.s${index}`, F, [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]], 0, PANEL.t, { tone: "hi" }, { extra, wrap: "sr-panel", attrs: ` data-slot="${index}" data-kind="panel"` });
 }
 
 // cajas de fila en el extremo este del riel delantero, y el conducto que las recoge
@@ -432,20 +430,19 @@ const rect = (x0, x1, z0, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
     Dots([at([INV.x0 + 1.4, y, INV.z1 - 1.4]), at([INV.x1 - 1.4, y, INV.z1 - 1.4]), at([INV.x0 + 1.4, y, INV.z0 + 1.4]), at([INV.x1 - 1.4, y, INV.z0 + 1.4])], { size: 0.4 });
   box("inverter", [INV.x0, INV.y0, INV.z0], [INV.x1, INV.y1, INV.z1], { tone: "hi" }, { r: 0.8, steps: 3, bevel: 0.5, extra: extra + Ln(fins, { tone: "lo" }) });
 }
-box("battery.pad", [BATS[0].x0 - 2, PLINTH.y + PLINTH.d, 0], [BATS[1].x1 + 2, BATS[0].y1 + 2, BATS[0].z0], { tone: "lo" }, { r: 0.4 });
 const LEDS = 10;
 BATS.forEach((B, bi) => {
+  box(`battery${bi + 1}.pad`, [B.x0 - 1, PLINTH.y + PLINTH.d, 0], [B.x1 + 1, B.y1 + 2, B.z0], { tone: "lo" }, { r: 0.4, attrs: ` data-bat="${bi + 1}"` });
   const y = B.y1;
   const lx = (B.x0 + B.x1) / 2;
   const leds = [];
   for (let i = 0; i < LEDS; i++) {
-    const z0 = B.z0 + 3.4 + i * 1.15;
-    leds.push(`<path class="sr-led" data-led="${i}" d="${faceY(y, rect(lx - 1.2, lx + 1.2, z0, z0 + 0.8))}"/>`);
-    leds.push(Ln(faceY(y, rect(lx - 1.2, lx + 1.2, z0, z0 + 0.8)), { tone: "faint" }));
+    const z0 = B.z0 + 2.4 + i * 0.95;
+    leds.push(`<path class="sr-led" data-led="${i}" d="${faceY(y, rect(lx - 0.8, lx + 0.8, z0, z0 + 0.7))}"/>`);
+    leds.push(Ln(faceY(y, rect(lx - 0.8, lx + 0.8, z0, z0 + 0.7)), { tone: "faint" }));
   }
-  const vents = [0, 1, 2, 3].map((i) => Ln(faceY(y, rect(B.x0 + 2.4 + i * 1.2, B.x0 + 2.9 + i * 1.2, B.z0 + 3, B.z0 + 8)), { tone: "lo" })).join("");
-  const extra = Ln(faceY(y, rect(B.x0 + 1.2, B.x1 - 1.2, B.z0 + 1.2, B.z1 - 1.2)), { tone: "faint" }) + Ln(faceY(y, rect(lx - 2.2, lx + 2.2, B.z0 + 2.6, B.z0 + 3.4 + LEDS * 1.15 + 0.4)), { tone: "lo" }) + leds.join("") + vents;
-  box(`battery${bi + 1}`, [B.x0, B.y0, B.z0], [B.x1, B.y1, B.z1], { tone: "hi" }, { r: 1.2, steps: 4, bevel: 0.6, extra, attrs: bi ? ` data-bat="2"` : "" });
+  const extra = Ln(faceY(y, rect(B.x0 + 0.8, B.x1 - 0.8, B.z0 + 0.8, B.z1 - 0.8)), { tone: "faint" }) + Ln(faceY(y, rect(lx - 1.5, lx + 1.5, B.z0 + 1.9, B.z0 + 2.4 + (LEDS - 1) * 0.95 + 1.2)), { tone: "lo" }) + leds.join("");
+  box(`battery${bi + 1}`, [B.x0, B.y0, B.z0], [B.x1, B.y1, B.z1], { tone: "hi" }, { r: 0.8, steps: 4, bevel: 0.5, extra, attrs: ` data-bat="${bi + 1}" data-batbox` });
 });
 {
   const y = MAIN.y1;
@@ -499,8 +496,9 @@ box("pole.bracket", [BR.x0, BR.y0, BR.z0], [BR.x1, BR.y1, BR.z1], { tone: "mid" 
   const route = pipe("dc", points, 1.2, { channel: "pv", gaps: straps.map((s) => [s - 0.6, s + 0.6]) });
   [2, -9].forEach((x, i) => strap(`dc.strap${i}`, route, straps[i], "dc", 1.2, [[x - 0.6, SE[1], DC_Z - 0.8], [x + 0.6, DC_Y - 1.65 + 0.05, DC_Z + 0.8]]));
 }
-pipe("bat", [[INV.x1, 28, 28], [5, 28, 28], [5, 28, BATS[0].z1]], 1.2, { channel: "bat" });
-pipe("bat2", [[BATS[0].x1, 30, 13], [BATS[1].x0, 30, 13]], 1.2, { channel: "bat2", attrsOf: () => ` data-bat="2"` });
+const BAT1X = (BATS[0].x0 + BATS[0].x1) / 2;
+pipe("bat", [[INV.x1, 27.3, 26], [BAT1X, 27.3, 26], [BAT1X, 27.3, BATS[0].z1]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
+for (let k = 0; k < 3; k++) pipe(`bat.l${k + 1}`, [[BATS[k].x1, 27.3, 7], [BATS[k + 1].x0, 27.3, 7]], 0.8, { channel: `bat.l${k + 1}`, attrsOf: () => ` data-bat="${k + 2}"` });
 pipe("ac", [[INV.x0, 27.4, 24], [MAIN.x1, 27.4, 24]], 1.2, { channel: "ac" });
 pipe("casa", [[-38.5, 26.6, MAIN.z1], [-38.5, 26.6, LB.z0]], 1.2, { channel: "casa" });
 pipe("red", [[-41, 27.4, MAIN.z0], [-41, 27.4, 5.5], [-55, 27.4, 5.5], [-55, 27.4, SOCKET.z0]], 1.2, { channel: "red" });
@@ -579,8 +577,8 @@ A.settle(R, P);
 R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
-const SYSTEM = sistemaPara(EJEMPLO);
-const DATA = { P, start: START, flows: FLOWS, dial: { c: DIAL.c, r: DIAL.r, top: DIAL.z1, aNoon }, leds: LEDS, cols: COLS, ejemplo: EJEMPLO, limites: LIMITES };
+const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
+const DATA = { P, start: START, flows: FLOWS, dial: { c: DIAL.c, r: DIAL.r, top: DIAL.z1, aNoon }, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES };
 Object.assign(DATA.flows, {
   dc: "pv",
   "trunk-a": "row3",
@@ -588,7 +586,9 @@ Object.assign(DATA.flows, {
   "trunk-c": "row123",
   "trunk-s": "row0",
   bat: "bat",
-  bat2: "bat2",
+  "bat.l1": "batl1",
+  "bat.l2": "batl2",
+  "bat.l3": "batl3",
   ac: "ac",
   casa: "casa",
   red: "red",
@@ -597,11 +597,14 @@ Object.assign(DATA.flows, {
 });
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, una o dos baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil, la acometida al poste y un reloj de 24 horas en la base. Los trazos naranja corren por los conductos en el sentido en que va la energía.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil, la acometida al poste y un reloj de 24 horas en la base. Los trazos naranja corren por los conductos en el sentido en que va la energía.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [...back, `<g class="sr-scene">${groups.join("")}</g>`, `<g class="sr-dial">${dialFront.join("")}</g>`] });
 
 const CSS = readFileSync(join(HERE, "page.css"), "utf8");
-const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1><p>Mueve la hora del día y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe una factura y el techo se arma con la regla del cotizador.</p></header>`;
+const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1><p>Mueve la hora del día y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador.</p></header>`;
+const stepper = (key, label) =>
+  `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
+const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
 const controls = `
 <div class="sr-controls">
   <div class="sr-row" role="group" aria-label="Escenas del día">
@@ -610,22 +613,53 @@ const controls = `
     <button type="button" class="sr-btn" data-scene="10">Mañana</button>
     <button type="button" class="sr-btn" data-scene="15">Tarde</button>
     <button type="button" class="sr-btn" data-scene="21">Noche</button>
-    <button type="button" class="sr-btn sr-theme" data-theme-toggle aria-pressed="false">Tema oscuro</button>
+    <button type="button" class="sr-btn sr-push" data-theme-toggle aria-pressed="false">Tema oscuro</button>
   </div>
   <p class="sr-now" data-now></p>
-  <form class="sr-row sr-bill" data-bill novalidate>
-    <span class="sr-tag">Factura</span>
-    <label>promedio <input type="number" name="promedio" min="${LIMITES.promedio[0]}" max="${LIMITES.promedio[1]}" step="10" value="${EJEMPLO.promedio}" inputmode="numeric"> kWh/mes</label>
-    <label>mes pico <input type="number" name="pico" min="${LIMITES.pico[0]}" max="${LIMITES.pico[1]}" step="10" value="${EJEMPLO.pico}" inputmode="numeric"> kWh</label>
-    <output data-system>${SYSTEM.placas} placas · ${SYSTEM.kwp.toFixed(2)} kW · ${SYSTEM.baterias} Powerwall</output>
-  </form>
+  <section class="sr-group" aria-label="Consumo del cliente por mes">
+    <div class="sr-row">
+      <span class="sr-tag">Consumo</span>
+      <label>Mes <select class="sr-input" data-mes>${monthOptions}</select></label>
+      <label><input class="sr-input" type="number" data-mes-kwh min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="${EJEMPLO.meses[EJEMPLO.mes]}" aria-label="Consumo del mes elegido en kWh"> kWh</label>
+      <label class="sr-push">Llenar los 12 meses con <input class="sr-input" type="number" data-todos min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="600"> kWh</label>
+      <button type="button" class="sr-btn" data-fill>Llenar</button>
+    </div>
+    <figure class="sr-chart">
+      <div class="sr-chart-head"><span class="sr-chart-title">Consumo de cada mes y lo que cubren las placas</span><span class="sr-chart-keys"><span class="sr-key"><i class="sr-sw" data-k="placas"></i>Cubierto por las placas</span><span class="sr-key"><i class="sr-sw" data-k="luma"></i>De LUMA</span><span class="sr-key"><i class="sr-sw sr-sw-line"></i>Producción al mes</span></span></div>
+      <div class="sr-chart-body"><svg class="sr-chart-svg" data-chart-svg viewBox="0 0 680 196" role="group" aria-label="Consumo de cada mes. Arrastra una barra o usa las flechas arriba y abajo para cambiar el consumo de ese mes."></svg><div class="sr-tip" data-tip hidden></div></div>
+      <details class="sr-table"><summary>Ver tabla de los 12 meses</summary><table><thead><tr><th>Mes</th><th>Consumo</th><th>Producción</th><th>Cubren las placas</th><th>De LUMA</th></tr></thead><tbody data-table></tbody></table></details>
+    </figure>
+  </section>
+  <section class="sr-group" aria-label="Placas y baterías">
+    <div class="sr-row">
+      <span class="sr-tag">Placas</span>
+      ${stepper("nuevas", "una placa nueva")}<span>nuevas de ${BASE.vatios} W</span>
+      ${stepper("existentes", "una placa que ya tenía")}<span>que ya tenía, de</span>
+      <label><input class="sr-input" type="number" data-vatios min="${LIMITES.vatios[0]}" max="${LIMITES.vatios[1]}" step="5" inputmode="numeric" value="${EJEMPLO.existentes.w}" aria-label="Vatios de cada placa que ya tenía"> W</label>
+    </div>
+    <div class="sr-row">
+      <span class="sr-tag">Baterías</span>
+      ${stepper("baterias", "una batería")}<span>Powerwall de ${BASE.bateria} kWh</span>
+      <button type="button" class="sr-btn sr-push" data-reset>Volver a lo sugerido</button>
+    </div>
+    <p class="sr-warn" data-warn></p>
+  </section>
 </div>`;
+const ficha = `<aside class="sr-ficha" aria-label="Ficha del sistema"><p class="sr-f-title">Ficha del sistema</p><dl>
+<div><dt>Placas nuevas</dt><dd data-f="nuevas"></dd></div>
+<div><dt>Ya tenía</dt><dd data-f="existentes"></dd></div>
+<div><dt>Producción</dt><dd data-f="prod"></dd></div>
+<div><dt>Baterías</dt><dd data-f="bat"></dd></div>
+<div><dt>Respaldo</dt><dd data-f="respaldo"></dd></div>
+<div><dt data-f="mesNombre"></dt><dd data-f="mes"></dd></div>
+<div><dt>En el año</dt><dd data-f="anio"></dd></div>
+</dl><p class="sr-f-note" data-f="nota"></p></aside>`;
 
 const caption =
   `Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home. El techo lleva el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, sin uniones. En la esquina se ven el concreto con una grieta reparada, el imprimador y la capa; cada pata de la estructura, el tubo de ventilación, la bota del aire y la unidad de aire van sobre sellos de Roof Patch. ` +
-  `La factura arma el sistema con la regla del cotizador de LUMA de Sun Bot: la meta es el mayor entre 110 % del promedio y el mes pico; con ${BASE.horasSol} horas de sol pico y ${BASE.rendimiento} de rendimiento cada placa QCells de ${BASE.vatios} W da ${porPlaca().toFixed(2)} kWh al día, y los Powerwall de ${BASE.bateria} kWh cubren la mitad del consumo diario, al menos uno. Con la factura de ejemplo (${EJEMPLO.promedio} kWh al mes, pico ${EJEMPLO.pico}) salen ${SYSTEM.placas} placas (${SYSTEM.kwp.toFixed(2)} kW) y ${SYSTEM.baterias} Powerwall. ` +
+  `El consumo de los 12 meses arma el sistema con la regla del cotizador de LUMA de Sun Bot, la misma que usa con clientes que ya tienen placas: la meta es el mayor entre 110 % del promedio y el mes pico; con ${BASE.horasSol} horas de sol pico todo el año y ${BASE.rendimiento} de rendimiento, cada placa da sus vatios × ${BASE.horasSol} × ${BASE.rendimiento} ÷ 1000 kWh al día (${kwhPorPlacaDia(BASE.vatios).toFixed(2)} una QCells de ${BASE.vatios} W); a los kW que hacen falta se les restan los de las placas que ya tiene y el resto se cubre con placas de ${BASE.vatios} W. Los Powerwall de ${BASE.bateria} kWh cubren la mitad del consumo diario, al menos uno, y con batería el cotizador pide al menos ${BASE.placasConBateria} placas; el respaldo de noche es la fórmula de la herramienta Enseres (baterías × ${BASE.bateria} ÷ consumo diario × 24 horas). Con la factura de ejemplo (promedio 600 kWh, pico 700 en agosto) salen ${SUG.nuevas} placas nuevas y ${SUG.baterias} Powerwall. ` +
   `De madrugada la batería llega a su reserva y entra LUMA; en la mañana las placas cubren la casa y cargan la batería; ya llena, el sobrante sale a LUMA por el medidor bidireccional; de noche la batería alimenta la casa. El ventilador del aire gira más rápido cuanto más consume la casa. ` +
-  `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas y el sol del equinoccio (sale 6:25, se pone 18:25). El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el equipo de la pared está más grande que en la realidad para que se lea, y el Powerwall 3 trae el inversor integrado aunque aquí se dibuja aparte. No muestra dinero.`;
+  `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) y el mes de 30 días del cotizador. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. No muestra dinero.`;
 
 const plate = k
   .plateHtml({
@@ -638,9 +672,10 @@ const plate = k
       { mark: "lit", label: "Aguja: la hora del día" },
       { mark: "flat", label: "Horas de sol en el reloj" },
       { mark: "raised", label: "Capas del techo en la esquina: concreto, imprimador, silicona" },
+      { mark: "dim", label: "Placas que ya tenía el cliente: vidrio claro" },
     ],
     caption,
-    body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Mueve el puntero o usa las flechas para cambiar la hora del día." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>`,
+    body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Mueve el puntero o usa las flechas para cambiar la hora del día." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>${ficha}`,
   })
   .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
   .replace('data-mark="flat"', 'data-mark="flat" data-day')

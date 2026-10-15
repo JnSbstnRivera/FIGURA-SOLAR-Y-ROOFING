@@ -1,55 +1,199 @@
 
 const D = __DATA__;
 const P = D.P;
-const stage = document.querySelector(".iso-stage");
+const doc = (s) => document.querySelector(s);
+const stage = doc(".iso-stage");
 const svg = stage.querySelector("svg");
-const readout = document.querySelector("[data-readout]");
-const status = document.querySelector("[data-status]");
-const nowLine = document.querySelector("[data-now]");
-const bill = document.querySelector("[data-bill]");
-const systemOut = document.querySelector("[data-system]");
-const themeButton = document.querySelector("[data-theme-toggle]");
+const readout = doc("[data-readout]");
+const status = doc("[data-status]");
+const nowLine = doc("[data-now]");
+const themeButton = doc("[data-theme-toggle]");
 const sceneButtons = [...document.querySelectorAll("[data-scene]")];
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const narrow = matchMedia("(max-width: 560px)");
 const $ = (s) => svg.querySelector(s);
 const $$ = (s) => [...svg.querySelectorAll(s)];
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const fmt = (v, digits = 0) => v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const kw = (watts) => fmt(watts / 1000, 2);
+const cap = (text) => text[0].toUpperCase() + text.slice(1);
+const smooth = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
+// ---------- partes del dibujo ----------
 const flows = {};
 for (const el of $$("[data-flow]")) (flows[el.dataset.flow] ??= []).push({ el, s0: +el.dataset.s0 });
-const slots = $$("[data-slot]").map((el) => ({ el, i: +el.dataset.slot }));
-const rowParts = $$("[data-rows]").map((el) => ({ el, need: +el.dataset.rows }));
-const secondBattery = $$("[data-bat]");
 const suns = $$("[data-sun]");
 const leds = $$("[data-led]").map((el) => ({ el, i: +el.dataset.led }));
 const invLed = $('[data-part="inv-led"]');
 const needle = $('[data-part="needle"]');
 const lcd = $('[data-part="lcd"]');
 const fan = $('[data-part="fan"]');
+const UP = axisVector(P, [0, 0, 1]);
+const OUT = axisVector(P, [0, 1, 0]);
 
-// ---------- sistema según la factura ----------
-let system = null;
-let samples = null;
-let shares = null;
-let pvPeak = 1;
-const KEYS = ["pv", "load", "batt", "grid", "soc", "net"];
-function setSystem(next) {
-  system = next;
-  const sim = simulate(system);
-  samples = Object.fromEntries(KEYS.map((key) => [key, sim.rows.map((row) => row[key])]));
-  pvPeak = sim.pico;
-  const total = system.placas;
-  const inRow = (row) => Math.max(0, Math.min(D.cols, total - row * D.cols));
-  shares = { row0: inRow(0) / total, row3: inRow(3) / total, row23: (inRow(2) + inRow(3)) / total, row123: (inRow(1) + inRow(2) + inRow(3)) / total };
-  const rows = Math.ceil(total / D.cols);
-  for (const { el, i } of slots) el.style.display = i < total ? "" : "none";
-  for (const { el, need } of rowParts) el.style.display = rows >= need ? "" : "none";
-  for (const el of secondBattery) el.style.display = system.baterias >= 2 ? "" : "none";
-  systemOut.textContent = `${total} placas · ${system.kwp.toFixed(2)} kW · ${system.baterias} Powerwall`;
+// Cada pieza que entra o sale lleva su resorte: p va de 0 (fuera) a 1 (en su sitio).
+const moving = new Set();
+const shift = (els, vector, amount) => {
+  const t = amount > 0.01 ? `translate(${(vector[0] * amount).toFixed(2)} ${(vector[1] * amount).toFixed(2)})` : null;
+  for (const el of els) (t ? el.setAttribute("transform", t) : el.removeAttribute("transform"));
+};
+const showAll = (els, on) => {
+  for (const el of els) el.style.display = on ? "" : "none";
+};
+const slots = Array.from({ length: D.slots }, () => ({ panel: [], rack: [], p: 0, v: 0, target: -1, wait: 0, old: false }));
+for (const el of $$("[data-slot]")) slots[+el.dataset.slot][el.dataset.kind === "panel" ? "panel" : "rack"].push(el);
+for (const s of slots) {
+  s.apply = () => {
+    const out = s.p <= 0.002 && s.target <= 0;
+    showAll(s.panel, !out);
+    showAll(s.rack, !out);
+    if (out) return;
+    const p = Math.min(1, s.p);
+    shift(s.panel, UP, (1 - p) * 26);
+    for (const el of s.panel) el.style.opacity = smooth(0, 0.45, p).toFixed(3);
+    for (const el of s.rack) el.style.opacity = smooth(0, 0.6, p).toFixed(3);
+  };
 }
+const rowGroups = [1, 2, 3, 4].map((need) => ({ need, els: $$(`[data-rows="${need}"]`), p: 0, v: 0, target: -1, wait: 0 }));
+for (const r of rowGroups) {
+  r.apply = () => {
+    const out = r.p <= 0.002 && r.target <= 0;
+    showAll(r.els, !out);
+    for (const el of r.els) el.style.opacity = smooth(0, 1, Math.min(1, r.p)).toFixed(3);
+  };
+}
+const batGroups = [1, 2, 3, 4].map((n) => ({ box: $$(`[data-bat="${n}"][data-batbox]`), lines: $$(`[data-bat="${n}"]:not([data-batbox])`), p: 0, v: 0, target: -1, wait: 0 }));
+for (const b of batGroups) {
+  b.apply = () => {
+    const out = b.p <= 0.002 && b.target <= 0;
+    showAll(b.box, !out);
+    showAll(b.lines, !out);
+    if (out) return;
+    const p = Math.min(1, b.p);
+    shift(b.box, OUT, (1 - p) * 16);
+    for (const el of b.box) el.style.opacity = smooth(0, 0.6, p).toFixed(3);
+    for (const el of b.lines) el.style.opacity = smooth(0.5, 1, p).toFixed(3);
+  };
+}
+function stepSpring(o, dt) {
+  if (o.wait > 0) {
+    o.wait -= dt;
+    return true;
+  }
+  const w = 11;
+  const z = 0.8;
+  for (let i = 0; i < 4; i++) {
+    const h = dt / 4;
+    o.v += (w * w * (o.target - o.p) - 2 * z * w * o.v) * h;
+    o.p += o.v * h;
+  }
+  if (Math.abs(o.target - o.p) < 5e-4 && Math.abs(o.v) < 5e-3) {
+    o.p = o.target;
+    o.v = 0;
+    return false;
+  }
+  return true;
+}
+
+// ---------- sistema ----------
+const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes };
+let sug = null;
+let samples = null;
+let pvPeak = 1;
+let shares = { row0: 1, row3: 0, row23: 0, row123: 0 };
+let diaPV = 0;
+let roofFull = false;
+const KEYS = ["pv", "load", "batt", "grid", "soc", "net"];
+
+function recompute({ calm = false } = {}) {
+  S.existentes.n = clamp(S.existentes.n, 0, D.slots);
+  sug = sugerencia(S.meses, S.existentes);
+  if (!S.manual) {
+    S.nuevas = sug.nuevas;
+    S.baterias = sug.baterias;
+  }
+  roofFull = S.existentes.n + S.nuevas > D.slots;
+  S.nuevas = clamp(S.nuevas, 0, D.slots - S.existentes.n);
+  S.baterias = clamp(S.baterias, D.limites.baterias[0], D.limites.baterias[1]);
+  diaPV = produccionDia({ existentes: S.existentes, nuevas: S.nuevas });
+  const sim = simulate({ diaPV, baterias: S.baterias, diaCasa: S.meses[S.mes] / 30 });
+  samples = Object.fromEntries(KEYS.map((key) => [key, sim.rows.map((row) => row[key])]));
+  pvPeak = sim.pico || 1;
+  const total = S.existentes.n + S.nuevas;
+  const watts = (i) => (i < S.existentes.n ? S.existentes.w : D.vatios);
+  const inRow = [0, 0, 0, 0];
+  for (let i = 0; i < total; i++) inRow[Math.floor(i / D.cols)] += watts(i);
+  const sum = inRow.reduce((a, b) => a + b, 0) || 1;
+  shares = { row0: inRow[0] / sum, row3: inRow[3] / sum, row23: (inRow[2] + inRow[3]) / sum, row123: (inRow[1] + inRow[2] + inRow[3]) / sum };
+  setTargets(calm || still.matches);
+  updateFicha();
+  updateControls();
+  updateChart();
+  if (!frame) draw(0, true);
+}
+
+function setTargets(calm) {
+  const total = S.existentes.n + S.nuevas;
+  const appear = [];
+  const vanish = [];
+  slots.forEach((s, i) => {
+    const want = i < total ? 1 : 0;
+    const old = i < S.existentes.n;
+    if (old !== s.old) {
+      s.old = old;
+      for (const el of [...s.panel, ...s.rack]) el.toggleAttribute("data-old", old);
+    }
+    if (want !== s.target) {
+      s.target = want;
+      (want ? appear : vanish).push(s);
+    }
+  });
+  appear.forEach((s, k) => {
+    s.wait = k * 0.045;
+    if (s.p > 1) s.p = 1;
+    moving.add(s);
+  });
+  vanish.reverse().forEach((s, k) => {
+    s.wait = k * 0.03;
+    moving.add(s);
+  });
+  const rowsNeeded = Math.ceil(total / D.cols);
+  for (const r of rowGroups) {
+    const want = rowsNeeded >= r.need ? 1 : 0;
+    if (want !== r.target) {
+      r.target = want;
+      r.wait = want ? 0.12 : 0;
+      moving.add(r);
+    }
+  }
+  batGroups.forEach((b, i) => {
+    const want = i < S.baterias ? 1 : 0;
+    if (want !== b.target) {
+      b.target = want;
+      b.wait = want ? i * 0.08 : (3 - i) * 0.05;
+      moving.add(b);
+    }
+  });
+  if (calm) {
+    for (const o of moving) {
+      o.p = o.target;
+      o.v = 0;
+      o.wait = 0;
+      o.apply();
+    }
+    moving.clear();
+  } else {
+    for (const o of moving) o.apply();
+    run();
+  }
+}
+
 function sample(hour) {
   const n = samples.pv.length - 1;
-  const x = (Math.min(24, Math.max(0, hour)) / 24) * n;
+  const x = (clamp(hour, 0, 24) / 24) * n;
   const i = Math.min(n - 1, Math.floor(x));
   const f = x - i;
   const out = {};
@@ -57,6 +201,7 @@ function sample(hour) {
   return out;
 }
 // lo que lleva cada conducto, con signo en el sentido en que se dibujó la ruta
+const linkShare = (k) => (S.baterias > k ? (S.baterias - k) / S.baterias : 0);
 const CHANNEL = {
   pv: (s) => s.pv,
   row0: (s) => s.pv * shares.row0,
@@ -64,14 +209,12 @@ const CHANNEL = {
   row23: (s) => s.pv * shares.row23,
   row123: (s) => s.pv * shares.row123,
   bat: (s) => s.batt,
-  bat2: (s) => s.batt / 2,
+  batl1: (s) => s.batt * linkShare(1),
+  batl2: (s) => s.batt * linkShare(2),
+  batl3: (s) => s.batt * linkShare(3),
   ac: (s) => s.pv - s.batt,
   casa: (s) => s.load,
   red: (s) => s.grid,
-};
-const smooth = (a, b, x) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
 };
 
 // ---------- textos ----------
@@ -87,25 +230,384 @@ const clock = (h) => {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 };
 const toward = (net) => (net >= -0.005 ? "a" : "de");
+const batteryText = (s, short) => (S.baterias ? `${short ? "bat." : "batería"} ${Math.round(s.soc * 100)} %` : "sin batería");
 const say = (h, s) =>
   narrow.matches
-    ? `${clock(h)} · ${s.pv.toFixed(1)} kW · bat. ${Math.round(s.soc * 100)} % · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
-    : `${clock(h)} · placas ${s.pv.toFixed(1)} kW · batería ${Math.round(s.soc * 100)} % · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
+    ? `${clock(h)} · ${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
+    : `${MESES_CORTOS[S.mes]} · ${clock(h)} · placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
 function explain(h) {
   const s = sample(h);
-  const soc = Math.round(s.soc * 100);
   let what;
-  if (s.batt > 0.05 && s.grid > 0.05) what = "las placas cubren la casa, cargan la batería y el resto sale a LUMA";
+  if (!S.baterias) {
+    if (s.grid > 0.05) what = "las placas cubren la casa y, sin batería, el sobrante sale a LUMA";
+    else if (s.pv > 0.05) what = "las placas no alcanzan y, sin batería, LUMA completa";
+    else what = "no hay sol ni batería: la casa toma de LUMA";
+  } else if (s.batt > 0.05 && s.grid > 0.05) what = "las placas cubren la casa, cargan la batería y el resto sale a LUMA";
   else if (s.batt > 0.05) what = "las placas cubren la casa y cargan la batería";
   else if (s.grid > 0.05) what = "las placas cubren la casa; con la batería llena, el sobrante sale a LUMA";
   else if (s.batt < -0.05) what = s.pv > 0.05 ? "las placas ya no alcanzan y la batería completa lo que falta" : "no hay sol: la batería alimenta la casa";
   else if (s.grid < -0.05) what = s.pv > 0.05 ? "la batería está en su reserva; las placas y LUMA alimentan la casa" : "la batería llegó a su reserva y la casa toma de LUMA";
   else what = "las placas cubren justo lo que usa la casa";
   const day = `${s.net >= -0.005 ? "enviados a" : "tomados de"} LUMA en el día: ${Math.abs(s.net).toFixed(1)} kWh`;
-  return `${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${s.load.toFixed(1)} kW, batería ${soc} %; ${day}.`;
+  const bat = S.baterias ? `batería ${Math.round(s.soc * 100)} %` : "sin batería";
+  return `${cap(MESES[S.mes])}, ${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${s.load.toFixed(1)} kW, ${bat}; ${day}.`;
 }
 
-// ---------- bucle ----------
+// ---------- ficha ----------
+const F = Object.fromEntries([...document.querySelectorAll("[data-f]")].map((el) => [el.dataset.f, el]));
+function updateFicha() {
+  const prodMes = diaPV * 30;
+  const consumo = S.meses[S.mes];
+  const anual = S.meses.reduce((a, b) => a + b, 0);
+  const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)} %` : "—");
+  F.nuevas.textContent = `${S.nuevas} × ${D.vatios} W · ${kw(S.nuevas * D.vatios)} kW`;
+  F.existentes.textContent = S.existentes.n ? `${S.existentes.n} × ${S.existentes.w} W · ${kw(S.existentes.n * S.existentes.w)} kW` : "ninguna";
+  F.prod.textContent = `${fmt(prodMes)} kWh/mes · ${fmt(diaPV, 1)} al día`;
+  F.bat.textContent = S.baterias ? `${S.baterias} Powerwall · ${fmt(S.baterias * BASE.bateria, 1)} kWh` : "sin batería";
+  F.respaldo.textContent = S.baterias ? `${Math.round(respaldoHoras(S.baterias, consumo / 30))} h con el consumo de ${MESES[S.mes]}` : "—";
+  F.mesNombre.textContent = cap(MESES[S.mes]);
+  F.mes.textContent = `usa ${fmt(consumo)} kWh · cubre ${pct(prodMes, consumo)}`;
+  F.anio.textContent = `usa ${fmt(anual)} kWh · cubre ${pct(prodMes * 12, anual)}`;
+  const same = S.nuevas === sug.nuevas && S.baterias === sug.baterias;
+  const delta = S.nuevas - sug.nuevas;
+  F.nota.textContent = same ? "Es lo que sugiere el cotizador." : `Sugerido: ${sug.nuevas} nuevas y ${sug.baterias} Powerwall${delta ? ` (${delta > 0 ? "+" : "−"}${Math.abs(delta)})` : ""}.`;
+}
+
+// ---------- controles ----------
+const out = Object.fromEntries([...document.querySelectorAll("[data-v]")].map((el) => [el.dataset.v, el]));
+const steppers = Object.fromEntries([...document.querySelectorAll("[data-stepper]")].map((el) => [el.dataset.stepper, el]));
+const mesSelect = doc("[data-mes]");
+const mesInput = doc("[data-mes-kwh]");
+const todosInput = doc("[data-todos]");
+const vatiosInput = doc("[data-vatios]");
+const resetButton = doc("[data-reset]");
+const warn = doc("[data-warn]");
+function updateControls() {
+  const total = S.existentes.n + S.nuevas;
+  out.nuevas.textContent = String(S.nuevas);
+  out.existentes.textContent = String(S.existentes.n);
+  out.baterias.textContent = String(S.baterias);
+  const set = (key, canDown, canUp) => {
+    const [down, up] = steppers[key].querySelectorAll("button");
+    down.disabled = !canDown;
+    up.disabled = !canUp;
+  };
+  set("nuevas", S.nuevas > 0, total < D.slots);
+  set("existentes", S.existentes.n > 0, S.existentes.n < D.slots);
+  set("baterias", S.baterias > D.limites.baterias[0], S.baterias < D.limites.baterias[1]);
+  resetButton.disabled = !S.manual;
+  if (+mesSelect.value !== S.mes) mesSelect.value = String(S.mes);
+  if (document.activeElement !== mesInput) mesInput.value = String(S.meses[S.mes]);
+  const notes = [];
+  if (total === 0) notes.push("Sin placas, toda la energía viene de LUMA.");
+  if (S.baterias > 0 && total > 0 && total < BASE.placasConBateria) notes.push(`Con batería, el cotizador pide al menos ${BASE.placasConBateria} placas.`);
+  if (roofFull) notes.push(`En este techo caben ${D.slots} placas; las que faltan no se dibujan.`);
+  warn.textContent = notes.join(" ");
+}
+for (const [key, box] of Object.entries(steppers)) {
+  box.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-d]");
+    if (!button || button.disabled) return;
+    const d = +button.dataset.d;
+    if (key === "nuevas") {
+      S.nuevas += d;
+      S.manual = true;
+    } else if (key === "existentes") S.existentes.n += d;
+    else {
+      S.baterias += d;
+      S.manual = true;
+    }
+    recompute();
+    announce();
+  });
+}
+resetButton.addEventListener("click", () => {
+  S.manual = false;
+  recompute();
+  announce();
+});
+vatiosInput.addEventListener("change", () => {
+  S.existentes.w = clamp(Math.round(parseFloat(vatiosInput.value) || D.ejemplo.existentes.w), D.limites.vatios[0], D.limites.vatios[1]);
+  vatiosInput.value = String(S.existentes.w);
+  recompute();
+  announce();
+});
+mesSelect.addEventListener("change", () => selectMonth(+mesSelect.value));
+const readMonth = () => {
+  const v = parseFloat(mesInput.value);
+  if (!Number.isFinite(v)) return;
+  S.meses[S.mes] = clamp(Math.round(v), D.limites.mes[0], D.limites.mes[1]);
+  recompute();
+};
+let typing = 0;
+mesInput.addEventListener("input", () => {
+  clearTimeout(typing);
+  typing = setTimeout(readMonth, 250);
+});
+mesInput.addEventListener("change", () => {
+  readMonth();
+  mesInput.value = String(S.meses[S.mes]);
+  announce();
+});
+doc("[data-fill]").addEventListener("click", () => {
+  const v = clamp(Math.round(parseFloat(todosInput.value) || 0), D.limites.mes[0], D.limites.mes[1]);
+  todosInput.value = String(v);
+  S.meses = S.meses.map(() => v);
+  recompute();
+  announce();
+});
+function selectMonth(i) {
+  S.mes = clamp(i, 0, 11);
+  recompute();
+}
+let quietSystem = 0;
+function announce() {
+  clearTimeout(quietSystem);
+  quietSystem = setTimeout(() => {
+    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.`;
+  }, 500);
+}
+
+// ---------- gráfica de 12 meses ----------
+const NS = "http://www.w3.org/2000/svg";
+const chartSvg = doc("[data-chart-svg]");
+const tip = doc("[data-tip]");
+const table = doc("[data-table]");
+const CH = { x0: 46, x1: 606, top: 16, base: 158 };
+const mk = (tag, attrs, parent) => {
+  const el = document.createElementNS(NS, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
+  if (parent) parent.appendChild(el);
+  return el;
+};
+const gridG = mk("g", {}, chartSvg);
+const colsG = mk("g", {}, chartSvg);
+const prodLine = mk("line", { class: "sr-prod", x1: CH.x0, x2: CH.x1 }, chartSvg);
+const prodText = mk("text", { class: "sr-prod-text", x: CH.x1 + 8 }, chartSvg);
+mk("line", { class: "sr-grid sr-baseline", x1: CH.x0, x2: CH.x1, y1: CH.base, y2: CH.base }, chartSvg);
+const colW = (CH.x1 - CH.x0) / 12;
+const barW = Math.min(24, colW * 0.5);
+const cols = Array.from({ length: 12 }, (_, i) => {
+  const cx = CH.x0 + colW * (i + 0.5);
+  const g = mk("g", { class: "sr-col", tabindex: 0, role: "slider", "aria-valuemin": D.limites.mes[0], "aria-valuemax": D.limites.mes[1] }, colsG);
+  mk("rect", { class: "sr-hit", x: cx - colW / 2 + 1, y: CH.top - 10, width: colW - 2, height: CH.base - CH.top + 34 }, g);
+  const placas = mk("path", { class: "sr-bar-placas" }, g);
+  const luma = mk("path", { class: "sr-bar-luma" }, g);
+  const label = mk("text", { class: "sr-axis-text sr-month", x: cx, y: CH.base + 16, "text-anchor": "middle" }, g);
+  label.textContent = MESES_CORTOS[i];
+  const val = mk("text", { class: "sr-val", x: cx, "text-anchor": "middle" }, g);
+  return { i, cx, g, placas, luma, val, show: { c: 0, p: 0 } };
+});
+const chart = { top: 1000, topShow: 1000, prod: 0, prodShow: 0, frozen: null, dirty: true };
+const niceTop = (value) => {
+  const raw = Math.max(100, value * 1.12);
+  const step = [100, 200, 250, 500, 1000].find((s) => raw / s <= 5) ?? 1000;
+  return Math.ceil(raw / step) * step;
+};
+let gridTop = 0;
+function drawGrid(top) {
+  if (gridTop === top) return;
+  gridTop = top;
+  gridG.textContent = "";
+  const step = [100, 200, 250, 500, 1000].find((s) => top / s <= 5) ?? 1000;
+  for (let v = step; v <= top + 1e-6; v += step) {
+    const y = CH.base - (v / top) * (CH.base - CH.top);
+    mk("line", { class: "sr-grid", x1: CH.x0, x2: CH.x1, y1: y, y2: y }, gridG);
+    const t = mk("text", { class: "sr-axis-text", x: CH.x0 - 8, y: y + 3.5, "text-anchor": "end" }, gridG);
+    t.textContent = v >= 1000 ? `${fmt(v / 1000, v % 1000 ? 1 : 0)}K` : String(v);
+  }
+  const zero = mk("text", { class: "sr-axis-text", x: CH.x0 - 8, y: CH.base + 3.5, "text-anchor": "end" }, gridG);
+  zero.textContent = "0";
+}
+const barPath = (x, y0, y1, rounded) => {
+  const h = y0 - y1;
+  if (h < 0.4) return "";
+  const r = rounded ? Math.min(4, h, barW / 2) : 0;
+  const w = barW;
+  return r
+    ? `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 + r}V${y0}Z`
+    : `M${x} ${y0}V${y1}H${x + w}V${y0}Z`;
+};
+function updateChart() {
+  chart.prod = diaPV * 30;
+  if (!chart.frozen) chart.top = niceTop(Math.max(...S.meses, chart.prod));
+  chart.dirty = true;
+  if (still.matches || !visibleChart) settleChart();
+  for (const c of cols) {
+    const consumo = S.meses[c.i];
+    c.g.setAttribute("aria-label", `${cap(MESES[c.i])}: ${fmt(consumo)} kWh`);
+    c.g.setAttribute("aria-valuenow", String(consumo));
+    c.g.classList.toggle("is-sel", c.i === S.mes);
+  }
+  table.textContent = "";
+  for (let i = 0; i < 12; i++) {
+    const consumo = S.meses[i];
+    const cubre = Math.min(consumo, chart.prod);
+    const row = document.createElement("tr");
+    for (const value of [cap(MESES[i]), `${fmt(consumo)} kWh`, `${fmt(chart.prod)} kWh`, `${fmt(cubre)} kWh`, `${fmt(Math.max(0, consumo - chart.prod))} kWh`]) {
+      const cell = document.createElement(row.children.length ? "td" : "th");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    table.appendChild(row);
+  }
+  runChart();
+}
+function settleChart() {
+  chart.topShow = chart.top;
+  chart.prodShow = chart.prod;
+  for (const c of cols) c.show = { c: S.meses[c.i], p: chart.prod };
+}
+function renderChart() {
+  const top = chart.topShow;
+  drawGrid(chart.top);
+  const yOf = (v) => CH.base - (v / top) * (CH.base - CH.top);
+  for (const c of cols) {
+    const consumo = c.show.c;
+    const cubre = Math.min(consumo, c.show.p);
+    const luma = Math.max(0, consumo - c.show.p);
+    const x = c.cx - barW / 2;
+    const yCubre = yOf(cubre);
+    c.placas.setAttribute("d", barPath(x, CH.base, yCubre, luma < 0.5));
+    c.luma.setAttribute("d", luma >= 0.5 ? barPath(x, yCubre - 2, Math.min(yCubre - 2, yOf(consumo)), true) : "");
+    const sel = c.i === S.mes;
+    c.val.setAttribute("y", String(Math.min(yOf(consumo), yOf(c.show.p)) - 6));
+    c.val.textContent = sel ? fmt(S.meses[c.i]) : "";
+  }
+  const yp = yOf(chart.prodShow);
+  prodLine.setAttribute("y1", yp.toFixed(1));
+  prodLine.setAttribute("y2", yp.toFixed(1));
+  prodText.setAttribute("y", (yp + 3.5).toFixed(1));
+  prodText.textContent = `${fmt(chart.prod)} kWh`;
+}
+let chartFrame = 0;
+let chartLast = 0;
+let visibleChart = false;
+function chartTick(now) {
+  const dt = chartLast ? Math.min((now - chartLast) / 1000, 1 / 30) : 1 / 60;
+  chartLast = now;
+  const k = 1 - Math.exp(-dt / 0.14);
+  let busy = false;
+  const ease = (a, b) => {
+    const next = a + (b - a) * k;
+    if (Math.abs(b - next) > 0.3) busy = true;
+    return Math.abs(b - next) > 0.3 ? next : b;
+  };
+  chart.topShow = ease(chart.topShow, chart.top);
+  chart.prodShow = ease(chart.prodShow, chart.prod);
+  for (const c of cols) c.show = { c: ease(c.show.c, S.meses[c.i]), p: ease(c.show.p, chart.prod) };
+  renderChart();
+  chartFrame = busy ? requestAnimationFrame(chartTick) : 0;
+}
+function runChart() {
+  if (still.matches || !visibleChart) {
+    settleChart();
+    renderChart();
+    return;
+  }
+  if (!chartFrame) {
+    chartLast = 0;
+    chartFrame = requestAnimationFrame(chartTick);
+  }
+}
+new IntersectionObserver((entries) => {
+  visibleChart = entries[entries.length - 1].isIntersecting;
+  if (visibleChart) runChart();
+}).observe(chartSvg);
+
+// pasar el puntero, arrastrar y teclado sobre las barras
+const showTip = (c) => {
+  const consumo = S.meses[c.i];
+  const prod = diaPV * 30;
+  tip.textContent = "";
+  const line = (value, label) => {
+    const row = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    row.append(strong, ` ${label}`);
+    tip.appendChild(row);
+  };
+  const head = document.createElement("div");
+  head.textContent = cap(MESES[c.i]);
+  tip.appendChild(head);
+  line(`${fmt(consumo)} kWh`, "consumo");
+  line(`${fmt(Math.min(consumo, prod))} kWh`, "cubren las placas");
+  line(`${fmt(Math.max(0, consumo - prod))} kWh`, "de LUMA");
+  if (prod > consumo) line(`${fmt(prod - consumo)} kWh`, "sobran y van a LUMA");
+  const box = chartSvg.getBoundingClientRect();
+  const scale = box.width / 680;
+  tip.style.left = `${c.cx * scale}px`;
+  tip.style.top = `${CH.top * scale}px`;
+  tip.hidden = false;
+};
+let drag = null;
+const valueAt = (clientY) => {
+  const box = chartSvg.getBoundingClientRect();
+  const y = ((clientY - box.top) / box.height) * 196;
+  const top = chart.frozen ?? chart.top;
+  return clamp(Math.round(((CH.base - y) / (CH.base - CH.top)) * top / 10) * 10, D.limites.mes[0], D.limites.mes[1]);
+};
+for (const c of cols) {
+  c.g.addEventListener("pointerenter", () => showTip(c));
+  c.g.addEventListener("pointerleave", () => {
+    if (!drag) tip.hidden = true;
+  });
+  c.g.addEventListener("focus", () => {
+    if (S.mes !== c.i) selectMonth(c.i);
+    showTip(c);
+  });
+  c.g.addEventListener("blur", () => (tip.hidden = true));
+  c.g.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    drag = { c, id: event.pointerId };
+    chart.frozen = chart.top;
+    chartSvg.setPointerCapture(event.pointerId);
+    if (S.mes !== c.i) S.mes = c.i;
+    S.meses[c.i] = valueAt(event.clientY);
+    recompute();
+    showTip(c);
+  });
+  c.g.addEventListener("keydown", (event) => {
+    let next = null;
+    const stepKwh = event.shiftKey ? 50 : 10;
+    if (event.key === "ArrowUp") S.meses[c.i] = clamp(S.meses[c.i] + stepKwh, D.limites.mes[0], D.limites.mes[1]);
+    else if (event.key === "ArrowDown") S.meses[c.i] = clamp(S.meses[c.i] - stepKwh, D.limites.mes[0], D.limites.mes[1]);
+    else if (event.key === "ArrowRight") next = (c.i + 1) % 12;
+    else if (event.key === "ArrowLeft") next = (c.i + 11) % 12;
+    else return;
+    event.preventDefault();
+    if (next !== null) cols[next].g.focus();
+    else {
+      recompute();
+      showTip(c);
+      announce();
+    }
+  });
+}
+let dragFrame = 0;
+chartSvg.addEventListener("pointermove", (event) => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const v = valueAt(event.clientY);
+  if (v === S.meses[drag.c.i] || dragFrame) return;
+  dragFrame = requestAnimationFrame(() => {
+    dragFrame = 0;
+    S.meses[drag.c.i] = v;
+    recompute();
+    showTip(drag.c);
+  });
+});
+const endDrag = (event) => {
+  if (!drag || event.pointerId !== drag.id) return;
+  drag = null;
+  chart.frozen = null;
+  updateChart();
+  tip.hidden = true;
+  announce();
+};
+chartSvg.addEventListener("pointerup", endDrag);
+chartSvg.addEventListener("pointercancel", endDrag);
+
+// ---------- bucle de la figura ----------
 let hour = D.start;
 let target = D.start;
 let touring = !still.matches;
@@ -165,18 +667,22 @@ function tick(now) {
   }
   hour = calm ? target : hour + (target - hour) * (1 - Math.exp(-dt / 0.22));
   if (Math.abs(target - hour) < 1e-4) hour = target;
+  for (const o of moving) {
+    if (!stepSpring(o, dt)) moving.delete(o);
+    o.apply();
+  }
   draw(dt, calm);
   frame = visible && !calm ? requestAnimationFrame(tick) : 0;
 }
 const run = () => {
-  if (!frame && visible) {
+  if (!frame && visible && !still.matches) {
     last = 0;
     frame = requestAnimationFrame(tick);
   }
 };
 const steer = (next, hold = 3600) => {
   touring = false;
-  target = Math.min(23.99, Math.max(0, next));
+  target = clamp(next, 0, 23.99);
   stage.setAttribute("aria-valuenow", target.toFixed(2));
   stage.setAttribute("aria-valuetext", explain(target));
   clearTimeout(idle);
@@ -203,7 +709,7 @@ new IntersectionObserver(
 ).observe(stage);
 stage.addEventListener("pointermove", (event) => {
   const box = svg.getBoundingClientRect();
-  steer(Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)) * 24);
+  steer(clamp((event.clientX - box.left) / box.width, 0, 1) * 24);
 });
 stage.addEventListener("pointerleave", () => steer(target));
 stage.addEventListener("keydown", (event) => {
@@ -226,7 +732,7 @@ const setTheme = (theme) => {
   document.body.dataset.theme = theme;
   themeButton.setAttribute("aria-pressed", String(theme === "dark"));
   themeButton.textContent = theme === "dark" ? "Tema claro" : "Tema oscuro";
-  if (!frame) draw(0, true);
+  if (!frame && samples) draw(0, true);
 };
 themeButton.addEventListener("click", () => {
   const next = document.body.dataset.theme === "dark" ? "light" : "dark";
@@ -236,37 +742,11 @@ themeButton.addEventListener("click", () => {
   setTheme(next);
 });
 
-// ---------- factura ----------
-const clampTo = ([low, high], value, fallback) => (Number.isFinite(value) ? Math.min(high, Math.max(low, value)) : fallback);
-let billTimer = 0;
-const readBill = (write) => {
-  const promedio = clampTo(D.limites.promedio, parseFloat(bill.promedio.value), D.ejemplo.promedio);
-  const pico = clampTo(D.limites.pico, parseFloat(bill.pico.value), D.ejemplo.pico);
-  if (write) {
-    bill.promedio.value = String(promedio);
-    bill.pico.value = String(pico);
-  }
-  const next = sistemaPara({ promedio, pico });
-  setSystem(next);
-  status.textContent = `${next.placas} placas de 410 W, ${next.kwp.toFixed(2)} kW, ${next.baterias} Powerwall para ${promedio} kWh al mes con pico de ${pico}.`;
-  stage.setAttribute("aria-valuetext", explain(target));
-  if (!frame) draw(0, true);
-};
-bill.addEventListener("input", () => {
-  clearTimeout(billTimer);
-  billTimer = setTimeout(() => readBill(false), 250);
-});
-bill.addEventListener("change", () => readBill(true));
-bill.addEventListener("submit", (event) => {
-  event.preventDefault();
-  readBill(true);
-});
-
 let saved = null;
 try {
   saved = localStorage.getItem("sr-theme");
 } catch {}
-setSystem(sistemaPara(D.ejemplo));
 setTheme(saved === "dark" ? "dark" : "light");
+recompute({ calm: true });
 stage.setAttribute("aria-valuetext", explain(target));
 draw(0, true);

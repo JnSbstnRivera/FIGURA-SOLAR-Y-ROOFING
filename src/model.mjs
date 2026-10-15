@@ -1,33 +1,47 @@
-// Modelo de energía de un día: producción, consumo, batería y LUMA.
+// Modelo de energía: dimensionamiento por factura de 12 meses y el día de un mes.
 // Corre igual en Node (build) y en la página (se incrusta sin los `export`).
 // Las cifras marcadas "cotizador" son las de la herramienta LUMA de Sun Bot (Windmar Home);
 // las marcadas "supuesto" son del dibujo y lo dice el pie de figura.
 
 export const BASE = {
-  vatios: 410,                // placa QCells Q.PEAK DUO BLK ML-G10+ 410 (cotizador)
-  horasSol: 4.5,              // horas de sol pico en PR, NREL (cotizador)
+  vatios: 410,                // placa nueva QCells Q.PEAK DUO BLK ML-G10+ 410 (cotizador)
+  vatiosExistentes: 330,      // vataje por defecto de las placas que el cliente ya tiene (cotizador)
+  horasSol: 4.5,              // horas de sol pico en PR, NREL; el mismo todo el año (cotizador)
   rendimiento: 0.82,          // inversor, cableado, suciedad y temperatura (cotizador)
   holgura: 1.1,               // la meta es el mayor entre 110 % del promedio y el mes pico (cotizador)
   bateria: 13.5,              // kWh por Powerwall (cotizador)
   cubreBateria: 0.5,          // la batería cubre ~50 % del consumo diario, mínimo 1 (cotizador)
+  placasConBateria: 8,        // con batería, el cotizador pide al menos 8 placas
   reserva: 0.2,               // supuesto: reserva de respaldo que la batería no entrega
   mediodia: 12 + 25 / 60,     // supuesto: mediodía solar en San Juan (AST) en el equinoccio
   forma: 1.2,                 // supuesto: producción ∝ cos(ángulo horario)^1.2 en un día promedio
 };
-export const LIMITES = { promedio: [300, 1300], pico: [300, 1450], placas: 32 };
+export const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+export const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+export const LIMITES = { mes: [0, 3000], placas: 32, baterias: [0, 4], vatios: [200, 500] };
+// Factura de ejemplo: promedio 600 y pico 700 kWh (agosto), con el verano más alto por el aire.
+export const EJEMPLO = { meses: [540, 520, 540, 560, 600, 660, 690, 700, 670, 610, 560, 550], existentes: { n: 0, w: BASE.vatiosExistentes }, mes: 7 };
 
-export const porPlaca = () => (BASE.vatios / 1000) * BASE.horasSol * BASE.rendimiento;
+export const kwhPorPlacaDia = (w) => (w / 1000) * BASE.horasSol * BASE.rendimiento;
 
-// Regla del cotizador de LUMA: meta = max(promedio × 1.10, pico); kW = (meta / 30) / (4.5 × 0.82);
-// placas = ceil(kW × 1000 / 410); Powerwall = max(1, ceil(50 % del consumo diario / 13.5)).
-export function sistemaPara({ promedio, pico }) {
+// Regla del cotizador de LUMA, también para clientes que ya tienen placas:
+// meta = max(promedio × 1.10, pico); kW necesarios = (meta / 30) / (4.5 × 0.82);
+// placas nuevas = ceil((kW necesarios − kW existentes) × 1000 / 410); Powerwall = max(1, ceil(50 % del diario / 13.5)).
+export function sugerencia(meses, existentes) {
+  const promedio = meses.reduce((a, b) => a + b, 0) / meses.length;
+  const pico = Math.max(...meses);
   const meta = Math.max(promedio * BASE.holgura, pico);
   const diario = meta / 30;
-  const kw = diario / (BASE.horasSol * BASE.rendimiento);
-  const placas = Math.ceil(Math.round(kw * 1e6) / 1e3 / BASE.vatios);
+  const kwNecesario = diario / (BASE.horasSol * BASE.rendimiento);
+  const kwExistente = (existentes.n * existentes.w) / 1000;
+  const faltan = Math.max(0, kwNecesario - kwExistente);
+  const nuevas = Math.ceil(Math.round(faltan * 1e6) / 1e3 / BASE.vatios);
   const baterias = Math.max(1, Math.ceil((diario * BASE.cubreBateria) / BASE.bateria));
-  return { meta, diario, placas, baterias, kwp: (placas * BASE.vatios) / 1000, promedio, pico };
+  return { promedio, pico, meta, diario, kwNecesario, kwExistente, nuevas, baterias };
 }
+export const produccionDia = ({ existentes, nuevas }) => existentes.n * kwhPorPlacaDia(existentes.w) + nuevas * kwhPorPlacaDia(BASE.vatios);
+// Horas de respaldo de la herramienta Enseres de Sun Bot: min(24, baterías × 13.5 ÷ kWh al día × 24).
+export const respaldoHoras = (baterias, diario) => (diario > 0 ? Math.min(24, ((baterias * BASE.bateria) / diario) * 24) : 24);
 
 const RAD = Math.PI / 180;
 export const SALIDA = BASE.mediodia - 6;
@@ -60,14 +74,13 @@ const crudo = (t) => {
 };
 const HORAS_CONSUMO = integral(crudo);
 
-// Autoconsumo: las placas cubren la casa, el excedente carga la batería y el resto sale a LUMA;
+// Un día del mes elegido: las placas cubren la casa, el excedente carga la batería y el resto sale a LUMA;
 // sin sol, la batería entrega hasta su reserva y después entra LUMA. Sin pérdidas de batería (supuesto).
-export function simulate({ placas, baterias, promedio }, steps = 288) {
+export function simulate({ diaPV, baterias, diaCasa }, steps = 288) {
   const dt = 24 / steps;
   const cap = baterias * BASE.bateria;
-  const diaPV = placas * porPlaca();
   const pico = diaPV / HORAS_FORMA;
-  const escala = promedio / 30 / HORAS_CONSUMO;
+  const escala = diaCasa / HORAS_CONSUMO;
   const pvAt = (t) => pico * forma(t);
   const loadAt = (t) => crudo(t) * escala;
   let soc = cap * 0.5;
@@ -81,13 +94,13 @@ export function simulate({ placas, baterias, promedio }, steps = 288) {
       const pv = pvAt(t);
       const load = loadAt(t);
       const surplus = pv - load;
-      let batt;
+      let batt = 0;
       let grid;
       if (surplus >= 0) {
-        batt = Math.min(surplus, (cap - soc) / dt);
+        batt = cap ? Math.min(surplus, (cap - soc) / dt) : 0;
         grid = surplus - batt;
       } else {
-        const out = Math.min(-surplus, Math.max(0, soc - BASE.reserva * cap) / dt);
+        const out = cap ? Math.min(-surplus, Math.max(0, soc - BASE.reserva * cap) / dt) : 0;
         batt = -out;
         grid = surplus + out;
       }
@@ -99,5 +112,5 @@ export function simulate({ placas, baterias, promedio }, steps = 288) {
       }
     }
   }
-  return { rows, pico, diaPV, diaCasa: promedio / 30 };
+  return { rows, pico, diaPV, diaCasa };
 }
