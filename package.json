@@ -1,0 +1,14 @@
+{
+  "name": "figura-solar-y-roofing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node src/build.mjs",
+    "audit": "node src/build.mjs --audit",
+    "capture": "node vendor/anatomy/scripts/capture.mjs public/index.html --out docs/desk.png",
+    "lines": "node vendor/anatomy/scripts/lines.mjs public/index.html --out docs/lines.png"
+  }
+}
