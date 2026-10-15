@@ -731,7 +731,11 @@ function tick(now) {
   const calm = still.matches;
   if (playing && !calm && !scrubbing) {
     if (wait > 0) wait -= dt;
-    else target += rate * dt;
+    else {
+      // La hora avanza al mismo paso que el reloj, sin quedarse atrás: así la pausa la frena donde está.
+      target += rate * dt;
+      hour += rate * dt;
+    }
     if (target >= 24) {
       target -= 24;
       hour -= 24;
