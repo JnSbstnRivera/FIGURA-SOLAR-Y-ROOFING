@@ -11,6 +11,14 @@ const themeButton = doc("[data-theme-toggle]");
 const sceneButtons = [...document.querySelectorAll("[data-scene]")];
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const narrow = matchMedia("(max-width: 560px)");
+// En pantallas angostas la ficha baja de la tarjeta: se recorta la franja izquierda que tenía reservada.
+const VIEW = svg.getAttribute("viewBox").trim().split(" ").map(Number);
+const fitView = () => {
+  const [fx, fy] = D.ficha;
+  svg.setAttribute("viewBox", narrow.matches ? `${(VIEW[2] * fx).toFixed(1)} ${(VIEW[3] * fy).toFixed(1)} ${(VIEW[2] * (1 - fx)).toFixed(1)} ${(VIEW[3] * (1 - fy)).toFixed(1)}` : VIEW.join(" "));
+};
+fitView();
+narrow.addEventListener("change", fitView);
 const $ = (s) => svg.querySelector(s);
 const $$ = (s) => [...svg.querySelectorAll(s)];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -255,22 +263,57 @@ function explain(h) {
 
 // ---------- ficha ----------
 const F = Object.fromEntries([...document.querySelectorAll("[data-f]")].map((el) => [el.dataset.f, el]));
+// Los números de la ficha (producción, respaldo y porcentajes) cuentan hasta su valor nuevo
+// en vez de saltar; los conteos de placas y baterías cambian al instante.
+const ficha = { goal: null, show: null, frame: 0, last: 0 };
 function updateFicha() {
-  const prodMes = diaPV * 30;
   const consumo = S.meses[S.mes];
   const anual = S.meses.reduce((a, b) => a + b, 0);
-  const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)} %` : "—");
+  const prodMes = diaPV * 30;
+  ficha.goal = {
+    prod: prodMes,
+    dia: diaPV,
+    resp: S.baterias ? respaldoHoras(S.baterias, consumo / 30) : 0,
+    mes: consumo > 0 ? (prodMes / consumo) * 100 : 0,
+    anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
+  };
+  if (!ficha.show || still.matches) ficha.show = { ...ficha.goal };
   F.nuevas.textContent = `${S.nuevas} × ${D.vatios} W · ${kw(S.nuevas * D.vatios)} kW`;
   F.existentes.textContent = S.existentes.n ? `${S.existentes.n} × ${S.existentes.w} W · ${kw(S.existentes.n * S.existentes.w)} kW` : "ninguna";
-  F.prod.textContent = `${fmt(prodMes)} kWh/mes · ${fmt(diaPV, 1)} al día`;
   F.bat.textContent = S.baterias ? `${S.baterias} Powerwall · ${fmt(S.baterias * BASE.bateria, 1)} kWh` : "sin batería";
-  F.respaldo.textContent = S.baterias ? `${Math.round(respaldoHoras(S.baterias, consumo / 30))} h con el consumo de ${MESES[S.mes]}` : "—";
   F.mesNombre.textContent = cap(MESES[S.mes]);
-  F.mes.textContent = `usa ${fmt(consumo)} kWh · cubre ${pct(prodMes, consumo)}`;
-  F.anio.textContent = `usa ${fmt(anual)} kWh · cubre ${pct(prodMes * 12, anual)}`;
   const same = S.nuevas === sug.nuevas && S.baterias === sug.baterias;
   const delta = S.nuevas - sug.nuevas;
   F.nota.textContent = same ? "Es lo que sugiere el cotizador." : `Sugerido: ${sug.nuevas} nuevas y ${sug.baterias} Powerwall${delta ? ` (${delta > 0 ? "+" : "−"}${Math.abs(delta)})` : ""}.`;
+  renderFicha();
+  if (!ficha.frame && !still.matches) {
+    ficha.last = 0;
+    ficha.frame = requestAnimationFrame(fichaTick);
+  }
+}
+function renderFicha() {
+  const v = ficha.show;
+  const consumo = S.meses[S.mes];
+  const anual = S.meses.reduce((a, b) => a + b, 0);
+  F.prod.textContent = `${fmt(v.prod)} kWh/mes · ${fmt(v.dia, 1)} al día`;
+  F.respaldo.textContent = S.baterias ? `${Math.round(v.resp)} h con el consumo de ${MESES[S.mes]}` : "—";
+  F.mes.textContent = `usa ${fmt(consumo)} kWh · cubre ${consumo > 0 ? `${Math.round(v.mes)} %` : "—"}`;
+  F.anio.textContent = `usa ${fmt(anual)} kWh · cubre ${anual > 0 ? `${Math.round(v.anio)} %` : "—"}`;
+}
+function fichaTick(now) {
+  const dt = ficha.last ? Math.min((now - ficha.last) / 1000, 1 / 30) : 1 / 60;
+  ficha.last = now;
+  const k = 1 - Math.exp(-dt / 0.45);
+  let busy = false;
+  for (const key of Object.keys(ficha.goal)) {
+    const goal = ficha.goal[key];
+    const next = ficha.show[key] + (goal - ficha.show[key]) * k;
+    const close = Math.abs(goal - next) < (key === "dia" ? 0.02 : 0.2);
+    ficha.show[key] = close ? goal : next;
+    if (!close) busy = true;
+  }
+  renderFicha();
+  ficha.frame = busy ? requestAnimationFrame(fichaTick) : 0;
 }
 
 // ---------- controles ----------
@@ -374,7 +417,7 @@ const chartSvg = doc("[data-chart-svg]");
 const tip = doc("[data-tip]");
 const table = doc("[data-table]");
 // La gráfica se dibuja al ancho real de su columna (1 unidad = 1 px), así el texto no se achica.
-const CH = { x0: 40, x1: 0, top: 18, base: 162, W: 0, H: 190 };
+const CH = { x0: 40, x1: 0, top: 16, base: 140, W: 0, H: 166 };
 const mk = (tag, attrs, parent) => {
   const el = document.createElementNS(NS, tag);
   for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
@@ -507,7 +550,7 @@ let visibleChart = false;
 function chartTick(now) {
   const dt = chartLast ? Math.min((now - chartLast) / 1000, 1 / 30) : 1 / 60;
   chartLast = now;
-  const k = 1 - Math.exp(-dt / 0.14);
+  const k = 1 - Math.exp(-dt / 0.3);
   let busy = false;
   const ease = (a, b) => {
     const next = a + (b - a) * k;
@@ -639,7 +682,7 @@ let last = 0;
 let idle = 0;
 let quiet = 0;
 let spin = 0;
-const RATE = 0.8;
+const RATE = 0.45;
 const PERIOD = 6;
 const phase = {};
 const shown = {};
@@ -686,7 +729,7 @@ function tick(now) {
       hour -= 24;
     }
   }
-  hour = calm ? target : hour + (target - hour) * (1 - Math.exp(-dt / 0.22));
+  hour = calm ? target : hour + (target - hour) * (1 - Math.exp(-dt / 0.45));
   if (Math.abs(target - hour) < 1e-4) hour = target;
   for (const o of moving) {
     if (!stepSpring(o, dt)) moving.delete(o);

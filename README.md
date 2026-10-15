@@ -8,7 +8,7 @@ Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Wi
 
 ## Qué se puede hacer
 
-En pantalla ancha la página va en dos partes: la figura a la izquierda y los controles a la derecha, con placas y baterías arriba, así se suma o se quita sin bajar. En pantallas angostas los controles quedan justo debajo de la figura.
+En pantalla ancha todo cabe en una sola pantalla: la figura a la izquierda, con la ficha en su esquina, y los controles a la derecha, con placas y baterías arriba. Solo se baja si se abre "Más información" o la tabla de los 12 meses. En pantallas angostas los controles quedan justo debajo de la figura.
 
 - **Cambiar la hora** con el puntero sobre la figura, con las flechas del teclado o con las escenas (Madrugada, Mañana, Tarde, Noche). Si nadie la toca, el día corre solo.
 - **Escribir el consumo de cada mes**, como en la factura de LUMA: eliges un mes y escribes sus kWh, arrastras su barra en la gráfica o llenas los 12 meses de una vez. Con el promedio y el mes pico, la regla del cotizador de LUMA de Sun Bot sugiere las placas nuevas y las baterías.

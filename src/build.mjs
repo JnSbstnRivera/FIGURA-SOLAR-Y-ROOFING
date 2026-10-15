@@ -13,8 +13,11 @@ import { BASE, LIMITES, EJEMPLO, MESES, SALIDA, PUESTA, kwhPorPlacaDia, sugerenc
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const W = 600;
-const H = 480;
+const W = 760;
+const H = 600;
+// La esquina de arriba a la izquierda queda libre para la ficha: el dibujo se arma corrido a la derecha y abajo.
+const FICHA = 0.2;
+const FICHA_Y = 0.14;
 const AZ = 52;
 const EL = 33;
 
@@ -69,7 +72,7 @@ const AC = { x0: -44, x1: -30, y0: 12.5, y1: 18.5, z0: TOPZ + 2.4, z1: TOPZ + 12
 const DC_Y = 29.5;
 const DC_Z = 43;
 
-const P = k.fitProjection(
+const P = ((p) => ({ ...p, origin: [p.origin[0] + W * FICHA, p.origin[1] + H * FICHA_Y] }))(k.fitProjection(
   [
     ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
     [POLE.x, POLE.y, POLE.z1 + 1.4],
@@ -78,10 +81,10 @@ const P = k.fitProjection(
     [ROWS_XS[ROWS - 1] - PANEL.l, ARRAY_Y0, zLow + 5],
     [AC.x0, AC.y0, AC.z1],
   ],
-  W,
-  H,
-  { pad: 24, headroom: 36, azimuth: AZ, elevation: EL },
-);
+  W * (1 - FICHA),
+  H * (1 - FICHA_Y),
+  { pad: 16, azimuth: AZ, elevation: EL },
+));
 const V = G.viewOf(P);
 const KS = G.scaleOf(P);
 const at = (p) => k.iso(p, P);
@@ -578,7 +581,7 @@ R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
 const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
-const DATA = { P, start: START, flows: FLOWS, dial: { c: DIAL.c, r: DIAL.r, top: DIAL.z1, aNoon }, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES };
+const DATA = { P, ficha: [FICHA, FICHA_Y], start: START, flows: FLOWS, dial: { c: DIAL.c, r: DIAL.r, top: DIAL.z1, aNoon }, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES };
 Object.assign(DATA.flows, {
   dc: "pv",
   "trunk-a": "row3",
@@ -601,7 +604,8 @@ const LABEL_TEXT =
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [...back, `<g class="sr-scene">${groups.join("")}</g>`, `<g class="sr-dial">${dialFront.join("")}</g>`] });
 
 const CSS = readFileSync(join(HERE, "page.css"), "utf8");
-const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1><p>Mueve la hora del día y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador.</p></header>`;
+const intro = `<header class="sr-head"><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1></header>`;
+const about = `<p>Mueve la hora del día y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador.</p>`;
 const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
@@ -679,10 +683,11 @@ const plate = k
   })
   .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
   .replace('data-mark="flat"', 'data-mark="flat" data-day');
-// La leyenda y el pie van debajo de las dos columnas, a todo el ancho.
+// La leyenda y el pie van plegados debajo de las dos columnas: solo ocupan lugar si se abren.
 const legendAt = plate.indexOf('<figcaption class="iso-legend">');
 const legendEnd = plate.indexOf("</figcaption>", legendAt) + "</figcaption>".length;
-const legend = plate.slice(legendAt, legendEnd).replace('<figcaption class="iso-legend">', '<div class="iso-legend sr-notes">').replace(/<\/figcaption>$/, "</div>");
+const legendBody = plate.slice(legendAt, legendEnd).replace('<figcaption class="iso-legend">', '<div class="iso-legend sr-notes">').replace(/<\/figcaption>$/, "</div>");
+const legend = `<details class="sr-more"><summary>Más información: cómo leer la figura y de dónde salen los números</summary>${about}${legendBody}</details>`;
 const layout = `<div class="sr-layout"><div class="sr-main">${plate.slice(0, legendAt) + plate.slice(legendEnd)}</div><aside class="sr-side" aria-label="Controles">${controls}</aside></div>${legend}`;
 
 const strip = (file) => readFileSync(join(HERE, file), "utf8").replace(/^export /gm, "");

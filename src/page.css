@@ -37,13 +37,15 @@
 
 .sr-layout{display:grid;gap:18px;margin-top:22px}
 .sr-main .iso-figure{margin:0}
-.sr-notes{margin-top:24px}
+.sr-more{margin-top:16px}
+.sr-more>summary{cursor:pointer;width:fit-content;font:12px/1.4 var(--anatomy-mono);color:var(--anatomy-text)}
+.sr-more>summary:focus-visible{outline:1px solid var(--anatomy-muted);outline-offset:3px}
+.sr-more[open]>summary{margin-bottom:12px}
+.sr-more>p{margin:0 0 10px;max-width:72ch}
+.sr-notes{margin-top:0}
 @media (min-width:1100px){
-  .iso-page{width:min(1340px,100% - 48px);margin:28px auto 64px}
-  .sr-layout{grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:28px;align-items:start}
-}
-@media (min-width:1100px) and (min-height:720px){
-  .sr-main{position:sticky;top:16px}
+  .iso-page{width:min(1560px,100% - 40px);margin:24px auto 48px}
+  .sr-layout{grid-template-columns:minmax(0,1fr) 460px;gap:20px;align-items:start}
 }
 .sr-controls{display:grid;gap:14px;font:12px/1.45 var(--anatomy-mono);color:var(--anatomy-text)}
 .sr-group{display:grid;gap:10px;padding-top:12px;border-top:1px solid var(--anatomy-faint)}
@@ -105,4 +107,32 @@ input.sr-input{width:5.6em}
   .sr-push{margin-left:0}
   .sr-system{grid-template-columns:1fr}
   .sr-lab{margin-top:4px}
+}
+
+/* En pantalla ancha todo cabe en una pantalla: la tarjeta y el panel ocupan el alto de la ventana
+   y solo se baja si se abre "Más información" o la tabla. */
+@media (min-width:1100px) and (min-height:660px){
+  .iso-page{margin:12px auto}
+  .sr-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
+  .sr-head h1{margin:0;font-size:19px}
+  .sr-layout{margin-top:10px;height:calc(100vh - 96px);align-items:stretch}
+  .sr-main,.sr-main .iso-figure{height:100%;min-height:0}
+  .sr-main .iso-plate{height:100%;display:flex;flex-direction:column;padding:44px 20px}
+  .sr-main .iso-stage{flex:1 1 auto;min-height:0}
+  .sr-main .iso-svg{width:100%;height:100%}
+  .sr-side{height:100%;overflow-y:auto;padding-right:2px}
+  .sr-controls{gap:10px}
+  .sr-group{gap:8px;padding-top:10px}
+  .sr-btn,.sr-input{min-height:30px}
+  .sr-btn{padding:4px 9px}
+  .sr-now{min-height:0}
+  .sr-more{margin-top:12px}
+}
+@media (min-width:1100px) and (min-height:660px) and (max-height:820px){
+  .sr-controls{font-size:11.5px;gap:8px}
+  .sr-group{gap:6px;padding-top:8px}
+  .sr-btn,.sr-input{min-height:28px}
+  .sr-btn{padding:3px 8px}
+  .sr-pm{min-width:28px}
+  .sr-system{gap:6px 16px}
 }
