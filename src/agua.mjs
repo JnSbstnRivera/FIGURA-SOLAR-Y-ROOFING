@@ -1,7 +1,7 @@
 // Agua: cuánta usa la casa, cuánto le dura la cisterna y cuánto calienta el calentador solar en el día.
 // Corre igual en Node (build) y en la página (se incrusta sin los `export`).
-// Los equipos y la regla de calentador por personas son del cotizador Water de Sun Bot; lo marcado
-// "supuesto" es del dibujo y lo dice el pie de figura.
+// Los equipos y la regla del calentador por personas (productos.mjs) son del cotizador Water de Sun Bot; lo
+// marcado "supuesto" es del dibujo y lo dice el pie de figura.
 
 export const AGUA = {
   porPersona: 50,          // supuesto: galones al día por persona (Juan, 21-oct-2026)
@@ -32,9 +32,6 @@ const repartir = (bumps, base) => {
 };
 const USO = repartir([[6.8, 0.8, 1.0], [12.5, 1.2, 0.35], [15.8, 1.4, 0.25], [19.3, 1.0, 0.9], [21.6, 1.0, 0.4]], 0.04);
 const CALIENTE = repartir([[6.7, 0.7, 1.0], [12.6, 1.0, 0.12], [19.4, 0.9, 0.85]], 0.005);
-
-// El calentador que sugiere el cotizador para tantas personas.
-export const calentadorPara = (personas, modelos) => modelos.find((m) => personas >= m.personas[0] && personas <= m.personas[1]) ?? modelos[modelos.length - 1];
 
 // Un día de agua, paso por paso. `poa` es el sol sobre el plano de los colectores (W/m², pasos + 1 valores)
 // y `cortado` dice si la AAA no da servicio (la cisterna no se llena y baja con lo que se usa).

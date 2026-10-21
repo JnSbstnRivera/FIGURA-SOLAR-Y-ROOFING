@@ -26,7 +26,7 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
   - la cisterna: torre Eco 150 o Hércules 600 en el techo, Eco 500 o Eco 1,000 en el patio, con su bomba y su presurizado junto a la pared;
   - el corte de agua de la AAA: la cisterna deja de llenarse y baja con lo que se usa.
 
-  Al abrir la pestaña por primera vez bajan el calentador sugerido y la Hércules 600. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
+  Al abrir la pestaña por primera vez bajan el calentador sugerido y la Hércules 600. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. Las cisternas y el tanque del calentador llevan el logo de Windmar al frente, pegado a su curva como una calcomanía; la mirilla queda a su derecha. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
 - **Ver salir el sol y la luna:** el sol da la vuelta por fuera de la maqueta, siempre del lado de donde viene su luz: con las placas al sur sale por atrás a la derecha, a mediodía va arriba y de tarde baja por el frente a la izquierda, y las sombras caen del lado contrario. Nunca pasa por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
 - **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
@@ -80,11 +80,42 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 | `src/model.mjs` | Regla de dimensionamiento y modelo de energía del día; corre en la construcción y en la página |
 | `src/sol.mjs` | El sol y la luna del día, los rumbos de PVWatts, el año típico de PVGIS y lo que tapa el sol (acceso solar y forma del día); corre en la construcción y en la página |
 | `src/agua.mjs` | El día del agua: el uso por hora, el nivel de la cisterna, la temperatura del calentador solar, la resistencia que hace falta y la luz que ahorra; corre en la construcción y en la página |
+| `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (hoy el calentador solar y la cisterna), con sus modelos, sus partes y su nota; corre en la construcción y en la página |
+| `src/logo.mjs` | El logo de Windmar en mínimo (el sol, el molino y "windmar"), calcado del de Windmar Water de Sun Bot |
 | `src/live.js` | Lo que se mueve: el reproductor del día, el flujo de energía, placas y baterías que entran y salen, la brújula, el cielo, las sombras, ficha, gráfica, escenas y tema |
 | `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
 | `public/index.html` | La página construida, la que publica Vercel |
 | `vendor/anatomy/` | Kit de figuras isométricas Anatomy, con su licencia MIT |
 | `docs/` | Capturas |
+
+## El plano: agregar o quitar un producto
+
+Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) están en `src/productos.mjs`. Para agregar uno:
+
+1. **Una entrada en `PRODUCTOS`**, con:
+   - en qué pestaña va y sus títulos;
+   - cómo se nombra en las frases ("el calentador");
+   - sus modelos, con los datos del cotizador de Sun Bot;
+   - sus partes: las piezas que se ven solo con algunos modelos, como los colectores del calentador;
+   - la nota que dice el panel.
+
+   Si ocupa lugares de placas del techo, va en `lugares`. Si lleva el logo de Windmar, va `logo: true`.
+2. **Su dibujo en `DIBUJOS`** de `src/build.mjs`, con el mismo id:
+   - `lienzo(m)`: los puntos más altos de cada modelo, si sobresale de la casa;
+   - `cielo(m)`: su caja, para que el sol y la luna le den la vuelta;
+   - `dibujar(p)`: sus piezas con el kit. Cada pieza lleva `parte(id, modelo o parte)`. El logo se pega con `logoEnCilindro`.
+
+Lo demás sale solo:
+
+- su sección en el panel, con el punto naranja en el modelo que sugiere el cotizador si sus modelos dicen para cuántas personas son;
+- que sus piezas bajen y suban con resorte al escogerlas;
+- su sombra y, si va en el techo, lo que le quita al acceso solar y al TSRF de las placas;
+- los lugares de placas que ocupa;
+- el orden de pintado, sin mezclar modelos que nunca se ven juntos.
+
+Para quitarlo se borran las dos cosas. Lo que el producto haga en el día del agua o de la energía va aparte, en `agua.mjs` o `model.mjs`, según su `rol` (hoy `calentador` y `cisterna`).
+
+Las placas y los Powerwall no van en el plano. Son el sistema que arma el cotizador de LUMA: se cuentan, no se escogen, y tienen sus propios controles en la pestaña Energía.
 
 ## De dónde salen los números
 
@@ -118,7 +149,7 @@ El cotizador da la producción con las placas al sur y sin sombras. La figura la
   | Norte (0°) | 1,467 | 91 % |
 
   Con el sur, la figura da lo mismo que el cotizador; con otro rumbo se multiplica por su porcentaje. El cotizador (4.5 h × 0.82) es más conservador que PVWatts (1,347 contra 1,613 kWh por kW al año), por eso PVWatts se usa solo como proporción.
-- **Acceso solar** (Aurora): de todo el sol que le llegaría a cada placa en el año, directo en su plano más el difuso del cielo que ve, qué parte le llega con las sombras. Se calcula con el día típico de cada mes cada media hora, el sol directo y difuso del año típico de [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (base PVGIS-NSRDB) y las piezas del dibujo que pueden tapar el sol: el aire, el tubo de ventilación, el mástil, el poste, las cajas de fila, las otras placas y, si se pone, el tanque de agua. Sin el tanque da casi 100 %: lo que hay está lejos o es bajo.
+- **Acceso solar** (Aurora): de todo el sol que le llegaría a cada placa en el año, directo en su plano más el difuso del cielo que ve, qué parte le llega con las sombras. Se calcula con el día típico de cada mes cada media hora, el sol directo y difuso del año típico de [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (base PVGIS-NSRDB) y las piezas del dibujo que pueden tapar el sol: el aire, el tubo de ventilación, el mástil, el poste, las cajas de fila, las otras placas y, si se ponen, la cisterna del techo y el calentador solar. Sin ellos da casi 100 %: lo que hay está lejos o es bajo.
 - **Lo de agua en el techo:** la Hércules 600 (56" × 61", sobre una base de hierro de unos 45 cm, a unos 60 cm del extremo oeste de las filas) y el calentador solar (al fondo del techo). Sus sombras cuentan en el acceso solar del año y en la forma del día. Como les dan sombra con el sol bajo, en el año quitan poco. Con las 16 placas del ejemplo y la Hércules sola:
   - Mirando al sur, la placa más cercana pierde unos 3.5 % de su sol y el sistema unas décimas de TSRF; mirando al norte, unos 4.4 %. Mirando al este o al oeste casi no se nota.
   - En el día del equinoccio, mirando al sur, la sombra se lleva hasta 9 % de la producción entre las 4 y las 6 de la tarde; mirando al norte, hasta 14 % a las 7 de la mañana.

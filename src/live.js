@@ -77,8 +77,8 @@ for (const b of batGroups) {
     for (const el of b.lines) el.style.opacity = smooth(0.5, 1, p).toFixed(3);
   };
 }
-// Lo del agua (la cisterna, los colectores y el tanque del calentador, la bomba y el presurizado) baja a su
-// lugar como las placas cuando se escoge, y sube y se va cuando se quita.
+// Cada parte de un producto del plano (productos.mjs) baja a su lugar como las placas cuando se escoge, y sube y
+// se va cuando se quita: una cisterna, los colectores y el tanque del calentador, la bomba, el presurizado.
 function bajan(els, quiere) {
   const g = { els, quiere, p: 0, v: 0, target: -1, wait: 0 };
   g.apply = () => {
@@ -91,19 +91,12 @@ function bajan(els, quiere) {
   };
   return g;
 }
-const AG = D.agua;
-const aguaGroups = [
-  ...AG.cisternas.map((c) => bajan($$(`[data-cis="${c.id}"]`), (a) => a.cisterna === c.id)),
-  ...[0, 1, 2, 3].map((j) => bajan($$(`[data-cal="${j}"]`), (a) => j < colectoresDe(a))),
-  ...AG.calentadores.map((c) => bajan($$(`[data-caltanque="${c.id}"]`), (a) => a.calentador === c.id)),
-  bajan($$("[data-bomba]"), (a) => a.cisterna !== "sin"),
-  ...["6", "40"].map((gal) => bajan($$(`[data-pres="${gal}"]`), (a) => presurizadoDe(a) === gal)),
-];
-const calentadorDe = (a) => AG.calentadores.find((c) => c.id === a.calentador) ?? null;
-const cisternaDe = (a) => AG.cisternas.find((c) => c.id === a.cisterna) ?? null;
-const colectoresDe = (a) => calentadorDe(a)?.colectores ?? 0;
-const lugaresDe = (a) => calentadorDe(a)?.lugares ?? 0;
-const presurizadoDe = (a) => (a.cisterna === "sin" ? null : a.cisterna === "150" ? "6" : "40");
+// lo que el build midió de cada modelo (la mirilla de cada cisterna) va con su modelo
+for (const [id, porModelo] of Object.entries(D.medidas)) for (const m of PRODUCTO[id].modelos) Object.assign(m, porModelo[m.id]);
+const partesGroups = PRODUCTOS.flatMap((p) => [...p.modelos.map((m) => m.id), ...Object.keys(p.partes ?? {})].map((parte) => bajan($$(`[data-p="${p.id}:${parte}"]`), (e) => parteSeVe(e, p.id, parte)))).filter((g) => g.els.length);
+// los productos que hacen un papel en el día del agua
+const calentadorDe = (e) => conRol(e, "calentador");
+const cisternaDe = (e) => conRol(e, "cisterna");
 function stepSpring(o, dt) {
   if (o.wait > 0) {
     o.wait -= dt;
@@ -216,21 +209,17 @@ function sombraDe(K, f, ns, Ss) {
   const h = casco(pts);
   return h.length >= 3 ? h : null;
 }
-// Una placa, una batería, una caja de fila o una pieza del agua solo tapan el sol si están puestas.
-function activoPara(on, total, baterias, agua) {
+// Una placa, una batería, una caja de fila o una pieza de un producto del plano solo tapan el sol si están puestas.
+function activoPara(on, total, baterias, escogidos) {
   if (!on) return true;
-  const [tipo, n] = on.split(":");
+  const [tipo, n, parte] = on.split(":");
   if (tipo === "slot") return +n < total;
   if (tipo === "bat") return +n <= baterias;
   if (tipo === "rows") return Math.ceil(total / D.cols) >= +n;
-  if (tipo === "cis") return agua.cisterna === n;
-  if (tipo === "cal") return +n < colectoresDe(agua);
-  if (tipo === "caltanque") return agua.calentador === n;
-  if (tipo === "bomba") return agua.cisterna !== "sin";
-  if (tipo === "pres") return presurizadoDe(agua) === n;
+  if (tipo === "p") return parteSeVe(escogidos, n, parte);
   return true;
 }
-const activo = (on) => activoPara(on, S.existentes.n + S.nuevas, S.baterias, S.agua);
+const activo = (on) => activoPara(on, S.existentes.n + S.nuevas, S.baterias, S.escogido);
 const pathDe = (poly) => `M${poly.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join("L")}Z`;
 // Cada pieza pinta su sombra con pocos trazos: las partes con la misma fuerza van juntas en uno, así
 // dos caras a la sombra que se tocan no muestran una línea clara entre ellas.
@@ -344,38 +333,35 @@ function sombras(s, cuanto) {
 // (la cisterna del techo y el calentador): el acceso solar del año (Aurora) y la forma de la producción en el
 // día del equinoccio. Con agua en el techo también sale el acceso que habría sin ella, para que la ficha diga
 // cuánto baja. Cada acceso calculado se guarda para no repetirlo al poner y quitar cosas.
-let techo = { key: "", acceso: 1, sinAgua: 1, perfil: null, porque: "" };
+let techo = { key: "", acceso: 1, sinTecho: 1, perfil: null, porque: "" };
 const accesos = new Map();
-const SIN_AGUA = { personas: 0, calentador: "sin", cisterna: "sin", cortado: false };
-// solo cuenta lo que sube más que el vidrio más bajo: la cisterna del techo y el calentador
-const aguaEnTecho = (a) => `${cisternaDe(a)?.techo ? a.cisterna : "sin"}|${a.calentador}`;
 function sombrasDelTecho() {
   const total = Math.min(capacidad(), S.existentes.n + S.nuevas);
   const base = `${S.rumbo}|${total}|${S.existentes.n}|${S.existentes.w}`;
-  const key = `${base}|${aguaEnTecho(S.agua)}`;
+  // de los productos del plano solo cuenta lo que va en el techo: lo demás no sube más que el vidrio más bajo
+  const key = `${base}|${techoClave(S.escogido)}`;
   if (key === techo.key) return techo;
   const az = S.rumbo * GRADO;
   const puestas = PLACAS.slice(0, total);
   const pesos = puestas.map((_, i) => (i < S.existentes.n ? S.existentes.w : D.vatios));
   const suma = pesos.reduce((a, b) => a + b, 0) || 1;
   // solo puede tapar el sol de una placa lo que sube más que el vidrio más bajo
-  const tapanCon = (agua) => SOLIDOS.filter((k) => k.alto > PISO_PLACAS && activoPara(k.on, total, S.baterias, agua));
-  const accesoCon = (agua) => {
-    const k = `${base}|${aguaEnTecho(agua)}`;
-    if (!accesos.has(k)) accesos.set(k, puestas.length ? accesoSolar(puestas, tapanCon(agua), az).reduce((a, v, i) => a + v * pesos[i], 0) / suma : 1);
+  const tapanCon = (escogidos) => SOLIDOS.filter((k) => k.alto > PISO_PLACAS && activoPara(k.on, total, S.baterias, escogidos));
+  const accesoCon = (escogidos) => {
+    const k = `${base}|${techoClave(escogidos)}`;
+    if (!accesos.has(k)) accesos.set(k, puestas.length ? accesoSolar(puestas, tapanCon(escogidos), az).reduce((a, v, i) => a + v * pesos[i], 0) / suma : 1);
     return accesos.get(k);
   };
-  const tapan = tapanCon(S.agua);
-  const acceso = accesoCon(S.agua);
-  const [enTecho, cal] = aguaEnTecho(S.agua).split("|").map((v) => v !== "sin");
-  const sinAgua = enTecho || cal ? accesoCon(SIN_AGUA) : acceso;
-  const porque = enTecho && cal ? " por cisterna y calentador" : enTecho ? " por la cisterna" : cal ? " por el calentador" : "";
+  const tapan = tapanCon(S.escogido);
+  const acceso = accesoCon(S.escogido);
+  const porque = porLoDelTecho(S.escogido);
+  const sinTecho = porque ? accesoCon(SIN_NADA) : acceso;
   const perfil = formaDelDia(288, az, BASE.mediodia, (i, s) => (puestas.length ? puestas.reduce((a, p, j) => a + soleado(p, s, tapan) * pesos[j], 0) / suma : 1));
-  techo = { key, acceso, sinAgua, perfil, porque };
+  techo = { key, acceso, sinTecho, perfil, porque };
   return techo;
 }
-// El calentador ocupa lugares de placas: los últimos que se llenan, al fondo del techo.
-const capacidad = () => D.slots - lugaresDe(S.agua);
+// Lo que ocupa lugares de placas (el calentador) va en los últimos que se llenan, al fondo del techo.
+const capacidad = () => D.slots - lugaresOcupados(S.escogido);
 
 // ---------- cielo ----------
 // El sol y la luna dan la vuelta por fuera de la maqueta: cada uno va en la dirección de pantalla de su
@@ -606,7 +592,7 @@ function dibujaRosa(rumbo) {
 }
 
 // ---------- sistema ----------
-const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, rumbo: D.rumbo, agua: { personas: AG.personas, calentador: "sin", cisterna: "sin", cortado: false } };
+const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, rumbo: D.rumbo, agua: { personas: D.agua.personas, cortado: false }, escogido: { ...SIN_NADA } };
 let factor = 1;
 let sug = null;
 let samples = null;
@@ -658,7 +644,7 @@ let agua = null;
 let poaRumbo = { rumbo: null, poa: null };
 function recomputeAgua() {
   if (poaRumbo.rumbo !== S.rumbo) poaRumbo = { rumbo: S.rumbo, poa: formaDelDia(288, S.rumbo * GRADO, BASE.mediodia, () => 1) };
-  agua = simularAgua({ personas: S.agua.personas, calentador: calentadorDe(S.agua), cisterna: cisternaDe(S.agua), cortado: S.agua.cortado, poa: poaRumbo.poa });
+  agua = simularAgua({ personas: S.agua.personas, calentador: calentadorDe(S.escogido), cisterna: cisternaDe(S.escogido), cortado: S.agua.cortado, poa: poaRumbo.poa });
 }
 function aguaEn(hour) {
   const f = agua.filas;
@@ -712,8 +698,8 @@ function setTargets(calm) {
       moving.add(b);
     }
   });
-  aguaGroups.forEach((g, i) => {
-    const want = g.quiere(S.agua) ? 1 : 0;
+  partesGroups.forEach((g, i) => {
+    const want = g.quiere(S.escogido) ? 1 : 0;
     if (want !== g.target) {
       g.target = want;
       g.wait = want ? (i % 4) * 0.06 : 0;
@@ -820,7 +806,7 @@ function updateFicha() {
     anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
     tsrf: tof * techo.acceso * 100,
     acceso: techo.acceso * 100,
-    menos: tof * (techo.sinAgua - techo.acceso) * 100,
+    menos: tof * (techo.sinTecho - techo.acceso) * 100,
   };
   const r = rumboDe(S.rumbo);
   F.rumbo.textContent = `${r.nombre} · ${r.az}°`;
@@ -909,7 +895,8 @@ function updateControls() {
   const notes = [];
   if (total === 0) notes.push("Sin placas, toda la energía viene de LUMA.");
   if (S.baterias > 0 && total > 0 && total < BASE.placasConBateria) notes.push(`Con batería, el cotizador pide al menos ${BASE.placasConBateria} placas.`);
-  if (roofFull) notes.push(cabe < D.slots ? `Con el calentador en el techo caben ${cabe} placas; las que faltan no se dibujan.` : `En este techo caben ${D.slots} placas; las que faltan no se dibujan.`);
+  const enLugares = ocupan(S.escogido).map(([p]) => `${p.articulo} ${p.nombre}`).join(" y ");
+  if (roofFull) notes.push(cabe < D.slots ? `Con ${enLugares} en el techo caben ${cabe} placas; las que faltan no se dibujan.` : `En este techo caben ${D.slots} placas; las que faltan no se dibujan.`);
   warn.textContent = notes.join(" ");
 }
 for (const [key, box] of Object.entries(steppers)) {
@@ -935,12 +922,12 @@ resetButton.addEventListener("click", () => {
   recompute();
   announce();
 });
-// Calentador y cisterna: botones de una sola escogida; las flechas pasan al de al lado.
+// Los productos del plano: botones de una sola escogida; las flechas pasan al de al lado.
 const grupos = Object.fromEntries([...document.querySelectorAll("[data-opciones]")].map((el) => [el.dataset.opciones, [...el.querySelectorAll("[data-opcion]")]]));
 function marcarOpciones(focus = null) {
   for (const [key, botones] of Object.entries(grupos)) {
     for (const b of botones) {
-      const on = b.dataset.opcion === S.agua[key];
+      const on = b.dataset.opcion === S.escogido[key];
       b.setAttribute("aria-checked", String(on));
       b.tabIndex = on ? 0 : -1;
       if (on && focus === key) b.focus();
@@ -948,7 +935,7 @@ function marcarOpciones(focus = null) {
   }
 }
 function escoger(key, id, focus = false) {
-  S.agua[key] = id;
+  S.escogido[key] = id;
   marcarOpciones(focus ? key : null);
   recompute();
   announce();
@@ -966,7 +953,7 @@ for (const [key, botones] of Object.entries(grupos)) {
 }
 // Corte de agua de la AAA: la cisterna no se llena y baja con lo que se usa en el día.
 const corteBoton = doc("[data-corte]");
-corteBoton.addEventListener("click", () => {
+corteBoton?.addEventListener("click", () => {
   S.agua.cortado = !S.agua.cortado;
   corteBoton.setAttribute("aria-checked", String(S.agua.cortado));
   recompute();
@@ -974,34 +961,27 @@ corteBoton.addEventListener("click", () => {
 });
 // Lo que dice el panel del agua: lo que no cambia con la hora (las notas) y lo de este momento.
 const AQ = Object.fromEntries([...document.querySelectorAll("[data-agua]")].map((el) => [el.dataset.agua, el]));
+const NOTAS = Object.fromEntries([...document.querySelectorAll("[data-nota]")].map((el) => [el.dataset.nota, el]));
 const galones = (v) => `${fmt(v)} gal`;
 function updateAgua() {
   const a = S.agua;
-  const cal = calentadorDe(a);
-  const cis = cisternaDe(a);
-  const sugerido = calentadorPara(a.personas, AG.calentadores);
   AQ.uso.textContent = `Usan ${galones(agua.usoDia)} al día (${AGUA.porPersona} por persona), ${galones(agua.calienteDia)} de agua caliente.`;
-  for (const b of grupos.calentador) b.toggleAttribute("data-sugerido", b.dataset.opcion === sugerido.id);
-  if (!cal) AQ.calentador.textContent = `Para ${a.personas} ${a.personas === 1 ? "persona" : "personas"} el cotizador sugiere el ${sugerido.nombre}.`;
-  else {
-    const para = cal.personas[1] > 50 ? `${cal.personas[0]} o más personas` : `${cal.personas[0]} a ${cal.personas[1]} personas`;
-    const falta = agua.resistencia > 0.05 ? ` Con ${a.personas} le hace falta la resistencia: unos ${fmt(agua.resistencia, 1)} kWh al día.` : "";
-    AQ.calentador.textContent = `${cal.gal} gal con ${cal.colectores} ${cal.colectores === 1 ? "colector" : "colectores"}, para ${para}${cal.id === sugerido.id ? " (el que sugiere el cotizador)" : `; el cotizador sugiere el ${sugerido.nombre}`}.${falta}`;
+  // la nota de cada producto del plano, y el punto naranja en el modelo que sugiere el cotizador
+  for (const p of PRODUCTOS) {
+    const sugerido = sugeridoPara(p, a.personas);
+    for (const b of grupos[p.id] ?? []) b.toggleAttribute("data-sugerido", b.dataset.opcion === sugerido?.id);
+    if (NOTAS[p.id] && p.nota) NOTAS[p.id].textContent = p.nota(modeloDe(S.escogido, p.id), { personas: a.personas, sugerido, agua, fmt, galones });
   }
-  // menos de un día se dice en horas
-  const reserva = agua.reserva >= 1 ? `${fmt(agua.reserva, 1)} ${agua.reserva === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(agua.reserva * 24))} horas`;
-  AQ.cisterna.textContent = cis
-    ? `${cis.nombre}${cis.aprox ? " (medidas aproximadas)" : ""}, ${cis.techo ? "en el techo" : "en el patio"}, con bomba de ${cis.bomba} y presurizado de ${cis.presurizado} gal. Sin servicio de la AAA alcanza para ${reserva}.`
-    : `Una cisterna guarda agua para cuando la AAA corta el servicio. Con ${a.personas} ${a.personas === 1 ? "persona" : "personas"} se usan ${galones(agua.usoDia)} al día.`;
-  AQ.ahorro.textContent = cal ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
-  AQ.techo.textContent = cal ? `el calentador ocupa ${cal.lugares} lugares de placas; caben ${capacidad()}` : `caben ${D.slots} placas`;
-  corteBoton.disabled = !cis;
+  const enLugares = ocupan(S.escogido);
+  AQ.ahorro.textContent = calentadorDe(S.escogido) ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
+  AQ.techo.textContent = enLugares.length ? `${enLugares.map(([p, m]) => `${p.articulo} ${p.nombre} ocupa ${m.lugares} lugares de placas`).join(" y ")}; caben ${capacidad()}` : `caben ${D.slots} placas`;
+  if (corteBoton) corteBoton.disabled = !cisternaDe(S.escogido);
 }
 // el agua de este momento, en el panel y en el reproductor
 let aguaDicha = "";
 function aguaAhora(w) {
-  const cal = calentadorDe(S.agua);
-  const cis = cisternaDe(S.agua);
+  const cal = calentadorDe(S.escogido);
+  const cis = cisternaDe(S.escogido);
   const temp = cal ? `${Math.round(w.T)} °F${w.elec ? ", con la resistencia" : ""}` : "sin calentador solar";
   const nivel = cis ? `${Math.round(w.nivel * 100)} % (${galones(w.nivel * cis.gal)})` : "sin cisterna";
   const firma = `${temp}|${nivel}`;
@@ -1013,8 +993,8 @@ function aguaAhora(w) {
 }
 const sayAgua = (w) => {
   const partes = [`usan ${fmt(w.fria, 0)} gal/h`];
-  if (calentadorDe(S.agua)) partes.push(`agua caliente ${Math.round(w.T)} °F`);
-  if (cisternaDe(S.agua)) partes.push(`cisterna ${Math.round(w.nivel * 100)} %`);
+  if (calentadorDe(S.escogido)) partes.push(`agua caliente ${Math.round(w.T)} °F`);
+  if (cisternaDe(S.escogido)) partes.push(`cisterna ${Math.round(w.nivel * 100)} %`);
   return partes.join(" · ");
 };
 // ---------- pestañas: Energía y Agua ----------
@@ -1022,7 +1002,7 @@ const sayAgua = (w) => {
 const tabs = [...document.querySelectorAll("[data-tab]")];
 const paneles = Object.fromEntries([...document.querySelectorAll("[data-panel]")].map((el) => [el.dataset.panel, el]));
 let modoAgua = false;
-let aguaVista = false;
+const vistas = new Set();
 function setTab(nombre, focus = false) {
   modoAgua = nombre === "agua";
   for (const t of tabs) {
@@ -1033,16 +1013,17 @@ function setTab(nombre, focus = false) {
   }
   for (const [key, el] of Object.entries(paneles)) el.hidden = key !== nombre;
   mainEl.dataset.modo = nombre;
-  // la primera vez que se mira el agua sin nada escogido, bajan al techo el calentador que sugiere el
-  // cotizador y la Hércules 600; después se cambian o se quitan con sus botones
-  if (modoAgua && !aguaVista && S.agua.calentador === "sin" && S.agua.cisterna === "sin") {
-    S.agua.calentador = calentadorPara(S.agua.personas, AG.calentadores).id;
-    S.agua.cisterna = "600";
+  // la primera vez que se abre una pestaña sin nada escogido en ella, bajan los productos que tienen modelo
+  // inicial (en la del agua, el calentador que sugiere el cotizador y la Hércules 600); después se cambian o se
+  // quitan con sus botones
+  const deAqui = PRODUCTOS.filter((p) => p.pestaña === nombre);
+  if (!vistas.has(nombre) && deAqui.some((p) => p.inicial) && deAqui.every((p) => S.escogido[p.id] === "sin")) {
+    for (const p of deAqui) if (p.inicial) S.escogido[p.id] = p.inicial === "sugerido" ? sugeridoPara(p, S.agua.personas).id : p.inicial;
     marcarOpciones();
     recompute();
     announce();
   }
-  aguaVista = aguaVista || modoAgua;
+  vistas.add(nombre);
   if (!frame) draw(0, true);
 }
 tabs.forEach((t, i) => {
@@ -1118,8 +1099,8 @@ function announce() {
   quietSystem = setTimeout(() => {
     const g = ficha.goal;
     const enTecho = techo.porque ? `, con agua en el techo: TSRF ${fmt(g.tsrf, 1)} %, ${fmt(g.menos, 1)} menos${techo.porque}, y acceso solar ${fmt(g.acceso, 1)} %` : `: TSRF ${fmt(g.tsrf, 1)} %`;
-    const cal = calentadorDe(S.agua);
-    const cis = cisternaDe(S.agua);
+    const cal = calentadorDe(S.escogido);
+    const cis = cisternaDe(S.escogido);
     const delAgua = ` Agua: ${S.agua.personas} personas, ${cal ? `calentador ${cal.nombre}, ahorra unos ${fmt(agua.ahorroMes)} kWh al mes` : "sin calentador solar"}, ${cis ? `cisterna ${cis.nombre}, alcanza para ${fmt(agua.reserva, 1)} días sin servicio` : "sin cisterna"}.`;
     status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.${delAgua}`;
   }, 500);
@@ -1418,9 +1399,9 @@ const shown = {};
 const calorEls = $$("[data-calor]");
 const tanqueCalorEls = $$("[data-calor-tanque]");
 const bombaLed = $('[data-part="bomba-led"]');
-const niveles = Object.fromEntries(AG.cisternas.map((c) => [c.id, { el: $(`[data-nivel="${c.id}"]`), m: c.mirilla, hecho: -1 }]));
+const niveles = Object.fromEntries((PRODUCTOS.find((p) => p.rol === "cisterna")?.modelos ?? []).map((c) => [c.id, { el: $(`[data-nivel="${c.id}"]`), m: c.mirilla, hecho: -1 }]));
 function dibujaAgua(w) {
-  const cis = cisternaDe(S.agua);
+  const cis = cisternaDe(S.escogido);
   if (cis) {
     const n = niveles[cis.id];
     const nivel = Math.round(w.nivel * 400) / 400;
@@ -1436,7 +1417,7 @@ function dibujaAgua(w) {
       n.el.setAttribute("d", nivel > 0.004 ? `M${[...arco(z0, a0, a1), ...arco(z, a1, a0)].join("L")}Z` : "");
     }
   }
-  const cal = calentadorDe(S.agua);
+  const cal = calentadorDe(S.escogido);
   const luz = cal ? clamp(w.calor / (cal.colectores * AGUA.colector * AGUA.eficiencia * 900), 0, 1) : 0;
   const brillo = (0.9 * luz).toFixed(3);
   for (const el of calorEls) if (el.__o !== brillo) el.style.opacity = el.__o = brillo;

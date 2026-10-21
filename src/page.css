@@ -140,6 +140,10 @@ body.iso{font-family:var(--sr-font)}
 .iso[data-theme="dark"] .sr-agua-caliente{mix-blend-mode:screen}
 .sr-mirilla{fill:color-mix(in srgb,var(--wm-blue-200) 35%,var(--anatomy-shade-1));stroke:none}
 .sr-nivel{fill:var(--wm-blue-400);stroke:none;opacity:.85}
+/* el logo de Windmar en los equipos: el sol naranja, y el molino y la palabra en azul (en blanco en el tema oscuro, como el logo sobre fondo oscuro) */
+.sr-logo-sol{fill:var(--wm-orange);stroke:none}
+.sr-logo-azul{fill:var(--wm-blue);stroke:none;fill-rule:evenodd}
+.iso[data-theme="dark"] .sr-logo-azul{fill:var(--wm-gray-100)}
 /* sombras: cada pieza las pinta en su capa, recortada a su silueta; los tubos se oscurecen enteros */
 .sr-sh path{fill:var(--sr-sombra);stroke:none;mix-blend-mode:multiply}
 .it[data-tubo] .tb-body{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
