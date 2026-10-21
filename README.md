@@ -1,6 +1,6 @@
 # Figura Solar y Roofing
 
-Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Windmar Home** en Puerto Rico: el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol cruza el cielo, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF).
+Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Windmar Home** en Puerto Rico: el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol da la vuelta por fuera de la maqueta del lado de donde viene su luz, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua se ponen el calentador solar y la cisterna de Windmar Water según las personas de la casa, y se ve el agua correr, calentarse y guardarse.
 
 **En línea:** https://figura-solar-y-roofing.vercel.app
 
@@ -20,8 +20,15 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
   Las placas caen al techo y se asientan, y las baterías entran deslizándose. Las que el cliente ya tenía se ven con vidrio claro. "Volver a lo sugerido" regresa a lo que dice el cotizador.
 - **Cambiar hacia dónde miran las placas** con los ocho rumbos (N, NE, E, SE, S, SO, O, NO). La tarjeta de la brújula de la base gira y su marca fija, como la línea de fe de un barco, señala el rumbo; el sol, las sombras y la producción cambian con él.
 - **Ver las sombras de cada momento:** las de la casa, el poste, el mástil, el aire, el equipo de la fachada y las mismas filas de placas, sobre la base, las paredes, el techo y las placas. Las caras que le dan la espalda al sol se oscurecen poco a poco.
-- **Ver salir el sol y la luna:** el sol cruza el cielo detrás de la maqueta y, al ponerse, la tarjeta pasa del día a la noche y sale la luna llena. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
-- **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
+- **Poner el agua de Windmar Water** en la pestaña Agua, con los equipos del cotizador Water de Sun Bot:
+  - cuántas personas viven en la casa (usan 50 galones al día cada una, 15 de ellos de agua caliente);
+  - el calentador solar Soltek (80/1, 80/2, 120/3 o 120/4). Un punto naranja marca el que sugiere el cotizador para esas personas. Va al fondo del techo, en el lugar de las últimas placas, así que el techo admite menos placas;
+  - la cisterna: torre Eco 150 o Hércules 600 en el techo, Eco 500 o Eco 1,000 en el patio, con su bomba y su presurizado junto a la pared;
+  - el corte de agua de la AAA: la cisterna deja de llenarse y baja con lo que se usa.
+
+  Al abrir la pestaña por primera vez bajan el calentador sugerido y la Hércules 600. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
+- **Ver salir el sol y la luna:** el sol da la vuelta por fuera de la maqueta, siempre del lado de donde viene su luz: con las placas al sur sale por atrás a la derecha, a mediodía va arriba y de tarde baja por el frente a la izquierda, y las sombras caen del lado contrario. Nunca pasa por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
+- **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
 - **Pasar a tema oscuro** y volver al claro. Los dos usan la paleta oficial de Windmar Home y la letra Montserrat.
 
@@ -30,6 +37,12 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
 ![A las 8 de la mañana el sol sale por el este: la casa le echa sombra a la base y a su fachada oeste, y las filas de placas, al techo](docs/manana-sombras.png)
 
 ![De noche la tarjeta se pone azul oscuro y sale la luna llena](docs/noche-luna.png)
+
+![Pestaña Agua: el calentador solar al fondo del techo y la Hércules 600; el agua corre por los tubos y el panel dice la temperatura, el nivel, el ahorro y la reserva](docs/agua.png)
+
+![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.3](docs/tanque-manana.png)
+
+![Con la Hércules 600 en el techo y las placas al sur, a las 17:00 su sombra cae sobre la placa de la punta; el TSRF baja 0.2](docs/tanque-tarde.png)
 
 <img src="docs/telefono.png" width="260" alt="En el teléfono: la casa, el reproductor y la ficha">
 
@@ -66,6 +79,7 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 | `src/build.mjs` | Arma la figura: geometría, orden de pintado y la página |
 | `src/model.mjs` | Regla de dimensionamiento y modelo de energía del día; corre en la construcción y en la página |
 | `src/sol.mjs` | El sol y la luna del día, los rumbos de PVWatts, el año típico de PVGIS y lo que tapa el sol (acceso solar y forma del día); corre en la construcción y en la página |
+| `src/agua.mjs` | El día del agua: el uso por hora, el nivel de la cisterna, la temperatura del calentador solar, la resistencia que hace falta y la luz que ahorra; corre en la construcción y en la página |
 | `src/live.js` | Lo que se mueve: el reproductor del día, el flujo de energía, placas y baterías que entran y salen, la brújula, el cielo, las sombras, ficha, gráfica, escenas y tema |
 | `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
 | `public/index.html` | La página construida, la que publica Vercel |
@@ -104,17 +118,60 @@ El cotizador da la producción con las placas al sur y sin sombras. La figura la
   | Norte (0°) | 1,467 | 91 % |
 
   Con el sur, la figura da lo mismo que el cotizador; con otro rumbo se multiplica por su porcentaje. El cotizador (4.5 h × 0.82) es más conservador que PVWatts (1,347 contra 1,613 kWh por kW al año), por eso PVWatts se usa solo como proporción.
-- **Acceso solar** (Aurora): de todo el sol que le llegaría a cada placa en el año, directo en su plano más el difuso del cielo que ve, qué parte le llega con las sombras. Se calcula con el día típico de cada mes cada media hora, el sol directo y difuso del año típico de [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (base PVGIS-NSRDB) y las piezas del dibujo que pueden tapar el sol: el aire, el tubo de ventilación, el mástil, el poste, las cajas de fila y las otras placas. En este techo da casi 100 %: lo que hay está lejos o es bajo.
+- **Acceso solar** (Aurora): de todo el sol que le llegaría a cada placa en el año, directo en su plano más el difuso del cielo que ve, qué parte le llega con las sombras. Se calcula con el día típico de cada mes cada media hora, el sol directo y difuso del año típico de [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (base PVGIS-NSRDB) y las piezas del dibujo que pueden tapar el sol: el aire, el tubo de ventilación, el mástil, el poste, las cajas de fila, las otras placas y, si se pone, el tanque de agua. Sin el tanque da casi 100 %: lo que hay está lejos o es bajo.
+- **Lo de agua en el techo:** la Hércules 600 (56" × 61", sobre una base de hierro de unos 45 cm, a unos 60 cm del extremo oeste de las filas) y el calentador solar (al fondo del techo). Sus sombras cuentan en el acceso solar del año y en la forma del día. Como les dan sombra con el sol bajo, en el año quitan poco. Con las 16 placas del ejemplo y la Hércules sola:
+  - Mirando al sur, la placa más cercana pierde unos 3.5 % de su sol y el sistema unas décimas de TSRF; mirando al norte, unos 4.4 %. Mirando al este o al oeste casi no se nota.
+  - En el día del equinoccio, mirando al sur, la sombra se lleva hasta 9 % de la producción entre las 4 y las 6 de la tarde; mirando al norte, hasta 14 % a las 7 de la mañana.
+
+  Por eso la ficha muestra el TSRF y el acceso con un decimal, y al lado del TSRF cuánto baja por la cisterna, por el calentador o por los dos.
 - **TOF** (Aurora): el sol que recibe el plano de las placas frente al mejor plano de San Juan, sur a unos 17° (la curva por PVWatts a 0°, 10° y 15° llega a 5.889 kWh/m² al día). El sur a 10° da 99 %.
 - **TSRF** (Aurora): TOF × acceso solar.
 - La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar. En el día, la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras.
+
+### El agua (Windmar Water)
+
+Equipos y medidas del cotizador Water de Sun Bot (`src/components/crm/cotizadores/water/constants.ts`) y de su PDF maestro (`public/cotizadores/water/Master_Cotizacion_ES.pdf`).
+
+**Calentadores solares Soltek.** Colectores de 34" × 76" con 7 tubos de cobre y resistencia de respaldo de 4,500 W. Van al fondo del techo, en el extremo este de la última fila, inclinados 18°:
+
+| Modelo | Tanque | Colectores | Personas | Lugares de placas |
+|---|---|---|---|---|
+| 80/1 | 82 gal, 53½" × 23½" | 1 | 1 a 2 | 2 |
+| 80/2 | 82 gal | 2 | 3 a 4 | 2 |
+| 120/3 | 119 gal, 63" × 28" | 3 | 5 a 6 | 3 |
+| 120/4 | 119 gal | 4 | 7 o más | 4 |
+
+El 80/1 y el 80/2 miden de 5 a 7 pies de ancho, más que una placa: por eso ocupan dos lugares.
+
+**Cisternas.** Cada una lleva su bomba y su presurizado, que van en el suelo junto a la pared oeste, debajo del inversor:
+
+| Modelo | Medidas | Dónde va | Bomba | Presurizado |
+|---|---|---|---|---|
+| Eco 150 (torre) | 25" × 72" | techo | ½ HP | 6 gal |
+| Hércules 600 | 56" × 61" | techo | ¾ HP | 40 gal |
+| Eco 500 | 74" × 32" | patio | ¾ HP | 40 gal |
+| Eco 1,000 | sin medidas en el PDF; se dibuja de 64" × 76" | patio | ¾ HP | 40 gal |
+
+La Eco 500 y la Eco 1,000 son más anchas que la franja libre del techo. La de 600 de Sun Bot se llama Hércules; en la Cotizadora Central, Ecowater 600. Las del techo bajan el agua por dentro de la casa (su tubo entra al techo por una bota sellada con Roof Patch); las del patio llegan a la bomba por un tubo.
+
+**Supuestos del agua** (decididos por Juan el 21-oct-2026 o del dibujo):
+
+- 50 galones al día por persona, 15 de ellos de agua caliente, repartidos en el día: baños de la mañana y de la noche, cocina al mediodía y en la tarde.
+- El agua llega a 80 °F y la caliente se usa a 120 °F. Si el tanque está más frío, entra la resistencia.
+- Los colectores le pasan al agua la mitad del sol que les llega (el del plano de las placas del rumbo de la casa, del año típico de PVGIS).
+- El tanque pierde un poco de calor por hora y deja de calentar a 160 °F.
+- La AAA llena la cisterna mientras da servicio, hasta 300 galones por hora. Con el corte, no entra nada.
+- La reserva es los galones de la cisterna entre lo que usa la casa en un día.
+- El ahorro de luz compara con calentar la misma agua caliente con una resistencia eléctrica (95 % de eficiencia).
+
+Con 4 personas, el 80/1 necesita unos 3 kWh al día de resistencia y el 80/2 casi nada; el ahorro es de unos 175 a 185 kWh al mes. La Hércules 600 alcanza para 3 días sin servicio.
 
 **Supuestos del dibujo**, que no vienen del cotizador:
 
 - El reparto del consumo por hora.
 - La reserva de batería del 20 % y la batería sin pérdidas.
 - El sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche. El mes se cuenta de 30 días, como en el cotizador.
-- El sol y la luna se dibujan en el cielo detrás de la maqueta para que no tapen la casa: el lado por donde salen y su altura son los de verdad. Las sombras salen de formas simples (cajas, cilindros y las placas); los tubos y los anillos se oscurecen enteros, por pedazos.
+- El sol y la luna se dibujan por fuera de la maqueta, en la dirección de pantalla de donde viene su luz, justo afuera del contorno del dibujo; si ahí no caben (la esquina de atrás del techo casi toca el borde de arriba), asoman a medias por el borde, y si el reproductor flota encima, se apartan de él. Las sombras salen de formas simples (cajas, cilindros y las placas); los tubos y los anillos se oscurecen enteros, por pedazos.
 - Las placas que ya tenía se dibujan del mismo tamaño que las nuevas, y en el techo caben 32.
 - El inversor se dibuja más grande que en la realidad para que se lea. El Powerwall 3 trae el inversor integrado; aquí se dibuja aparte para que se vea.
 

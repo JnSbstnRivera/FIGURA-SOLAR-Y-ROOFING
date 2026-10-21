@@ -77,6 +77,33 @@ for (const b of batGroups) {
     for (const el of b.lines) el.style.opacity = smooth(0.5, 1, p).toFixed(3);
   };
 }
+// Lo del agua (la cisterna, los colectores y el tanque del calentador, la bomba y el presurizado) baja a su
+// lugar como las placas cuando se escoge, y sube y se va cuando se quita.
+function bajan(els, quiere) {
+  const g = { els, quiere, p: 0, v: 0, target: -1, wait: 0 };
+  g.apply = () => {
+    const out = g.p <= 0.002 && g.target <= 0;
+    showAll(g.els, !out);
+    if (out) return;
+    const p = Math.min(1, g.p);
+    shift(g.els, UP, (1 - p) * 30);
+    for (const el of g.els) el.style.opacity = smooth(0, 0.45, p).toFixed(3);
+  };
+  return g;
+}
+const AG = D.agua;
+const aguaGroups = [
+  ...AG.cisternas.map((c) => bajan($$(`[data-cis="${c.id}"]`), (a) => a.cisterna === c.id)),
+  ...[0, 1, 2, 3].map((j) => bajan($$(`[data-cal="${j}"]`), (a) => j < colectoresDe(a))),
+  ...AG.calentadores.map((c) => bajan($$(`[data-caltanque="${c.id}"]`), (a) => a.calentador === c.id)),
+  bajan($$("[data-bomba]"), (a) => a.cisterna !== "sin"),
+  ...["6", "40"].map((gal) => bajan($$(`[data-pres="${gal}"]`), (a) => presurizadoDe(a) === gal)),
+];
+const calentadorDe = (a) => AG.calentadores.find((c) => c.id === a.calentador) ?? null;
+const cisternaDe = (a) => AG.cisternas.find((c) => c.id === a.cisterna) ?? null;
+const colectoresDe = (a) => calentadorDe(a)?.colectores ?? 0;
+const lugaresDe = (a) => calentadorDe(a)?.lugares ?? 0;
+const presurizadoDe = (a) => (a.cisterna === "sin" ? null : a.cisterna === "150" ? "6" : "40");
 function stepSpring(o, dt) {
   if (o.wait > 0) {
     o.wait -= dt;
@@ -189,16 +216,21 @@ function sombraDe(K, f, ns, Ss) {
   const h = casco(pts);
   return h.length >= 3 ? h : null;
 }
-// Una placa, una batería o una caja de fila solo tapan el sol si están puestas.
-function activoPara(on, total, baterias) {
+// Una placa, una batería, una caja de fila o una pieza del agua solo tapan el sol si están puestas.
+function activoPara(on, total, baterias, agua) {
   if (!on) return true;
   const [tipo, n] = on.split(":");
   if (tipo === "slot") return +n < total;
   if (tipo === "bat") return +n <= baterias;
   if (tipo === "rows") return Math.ceil(total / D.cols) >= +n;
+  if (tipo === "cis") return agua.cisterna === n;
+  if (tipo === "cal") return +n < colectoresDe(agua);
+  if (tipo === "caltanque") return agua.calentador === n;
+  if (tipo === "bomba") return agua.cisterna !== "sin";
+  if (tipo === "pres") return presurizadoDe(agua) === n;
   return true;
 }
-const activo = (on) => activoPara(on, S.existentes.n + S.nuevas, S.baterias);
+const activo = (on) => activoPara(on, S.existentes.n + S.nuevas, S.baterias, S.agua);
 const pathDe = (poly) => `M${poly.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join("L")}Z`;
 // Cada pieza pinta su sombra con pocos trazos: las partes con la misma fuerza van juntas en uno, así
 // dos caras a la sombra que se tocan no muestran una línea clara entre ellas.
@@ -308,60 +340,190 @@ function sombras(s, cuanto) {
   }
 }
 
-// Lo que tapan las sombras en el techo para un rumbo y unas placas puestas: el acceso solar del año
-// (Aurora) y la forma de la producción en el día del equinoccio. Solo cambia con el rumbo o las placas.
-let techo = { key: "", acceso: 1, perfil: null };
+// Lo que tapan las sombras en el techo para un rumbo, unas placas puestas y lo que haya de agua en el techo
+// (la cisterna del techo y el calentador): el acceso solar del año (Aurora) y la forma de la producción en el
+// día del equinoccio. Con agua en el techo también sale el acceso que habría sin ella, para que la ficha diga
+// cuánto baja. Cada acceso calculado se guarda para no repetirlo al poner y quitar cosas.
+let techo = { key: "", acceso: 1, sinAgua: 1, perfil: null, porque: "" };
+const accesos = new Map();
+const SIN_AGUA = { personas: 0, calentador: "sin", cisterna: "sin", cortado: false };
+// solo cuenta lo que sube más que el vidrio más bajo: la cisterna del techo y el calentador
+const aguaEnTecho = (a) => `${cisternaDe(a)?.techo ? a.cisterna : "sin"}|${a.calentador}`;
 function sombrasDelTecho() {
-  const total = Math.min(D.slots, S.existentes.n + S.nuevas);
-  const key = `${S.rumbo}|${total}|${S.existentes.n}|${S.existentes.w}`;
+  const total = Math.min(capacidad(), S.existentes.n + S.nuevas);
+  const base = `${S.rumbo}|${total}|${S.existentes.n}|${S.existentes.w}`;
+  const key = `${base}|${aguaEnTecho(S.agua)}`;
   if (key === techo.key) return techo;
   const az = S.rumbo * GRADO;
   const puestas = PLACAS.slice(0, total);
   const pesos = puestas.map((_, i) => (i < S.existentes.n ? S.existentes.w : D.vatios));
   const suma = pesos.reduce((a, b) => a + b, 0) || 1;
   // solo puede tapar el sol de una placa lo que sube más que el vidrio más bajo
-  const tapan = SOLIDOS.filter((k) => k.alto > PISO_PLACAS && activoPara(k.on, total, S.baterias));
-  const porPlaca = puestas.length ? accesoSolar(puestas, tapan, az) : [];
-  const acceso = puestas.length ? porPlaca.reduce((a, v, i) => a + v * pesos[i], 0) / suma : 1;
+  const tapanCon = (agua) => SOLIDOS.filter((k) => k.alto > PISO_PLACAS && activoPara(k.on, total, S.baterias, agua));
+  const accesoCon = (agua) => {
+    const k = `${base}|${aguaEnTecho(agua)}`;
+    if (!accesos.has(k)) accesos.set(k, puestas.length ? accesoSolar(puestas, tapanCon(agua), az).reduce((a, v, i) => a + v * pesos[i], 0) / suma : 1);
+    return accesos.get(k);
+  };
+  const tapan = tapanCon(S.agua);
+  const acceso = accesoCon(S.agua);
+  const [enTecho, cal] = aguaEnTecho(S.agua).split("|").map((v) => v !== "sin");
+  const sinAgua = enTecho || cal ? accesoCon(SIN_AGUA) : acceso;
+  const porque = enTecho && cal ? " por cisterna y calentador" : enTecho ? " por la cisterna" : cal ? " por el calentador" : "";
   const perfil = formaDelDia(288, az, BASE.mediodia, (i, s) => (puestas.length ? puestas.reduce((a, p, j) => a + soleado(p, s, tapan) * pesos[j], 0) / suma : 1));
-  techo = { key, acceso, perfil };
+  techo = { key, acceso, sinAgua, perfil, porque };
   return techo;
 }
+// El calentador ocupa lugares de placas: los últimos que se llenan, al fondo del techo.
+const capacidad = () => D.slots - lugaresDe(S.agua);
 
 // ---------- cielo ----------
+// El sol y la luna dan la vuelta por fuera de la maqueta: cada uno va en la dirección de pantalla de su
+// dirección real (de donde viene su luz), justo afuera del contorno, así nunca pasan por detrás de la casa
+// y las sombras caen del lado contrario. Si el reproductor flota sobre ese lugar, suben por encima de él.
 const solEl = svg.querySelector("[data-sol]");
+const solHaloEl = svg.querySelector("[data-sol-halo]");
 const haloEl = svg.querySelector("[data-halo]");
 const lunaEl = svg.querySelector("[data-luna]");
+const lunaHaloEl = svg.querySelector("[data-luna-halo]");
+const rayosEl = svg.querySelector('[data-part="rayos"]');
+const playerEl = doc(".sr-player");
 const mainEl = doc(".sr-main");
 const CIELO = D.cielo;
-const EJE_X = pantalla([1, 0, 0]);
-const EJE_Y = pantalla([0, 1, 0]);
-const LARGO = Math.hypot(EJE_X[0], EJE_Y[0]);
-// Dónde va el sol (o la luna) en el cielo de la tarjeta: a la derecha o a la izquierda según su dirección
-// vista desde esta cámara, y más arriba cuanto más alto está.
-function enCielo(pos, rumbo) {
-  const v = haciaCasa(pos, rumbo);
-  const h = Math.hypot(v[0], v[1]) || 1;
-  const lado = (EJE_X[0] * v[0] + EJE_Y[0] * v[1]) / (LARGO * h);
-  const x = CIELO.x0 + CIELO.rx * lado * Math.cos(pos.alt);
-  const f = (x - (CIELO.x0 - CIELO.rx)) / (2 * CIELO.rx);
-  const y = CIELO.yIzq + (CIELO.yDer - CIELO.yIzq) * f - CIELO.ry * Math.sin(pos.alt);
-  return [x, y];
+// Por dónde sale del contorno (convexo, con el centro adentro) un rayo que parte del centro hacia u.
+function salida(u) {
+  const [cx, cy] = CIELO.centro;
+  const poly = CIELO.contorno;
+  let t = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const den = u[0] * ey - u[1] * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const wx = a[0] - cx;
+    const wy = a[1] - cy;
+    const ti = (wx * ey - wy * ex) / den;
+    const si = (wx * u[1] - wy * u[0]) / den;
+    if (ti > 0 && si >= -1e-6 && si <= 1 + 1e-6 && ti < t) t = ti;
+  }
+  return Number.isFinite(t) ? t : 0;
+}
+// Lo que se ve del dibujo, en sus coordenadas: en una tarjeta más ancha (o más alta) que el dibujo sobra
+// lugar a los lados, y ahí también pueden ir el sol y la luna. Y el reproductor, cuando flota encima.
+let vista = { x0: 0, y0: 0, x1: CIELO.w, y1: CIELO.h };
+let sobreReproductor = null;
+function medirVista() {
+  const m = svg.getScreenCTM();
+  const s = svg.getBoundingClientRect();
+  if (!m || !s.width) return;
+  const inv = m.inverse();
+  const enDibujo = (r) => {
+    const a = new DOMPoint(r.left, r.top).matrixTransform(inv);
+    const b = new DOMPoint(r.right, r.bottom).matrixTransform(inv);
+    return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+  };
+  vista = enDibujo(s);
+  const z = enDibujo(playerEl.getBoundingClientRect());
+  sobreReproductor = z.x1 > vista.x0 && z.x0 < vista.x1 && z.y1 > vista.y0 && z.y0 < vista.y1 ? z : null;
+}
+// ¿El punto cae dentro del contorno de la maqueta?
+function adentro([x, y]) {
+  const poly = CIELO.contorno;
+  let signo = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const s = Math.sign((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]));
+    if (s && signo && s !== signo) return false;
+    if (s) signo = s;
+  }
+  return true;
+}
+// Cuánto le falta al punto para salir del contorno (0 si ya está afuera, o lo lejos que queda de él).
+function aContorno(p) {
+  const poly = CIELO.contorno;
+  let d = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const t = clamp(((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / (ex * ex + ey * ey || 1), 0, 1);
+    d = Math.min(d, Math.hypot(p[0] - a[0] - t * ex, p[1] - a[1] - t * ey));
+  }
+  return adentro(p) ? -d : d;
+}
+// `radio` es todo lo que ocupa (el sol, con su corona) y `disco`, el disco. Si afuera de la maqueta no hay
+// lugar dentro del dibujo (la esquina de atrás del techo casi toca el borde de arriba), asoma a medias por
+// el borde, como un sol que se sale del cuadro, en vez de montarse sobre la casa.
+function enCielo(pos, rumbo, radio, disco = radio) {
+  const d = pantalla(haciaCasa(pos, rumbo));
+  const L = Math.hypot(d[0], d[1]) || 1;
+  const u = [d[0] / L, d[1] / L];
+  const t = salida(u) + CIELO.margen + radio;
+  const borde = disco * 0.35;
+  const enVista = ([x, y]) => [clamp(x, vista.x0 + borde, vista.x1 - borde), clamp(y, vista.y0 + borde, vista.y1 - borde)];
+  let p = enVista([CIELO.centro[0] + u[0] * t, CIELO.centro[1] + u[1] * t]);
+  // si el reproductor quedaría encima, se aparta por arriba o por la izquierda, lo que no caiga en la maqueta
+  const z = sobreReproductor;
+  const bajoReproductor = (q) => z && q[0] + radio > z.x0 - 4 && q[0] - radio < z.x1 + 4 && q[1] + radio > z.y0 - 4 && q[1] - radio < z.y1 + 4;
+  if (bajoReproductor(p)) {
+    const arriba = enVista([p[0], z.y0 - radio - 6]);
+    const izquierda = enVista([z.x0 - radio - 6, p[1]]);
+    p = !adentro(arriba) || adentro(izquierda) ? arriba : izquierda;
+  }
+  // Si en la orilla del dibujo todavía toca la maqueta (arriba, la esquina del techo y el calentador casi
+  // tocan el borde), se corre por esa orilla hasta el lugar libre más cercano.
+  const libre = (q) => aContorno(q) >= disco + 2 && !bajoReproductor(q);
+  if (!libre(p)) {
+    for (let d = 4; d <= 320; d += 4) {
+      const lado = [enVista([p[0] - d, p[1]]), enVista([p[0] + d, p[1]]), enVista([p[0], p[1] - d]), enVista([p[0], p[1] + d])].find(libre);
+      if (lado) {
+        p = lado;
+        break;
+      }
+    }
+  }
+  return p;
+}
+// El sol y la luna se deslizan hasta su lugar: si se corren por la orilla, no saltan.
+const astros = { sol: null, luna: null };
+function deslizar(cual, destino, dt) {
+  const a = astros[cual];
+  if (!a || dt <= 0 || still.matches || Math.hypot(destino[0] - a[0], destino[1] - a[1]) > 400) {
+    astros[cual] = destino;
+    return destino;
+  }
+  const k = 1 - Math.exp(-dt / 0.35);
+  astros[cual] = [a[0] + (destino[0] - a[0]) * k, a[1] + (destino[1] - a[1]) * k];
+  return astros[cual];
 }
 let diaShown = -1;
-function cielo(hora, rumboRad) {
+function cielo(hora, rumboRad, dt = 0) {
   const sol = solDelDia(hora, BASE.mediodia);
   const luna = lunaDelDia(hora, BASE.mediodia);
-  const [sx, sy] = enCielo(sol, rumboRad);
-  const [lx, ly] = enCielo(luna, rumboRad);
-  solEl.setAttribute("transform", `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
-  // con el sol bajo (al salir y al ponerse) el resplandor crece
+  // el sol cuenta con su corona para no tocar la maqueta ni salirse del dibujo
+  const [sx, sy] = deslizar("sol", enCielo(sol, rumboRad, CIELO.sol * 1.62, CIELO.sol), dt);
+  const [lx, ly] = deslizar("luna", enCielo(luna, rumboRad, CIELO.luna), dt);
+  const ts = `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`;
+  const tl = `translate(${lx.toFixed(1)} ${ly.toFixed(1)})`;
+  solEl.setAttribute("transform", ts);
+  solHaloEl.setAttribute("transform", ts);
+  lunaEl.setAttribute("transform", tl);
+  lunaHaloEl.setAttribute("transform", tl);
+  // con el sol bajo (al salir y al ponerse) el resplandor crece; la corona da una vuelta cada 12 horas
   haloEl.setAttribute("transform", `scale(${(1 + 1.4 * (1 - smooth(0, 0.35, sol.alt))).toFixed(3)})`);
-  lunaEl.setAttribute("transform", `translate(${lx.toFixed(1)} ${ly.toFixed(1)})`);
+  rayosEl.setAttribute("transform", `rotate(${((hora * 30) % 360).toFixed(1)})`);
   // la tarjeta se aclara del amanecer civil (sol 6° bajo el horizonte) a 6° sobre él, y al revés de tarde
   const dia = smooth(-0.105, 0.105, sol.alt);
-  solEl.setAttribute("opacity", smooth(-0.02, 0.05, sol.alt).toFixed(3));
-  lunaEl.setAttribute("opacity", (smooth(-0.02, 0.05, luna.alt) * (0.35 + 0.65 * (1 - dia))).toFixed(3));
+  const verSol = smooth(-0.02, 0.05, sol.alt).toFixed(3);
+  const verLuna = (smooth(-0.02, 0.05, luna.alt) * (0.35 + 0.65 * (1 - dia))).toFixed(3);
+  solEl.setAttribute("opacity", verSol);
+  solHaloEl.setAttribute("opacity", verSol);
+  lunaEl.setAttribute("opacity", verLuna);
+  lunaHaloEl.setAttribute("opacity", verLuna);
   if (Math.abs(dia - diaShown) > 0.002) {
     diaShown = dia;
     mainEl.style.setProperty("--dia", dia.toFixed(3));
@@ -444,7 +606,7 @@ function dibujaRosa(rumbo) {
 }
 
 // ---------- sistema ----------
-const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, rumbo: D.rumbo };
+const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, rumbo: D.rumbo, agua: { personas: AG.personas, calentador: "sin", cisterna: "sin", cortado: false } };
 let factor = 1;
 let sug = null;
 let samples = null;
@@ -455,14 +617,15 @@ let roofFull = false;
 const KEYS = ["pv", "load", "batt", "grid", "soc", "net"];
 
 function recompute({ calm = false } = {}) {
-  S.existentes.n = clamp(S.existentes.n, 0, D.slots);
+  const cabe = capacidad();
+  S.existentes.n = clamp(S.existentes.n, 0, cabe);
   sug = sugerencia(S.meses, S.existentes);
   if (!S.manual) {
     S.nuevas = sug.nuevas;
     S.baterias = sug.baterias;
   }
-  roofFull = S.existentes.n + S.nuevas > D.slots;
-  S.nuevas = clamp(S.nuevas, 0, D.slots - S.existentes.n);
+  roofFull = S.existentes.n + S.nuevas > cabe;
+  S.nuevas = clamp(S.nuevas, 0, cabe - S.existentes.n);
   S.baterias = clamp(S.baterias, D.limites.baterias[0], D.limites.baterias[1]);
   // El cotizador da la producción con las placas al sur y sin sombras; el rumbo (PVWatts) y el acceso
   // solar (las sombras del año) la ajustan, y el día sigue al sol de ese rumbo con sus sombras.
@@ -479,11 +642,32 @@ function recompute({ calm = false } = {}) {
   for (let i = 0; i < total; i++) inRow[Math.floor(i / D.cols)] += watts(i);
   const sum = inRow.reduce((a, b) => a + b, 0) || 1;
   shares = { row0: inRow[0] / sum, row3: inRow[3] / sum, row23: (inRow[2] + inRow[3]) / sum, row123: (inRow[1] + inRow[2] + inRow[3]) / sum };
+  recomputeAgua();
   setTargets(calm || still.matches);
   updateFicha();
   updateControls();
+  updateAgua();
   updateChart();
   if (!frame) draw(0, true);
+}
+
+// ---------- agua ----------
+// El día del agua (agua.mjs) con las personas, el calentador y la cisterna que se escogieron. Los colectores
+// reciben el sol del plano de las placas (10°, casi el de ellos, 18°) del rumbo de la casa.
+let agua = null;
+let poaRumbo = { rumbo: null, poa: null };
+function recomputeAgua() {
+  if (poaRumbo.rumbo !== S.rumbo) poaRumbo = { rumbo: S.rumbo, poa: formaDelDia(288, S.rumbo * GRADO, BASE.mediodia, () => 1) };
+  agua = simularAgua({ personas: S.agua.personas, calentador: calentadorDe(S.agua), cisterna: cisternaDe(S.agua), cortado: S.agua.cortado, poa: poaRumbo.poa });
+}
+function aguaEn(hour) {
+  const f = agua.filas;
+  const n = f.length - 1;
+  const x = (clamp(hour, 0, 24) / 24) * n;
+  const i = Math.min(n - 1, Math.floor(x));
+  const t = x - i;
+  const mezcla = (key) => f[i][key] + (f[i + 1][key] - f[i][key]) * t;
+  return { fria: mezcla("fria"), caliente: mezcla("caliente"), T: mezcla("T"), nivel: mezcla("nivel"), elec: f[i].elec, calor: mezcla("calor") };
 }
 
 function setTargets(calm) {
@@ -528,6 +712,14 @@ function setTargets(calm) {
       moving.add(b);
     }
   });
+  aguaGroups.forEach((g, i) => {
+    const want = g.quiere(S.agua) ? 1 : 0;
+    if (want !== g.target) {
+      g.target = want;
+      g.wait = want ? (i % 4) * 0.06 : 0;
+      moving.add(g);
+    }
+  });
   if (calm) {
     for (const o of moving) {
       o.p = o.target;
@@ -566,7 +758,11 @@ const CHANNEL = {
   ac: (s) => s.pv - s.batt,
   casa: (s) => s.load,
   red: (s) => s.grid,
+  // el agua corre más rápido cuanto más se usa (galones por hora); la fría que entra al calentador va con la caliente
+  agua: (s, w) => w.fria / 40,
+  caliente: (s, w) => w.caliente / 15,
 };
+const DE_AGUA = new Set(["agua", "caliente"]);
 
 // ---------- textos ----------
 const clock = (h) => {
@@ -606,11 +802,16 @@ const F = Object.fromEntries([...document.querySelectorAll("[data-f]")].map((el)
 // Los números de la ficha (producción, respaldo y porcentajes) cuentan hasta su valor nuevo
 // en vez de saltar; los conteos de placas y baterías cambian al instante.
 const ficha = { goal: null, show: null, frame: 0, last: 0 };
+// los que se leen con un decimal llegan a su valor con más cuidado
+const FINOS = new Set(["dia", "tsrf", "acceso", "menos"]);
 function updateFicha() {
   const consumo = S.meses[S.mes];
   const anual = S.meses.reduce((a, b) => a + b, 0);
   const prodMes = diaPV * 30;
   const tof = tofDe(S.rumbo);
+  // El TSRF y el acceso solar van con un decimal: así se ve lo que les quita una sombra chica, como la
+  // del tanque, que de otro modo se redondea a lo mismo. "menos" es lo que baja el TSRF por lo que hay
+  // de agua en el techo (la cisterna del techo y el calentador).
   ficha.goal = {
     prod: prodMes,
     dia: diaPV,
@@ -618,11 +819,14 @@ function updateFicha() {
     mes: consumo > 0 ? (prodMes / consumo) * 100 : 0,
     anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
     tsrf: tof * techo.acceso * 100,
+    acceso: techo.acceso * 100,
+    menos: tof * (techo.sinAgua - techo.acceso) * 100,
   };
   const r = rumboDe(S.rumbo);
   F.rumbo.textContent = `${r.nombre} · ${r.az}°`;
   F.inclin.textContent = `inclinación ${SOL.inclinacion}°`;
-  F.tof.textContent = `TOF ${Math.round(tof * 100)} % · acceso ${Math.round(techo.acceso * 100)} %`;
+  F.tanque.hidden = !techo.porque;
+  F.porque.textContent = techo.porque;
   if (rumboV) rumboV.textContent = `${r.nombre} · ${r.az}°`;
   if (!ficha.show || still.matches) ficha.show = { ...ficha.goal };
   const watts = S.nuevas * D.vatios + S.existentes.n * S.existentes.w;
@@ -648,7 +852,12 @@ function renderFicha() {
   const anual = S.meses.reduce((a, b) => a + b, 0);
   F.prod.textContent = `${fmt(v.prod)} kWh/mes`;
   F.dia.textContent = `${fmt(v.prod * 12)} al año · ${fmt(v.dia, 1)} al día`;
-  F.tsrf.textContent = `${Math.round(v.tsrf)} %`;
+  F.tsrf.textContent = `${fmt(v.tsrf, 1)} %`;
+  // si no cabe en un renglón, se parte en el punto: cada número va pegado a su nombre y a su % (espacio sin corte)
+  const nb = String.fromCharCode(160);
+  F.tof.textContent = `TOF${nb}${fmt(tofDe(S.rumbo) * 100, 1)}${nb}% · acceso${nb}${fmt(v.acceso, 1)}${nb}%`;
+  // si no le quita nada (por ejemplo, el calentador al fondo con pocas placas adelante) no lleva el menos
+  F.menos.textContent = v.menos >= 0.05 ? `−${fmt(v.menos, 1)}` : "0.0";
   F.respaldo.textContent = S.baterias ? `${fmt(S.baterias * BASE.bateria, 1)} kWh · respaldo ${Math.round(v.resp)} h` : "toda la noche de LUMA";
   F.mes.textContent = consumo > 0 ? `cubre ${Math.round(v.mes)} %` : "—";
   F.anio.textContent = anual > 0 ? `cubre ${Math.round(v.anio)} %` : "—";
@@ -661,7 +870,7 @@ function fichaTick(now) {
   for (const key of Object.keys(ficha.goal)) {
     const goal = ficha.goal[key];
     const next = ficha.show[key] + (goal - ficha.show[key]) * k;
-    const close = Math.abs(goal - next) < (key === "dia" ? 0.02 : 0.2);
+    const close = Math.abs(goal - next) < (FINOS.has(key) ? 0.02 : 0.2);
     ficha.show[key] = close ? goal : next;
     if (!close) busy = true;
   }
@@ -680,24 +889,27 @@ const resetButton = doc("[data-reset]");
 const warn = doc("[data-warn]");
 function updateControls() {
   const total = S.existentes.n + S.nuevas;
+  const cabe = capacidad();
   out.nuevas.textContent = String(S.nuevas);
   out.existentes.textContent = String(S.existentes.n);
   out.baterias.textContent = String(S.baterias);
+  out.personas.textContent = String(S.agua.personas);
   const set = (key, canDown, canUp) => {
     const [down, up] = steppers[key].querySelectorAll("button");
     down.disabled = !canDown;
     up.disabled = !canUp;
   };
-  set("nuevas", S.nuevas > 0, total < D.slots);
-  set("existentes", S.existentes.n > 0, S.existentes.n < D.slots);
+  set("nuevas", S.nuevas > 0, total < cabe);
+  set("existentes", S.existentes.n > 0, S.existentes.n < cabe);
   set("baterias", S.baterias > D.limites.baterias[0], S.baterias < D.limites.baterias[1]);
+  set("personas", S.agua.personas > AGUA.personas[0], S.agua.personas < AGUA.personas[1]);
   resetButton.disabled = !S.manual;
   if (+mesSelect.value !== S.mes) mesSelect.value = String(S.mes);
   if (document.activeElement !== mesInput) mesInput.value = String(S.meses[S.mes]);
   const notes = [];
   if (total === 0) notes.push("Sin placas, toda la energía viene de LUMA.");
   if (S.baterias > 0 && total > 0 && total < BASE.placasConBateria) notes.push(`Con batería, el cotizador pide al menos ${BASE.placasConBateria} placas.`);
-  if (roofFull) notes.push(`En este techo caben ${D.slots} placas; las que faltan no se dibujan.`);
+  if (roofFull) notes.push(cabe < D.slots ? `Con el calentador en el techo caben ${cabe} placas; las que faltan no se dibujan.` : `En este techo caben ${D.slots} placas; las que faltan no se dibujan.`);
   warn.textContent = notes.join(" ");
 }
 for (const [key, box] of Object.entries(steppers)) {
@@ -709,6 +921,7 @@ for (const [key, box] of Object.entries(steppers)) {
       S.nuevas += d;
       S.manual = true;
     } else if (key === "existentes") S.existentes.n += d;
+    else if (key === "personas") S.agua.personas = clamp(S.agua.personas + d, AGUA.personas[0], AGUA.personas[1]);
     else {
       S.baterias += d;
       S.manual = true;
@@ -721,6 +934,125 @@ resetButton.addEventListener("click", () => {
   S.manual = false;
   recompute();
   announce();
+});
+// Calentador y cisterna: botones de una sola escogida; las flechas pasan al de al lado.
+const grupos = Object.fromEntries([...document.querySelectorAll("[data-opciones]")].map((el) => [el.dataset.opciones, [...el.querySelectorAll("[data-opcion]")]]));
+function marcarOpciones(focus = null) {
+  for (const [key, botones] of Object.entries(grupos)) {
+    for (const b of botones) {
+      const on = b.dataset.opcion === S.agua[key];
+      b.setAttribute("aria-checked", String(on));
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus === key) b.focus();
+    }
+  }
+}
+function escoger(key, id, focus = false) {
+  S.agua[key] = id;
+  marcarOpciones(focus ? key : null);
+  recompute();
+  announce();
+}
+for (const [key, botones] of Object.entries(grupos)) {
+  botones.forEach((b, i) => {
+    b.addEventListener("click", () => escoger(key, b.dataset.opcion));
+    b.addEventListener("keydown", (event) => {
+      const d = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+      if (!d) return;
+      event.preventDefault();
+      escoger(key, botones[(i + d + botones.length) % botones.length].dataset.opcion, true);
+    });
+  });
+}
+// Corte de agua de la AAA: la cisterna no se llena y baja con lo que se usa en el día.
+const corteBoton = doc("[data-corte]");
+corteBoton.addEventListener("click", () => {
+  S.agua.cortado = !S.agua.cortado;
+  corteBoton.setAttribute("aria-checked", String(S.agua.cortado));
+  recompute();
+  announce();
+});
+// Lo que dice el panel del agua: lo que no cambia con la hora (las notas) y lo de este momento.
+const AQ = Object.fromEntries([...document.querySelectorAll("[data-agua]")].map((el) => [el.dataset.agua, el]));
+const galones = (v) => `${fmt(v)} gal`;
+function updateAgua() {
+  const a = S.agua;
+  const cal = calentadorDe(a);
+  const cis = cisternaDe(a);
+  const sugerido = calentadorPara(a.personas, AG.calentadores);
+  AQ.uso.textContent = `Usan ${galones(agua.usoDia)} al día (${AGUA.porPersona} por persona), ${galones(agua.calienteDia)} de agua caliente.`;
+  for (const b of grupos.calentador) b.toggleAttribute("data-sugerido", b.dataset.opcion === sugerido.id);
+  if (!cal) AQ.calentador.textContent = `Para ${a.personas} ${a.personas === 1 ? "persona" : "personas"} el cotizador sugiere el ${sugerido.nombre}.`;
+  else {
+    const para = cal.personas[1] > 50 ? `${cal.personas[0]} o más personas` : `${cal.personas[0]} a ${cal.personas[1]} personas`;
+    const falta = agua.resistencia > 0.05 ? ` Con ${a.personas} le hace falta la resistencia: unos ${fmt(agua.resistencia, 1)} kWh al día.` : "";
+    AQ.calentador.textContent = `${cal.gal} gal con ${cal.colectores} ${cal.colectores === 1 ? "colector" : "colectores"}, para ${para}${cal.id === sugerido.id ? " (el que sugiere el cotizador)" : `; el cotizador sugiere el ${sugerido.nombre}`}.${falta}`;
+  }
+  // menos de un día se dice en horas
+  const reserva = agua.reserva >= 1 ? `${fmt(agua.reserva, 1)} ${agua.reserva === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(agua.reserva * 24))} horas`;
+  AQ.cisterna.textContent = cis
+    ? `${cis.nombre}${cis.aprox ? " (medidas aproximadas)" : ""}, ${cis.techo ? "en el techo" : "en el patio"}, con bomba de ${cis.bomba} y presurizado de ${cis.presurizado} gal. Sin servicio de la AAA alcanza para ${reserva}.`
+    : `Una cisterna guarda agua para cuando la AAA corta el servicio. Con ${a.personas} ${a.personas === 1 ? "persona" : "personas"} se usan ${galones(agua.usoDia)} al día.`;
+  AQ.ahorro.textContent = cal ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
+  AQ.techo.textContent = cal ? `el calentador ocupa ${cal.lugares} lugares de placas; caben ${capacidad()}` : `caben ${D.slots} placas`;
+  corteBoton.disabled = !cis;
+}
+// el agua de este momento, en el panel y en el reproductor
+let aguaDicha = "";
+function aguaAhora(w) {
+  const cal = calentadorDe(S.agua);
+  const cis = cisternaDe(S.agua);
+  const temp = cal ? `${Math.round(w.T)} °F${w.elec ? ", con la resistencia" : ""}` : "sin calentador solar";
+  const nivel = cis ? `${Math.round(w.nivel * 100)} % (${galones(w.nivel * cis.gal)})` : "sin cisterna";
+  const firma = `${temp}|${nivel}`;
+  if (firma !== aguaDicha) {
+    aguaDicha = firma;
+    AQ.temp.textContent = temp;
+    AQ.nivel.textContent = nivel;
+  }
+}
+const sayAgua = (w) => {
+  const partes = [`usan ${fmt(w.fria, 0)} gal/h`];
+  if (calentadorDe(S.agua)) partes.push(`agua caliente ${Math.round(w.T)} °F`);
+  if (cisternaDe(S.agua)) partes.push(`cisterna ${Math.round(w.nivel * 100)} %`);
+  return partes.join(" · ");
+};
+// ---------- pestañas: Energía y Agua ----------
+// La pestaña cambia los controles de la columna y lo que corre por los tubos: la energía o el agua.
+const tabs = [...document.querySelectorAll("[data-tab]")];
+const paneles = Object.fromEntries([...document.querySelectorAll("[data-panel]")].map((el) => [el.dataset.panel, el]));
+let modoAgua = false;
+let aguaVista = false;
+function setTab(nombre, focus = false) {
+  modoAgua = nombre === "agua";
+  for (const t of tabs) {
+    const on = t.dataset.tab === nombre;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    if (on && focus) t.focus();
+  }
+  for (const [key, el] of Object.entries(paneles)) el.hidden = key !== nombre;
+  mainEl.dataset.modo = nombre;
+  // la primera vez que se mira el agua sin nada escogido, bajan al techo el calentador que sugiere el
+  // cotizador y la Hércules 600; después se cambian o se quitan con sus botones
+  if (modoAgua && !aguaVista && S.agua.calentador === "sin" && S.agua.cisterna === "sin") {
+    S.agua.calentador = calentadorPara(S.agua.personas, AG.calentadores).id;
+    S.agua.cisterna = "600";
+    marcarOpciones();
+    recompute();
+    announce();
+  }
+  aguaVista = aguaVista || modoAgua;
+  if (!frame) draw(0, true);
+}
+tabs.forEach((t, i) => {
+  t.addEventListener("click", () => setTab(t.dataset.tab));
+  t.addEventListener("keydown", (event) => {
+    const d = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    event.preventDefault();
+    setTab(tabs[(i + d + tabs.length) % tabs.length].dataset.tab, true);
+  });
 });
 // Rumbo: ocho botones en el orden de la brújula; las flechas pasan al de al lado.
 const rumboV = doc("[data-rumbo-v]");
@@ -784,7 +1116,12 @@ let quietSystem = 0;
 function announce() {
   clearTimeout(quietSystem);
   quietSystem = setTimeout(() => {
-    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}: TSRF ${F.tsrf.textContent}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.`;
+    const g = ficha.goal;
+    const enTecho = techo.porque ? `, con agua en el techo: TSRF ${fmt(g.tsrf, 1)} %, ${fmt(g.menos, 1)} menos${techo.porque}, y acceso solar ${fmt(g.acceso, 1)} %` : `: TSRF ${fmt(g.tsrf, 1)} %`;
+    const cal = calentadorDe(S.agua);
+    const cis = cisternaDe(S.agua);
+    const delAgua = ` Agua: ${S.agua.personas} personas, ${cal ? `calentador ${cal.nombre}, ahorra unos ${fmt(agua.ahorroMes)} kWh al mes` : "sin calentador solar"}, ${cis ? `cisterna ${cis.nombre}, alcanza para ${fmt(agua.reserva, 1)} días sin servicio` : "sin cisterna"}.`;
+    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.${delAgua}`;
   }, 500);
 }
 
@@ -1076,11 +1413,48 @@ const PERIOD = 6;
 const phase = {};
 const shown = {};
 
+// Lo que se mueve del agua: el nivel en la mirilla de la cisterna, el brillo de los colectores con el sol,
+// el color del tanque del calentador con la temperatura y la luz de la bomba cuando bombea.
+const calorEls = $$("[data-calor]");
+const tanqueCalorEls = $$("[data-calor-tanque]");
+const bombaLed = $('[data-part="bomba-led"]');
+const niveles = Object.fromEntries(AG.cisternas.map((c) => [c.id, { el: $(`[data-nivel="${c.id}"]`), m: c.mirilla, hecho: -1 }]));
+function dibujaAgua(w) {
+  const cis = cisternaDe(S.agua);
+  if (cis) {
+    const n = niveles[cis.id];
+    const nivel = Math.round(w.nivel * 400) / 400;
+    if (nivel !== n.hecho) {
+      n.hecho = nivel;
+      const { x, y, r, a0, a1, z0, z1 } = n.m;
+      const z = z0 + (z1 - z0) * nivel;
+      const arco = (zz, desde, hasta) => Array.from({ length: 7 }, (_, i) => {
+        const a = desde + ((hasta - desde) * i) / 6;
+        const q = iso([x + r * Math.cos(a), y + r * Math.sin(a), zz], P);
+        return `${q[0].toFixed(2)} ${q[1].toFixed(2)}`;
+      });
+      n.el.setAttribute("d", nivel > 0.004 ? `M${[...arco(z0, a0, a1), ...arco(z, a1, a0)].join("L")}Z` : "");
+    }
+  }
+  const cal = calentadorDe(S.agua);
+  const luz = cal ? clamp(w.calor / (cal.colectores * AGUA.colector * AGUA.eficiencia * 900), 0, 1) : 0;
+  const brillo = (0.9 * luz).toFixed(3);
+  for (const el of calorEls) if (el.__o !== brillo) el.style.opacity = el.__o = brillo;
+  const tibio = cal ? (0.6 * clamp((w.T - 95) / (AGUA.maximo - 95), 0, 1)).toFixed(3) : "0";
+  for (const el of tanqueCalorEls) if (el.__o !== tibio) el.style.opacity = el.__o = tibio;
+  if (bombaLed) bombaLed.style.opacity = (0.12 + 0.88 * smooth(0.5, 3, w.fria)).toFixed(3);
+  aguaAhora(w);
+}
+
 function draw(dt, calm) {
   const s = sample(hour);
+  const w = aguaEn(hour);
   for (const [key, list] of Object.entries(flows)) {
-    const v = CHANNEL[D.flows[key]](s);
-    const want = smooth(0.03, 0.3, Math.abs(v));
+    const canal = D.flows[key];
+    const v = CHANNEL[canal](s, w);
+    // en la pestaña del agua corre el agua y la energía queda tenue; en la de energía, al revés
+    const peso = DE_AGUA.has(canal) ? (modoAgua ? 1 : 0) : modoAgua ? 0.25 : 1;
+    const want = smooth(0.03, 0.3, Math.abs(v)) * peso;
     shown[key] = calm || shown[key] === undefined ? want : shown[key] + (want - shown[key]) * (1 - Math.exp(-dt / 0.2));
     if (!calm) phase[key] = (phase[key] ?? 0) + Math.sign(v) * (5 + 7 * Math.abs(v)) * dt;
     const ph = phase[key] ?? 0;
@@ -1096,7 +1470,8 @@ function draw(dt, calm) {
   invLed.style.opacity = (0.15 + 0.85 * smooth(0.02, 0.3, s.pv)).toFixed(3);
   if (!calm) spin = (spin + (40 + 150 * s.load) * dt) % 360;
   fan.setAttribute("transform", `rotate(${spin.toFixed(1)})`);
-  const text = say(s);
+  dibujaAgua(w);
+  const text = modoAgua ? sayAgua(w) : say(s);
   if (readout.textContent !== text) readout.textContent = text;
   const value = (s.net >= -0.005 ? "+" : "−") + Math.abs(s.net).toFixed(1);
   if (lcd.textContent !== value) lcd.textContent = value;
@@ -1115,7 +1490,7 @@ function draw(dt, calm) {
     dibujaRosa(rumboShow);
     rumboDibujado = rumboShow;
   }
-  cielo(hour, rumboShow * GRADO);
+  cielo(hour, rumboShow * GRADO, calm ? 0 : dt);
 }
 
 function tick(now) {
@@ -1253,6 +1628,11 @@ try {
 setTheme(saved === "dark" ? "dark" : "light");
 layoutChart();
 new ResizeObserver(() => layoutChart()).observe(chartSvg.parentElement);
+medirVista();
+new ResizeObserver(() => {
+  medirVista();
+  if (!frame && samples) draw(0, true);
+}).observe(stage);
 short.addEventListener("change", layoutChart);
 shorter.addEventListener("change", layoutChart);
 recompute({ calm: true });
