@@ -42,6 +42,68 @@
   --sr-glass:color-mix(in srgb,var(--wm-white) 92%,transparent);
   --sr-shadow:0 8px 24px rgba(33,39,78,.10);
 }
+/* ---------- día y noche en la tarjeta ----------
+   La página sigue al tema; la tarjeta además se oscurece de noche: sus tokens mezclan los del tema
+   (--d-*) con los de la noche (--n-*) según --dia, que live.js lleva de 1 (día) a 0 (noche) con el sol.
+   La noche sale de los azules 900 y 800 de la marca, igual en los dos temas. */
+.iso,.iso[data-theme="light"]{
+  --d-card:var(--anatomy-card);--d-paper:var(--anatomy-paper);--d-text:var(--anatomy-text);--d-strong:var(--anatomy-strong);--d-muted:var(--anatomy-muted);
+  --d-hi:var(--anatomy-hi);--d-mid:var(--anatomy-mid);--d-lo:var(--anatomy-lo);--d-faint:var(--anatomy-faint);--d-lit:var(--anatomy-lit);
+  --d-halo:var(--anatomy-halo);--d-halo-o:var(--anatomy-halo-opacity);--d-dot:var(--anatomy-dot);
+  --d-s0:var(--anatomy-shade-0);--d-s1:var(--anatomy-shade-1);--d-s2:var(--anatomy-shade-2);--d-s3:var(--anatomy-shade-3);
+  --d-face:var(--anatomy-face);--d-top:var(--anatomy-top);--d-lit-shade:var(--anatomy-lit-shade);--d-lit-top:var(--anatomy-lit-top);
+  --d-glass:var(--sr-glass);--d-sel:var(--sr-sel);--d-night:var(--sr-night);--d-dayband:var(--sr-dayband);
+  --d-play:var(--sr-play);--d-play-hover:var(--sr-play-hover);--d-play-ink:var(--sr-play-ink);--d-focus:var(--sr-focus);
+}
+.iso{
+  --n-card:var(--wm-blue-900);--n-paper:var(--wm-blue-900);
+  --n-text:color-mix(in srgb,var(--wm-gray-300) 78%,var(--wm-blue-900));--n-strong:var(--wm-gray-100);--n-muted:var(--wm-gray-500);
+  --n-hi:color-mix(in srgb,var(--wm-gray-200) 78%,var(--wm-blue-200));--n-mid:color-mix(in srgb,var(--wm-blue-400) 45%,var(--wm-blue-900));
+  --n-lo:color-mix(in srgb,var(--wm-blue-800) 70%,var(--wm-gray-700));--n-faint:var(--wm-blue-800);--n-lit:var(--wm-white);
+  --n-halo:color-mix(in srgb,var(--wm-blue-900) 55%,#000);--n-halo-o:.9;--n-dot:var(--wm-gray-200);
+  --n-s0:color-mix(in srgb,var(--wm-blue-900) 88%,#000);--n-s1:var(--wm-blue-900);
+  --n-s2:color-mix(in srgb,var(--wm-blue-800) 16%,var(--wm-blue-900));--n-s3:color-mix(in srgb,var(--wm-blue-800) 26%,var(--wm-blue-900));
+  --n-face:color-mix(in srgb,var(--wm-blue-800) 36%,var(--wm-blue-900));--n-top:color-mix(in srgb,var(--wm-blue-800) 42%,var(--wm-blue-900));
+  --n-lit-shade:color-mix(in srgb,var(--wm-blue-800) 48%,var(--wm-blue-900));--n-lit-top:color-mix(in srgb,var(--wm-blue-800) 72%,var(--wm-blue-900));
+  --n-glass:color-mix(in srgb,var(--wm-blue-900) 90%,transparent);--n-sel:var(--wm-blue-800);--n-night:var(--wm-blue-800);
+  --n-dayband:color-mix(in srgb,var(--wm-orange) 45%,var(--wm-blue-900));
+  --n-play:var(--wm-blue-200);--n-play-hover:var(--wm-white);--n-play-ink:var(--wm-blue-900);--n-focus:var(--wm-blue-200);
+  /* sombra del sol: un azul de la marca que se multiplica sobre lo que tapa */
+  --sr-sombra:color-mix(in srgb,var(--wm-blue-900) 60%,#000);--sr-sombra-a:.72;
+}
+.iso[data-theme="light"]{--sr-sombra:color-mix(in srgb,var(--wm-blue-800) 70%,var(--wm-gray-700));--sr-sombra-a:.5}
+.sr-main{
+  --dia:1;
+  --anatomy-card:color-mix(in oklab,var(--d-card) calc(var(--dia)*100%),var(--n-card));
+  --anatomy-paper:color-mix(in oklab,var(--d-paper) calc(var(--dia)*100%),var(--n-paper));
+  --anatomy-text:color-mix(in oklab,var(--d-text) calc(var(--dia)*100%),var(--n-text));
+  --anatomy-strong:color-mix(in oklab,var(--d-strong) calc(var(--dia)*100%),var(--n-strong));
+  --anatomy-muted:color-mix(in oklab,var(--d-muted) calc(var(--dia)*100%),var(--n-muted));
+  --anatomy-hi:color-mix(in oklab,var(--d-hi) calc(var(--dia)*100%),var(--n-hi));
+  --anatomy-mid:color-mix(in oklab,var(--d-mid) calc(var(--dia)*100%),var(--n-mid));
+  --anatomy-lo:color-mix(in oklab,var(--d-lo) calc(var(--dia)*100%),var(--n-lo));
+  --anatomy-faint:color-mix(in oklab,var(--d-faint) calc(var(--dia)*100%),var(--n-faint));
+  --anatomy-lit:color-mix(in oklab,var(--d-lit) calc(var(--dia)*100%),var(--n-lit));
+  --anatomy-halo:color-mix(in oklab,var(--d-halo) calc(var(--dia)*100%),var(--n-halo));
+  --anatomy-halo-opacity:calc(var(--dia)*var(--d-halo-o) + (1 - var(--dia))*var(--n-halo-o));
+  --anatomy-dot:color-mix(in oklab,var(--d-dot) calc(var(--dia)*100%),var(--n-dot));
+  --anatomy-shade-0:color-mix(in oklab,var(--d-s0) calc(var(--dia)*100%),var(--n-s0));
+  --anatomy-shade-1:color-mix(in oklab,var(--d-s1) calc(var(--dia)*100%),var(--n-s1));
+  --anatomy-shade-2:color-mix(in oklab,var(--d-s2) calc(var(--dia)*100%),var(--n-s2));
+  --anatomy-shade-3:color-mix(in oklab,var(--d-s3) calc(var(--dia)*100%),var(--n-s3));
+  --anatomy-face:color-mix(in oklab,var(--d-face) calc(var(--dia)*100%),var(--n-face));
+  --anatomy-top:color-mix(in oklab,var(--d-top) calc(var(--dia)*100%),var(--n-top));
+  --anatomy-lit-shade:color-mix(in oklab,var(--d-lit-shade) calc(var(--dia)*100%),var(--n-lit-shade));
+  --anatomy-lit-top:color-mix(in oklab,var(--d-lit-top) calc(var(--dia)*100%),var(--n-lit-top));
+  --sr-glass:color-mix(in oklab,var(--d-glass) calc(var(--dia)*100%),var(--n-glass));
+  --sr-sel:color-mix(in oklab,var(--d-sel) calc(var(--dia)*100%),var(--n-sel));
+  --sr-night:color-mix(in oklab,var(--d-night) calc(var(--dia)*100%),var(--n-night));
+  --sr-dayband:color-mix(in oklab,var(--d-dayband) calc(var(--dia)*100%),var(--n-dayband));
+  --sr-play:color-mix(in oklab,var(--d-play) calc(var(--dia)*100%),var(--n-play));
+  --sr-play-hover:color-mix(in oklab,var(--d-play-hover) calc(var(--dia)*100%),var(--n-play-hover));
+  --sr-play-ink:color-mix(in oklab,var(--d-play-ink) calc(var(--dia)*100%),var(--n-play-ink));
+  --sr-focus:color-mix(in oklab,var(--d-focus) calc(var(--dia)*100%),var(--n-focus));
+}
 body.iso{font-family:var(--sr-font)}
 .iso ::selection{background:var(--wm-orange);color:var(--wm-white)}
 
@@ -62,6 +124,36 @@ body.iso{font-family:var(--sr-font)}
 .sr-fan-bg{fill:var(--anatomy-shade-0);stroke:none}
 .sr-blade{fill:var(--anatomy-mid);opacity:.55;stroke:none}
 .iso-swatch[data-energy] path{stroke:var(--wm-orange);stroke-dasharray:2.4 2.4}
+/* sombras: cada pieza las pinta en su capa, recortada a su silueta; los tubos se oscurecen enteros */
+.sr-sh path{fill:var(--sr-sombra);stroke:none;mix-blend-mode:multiply}
+.it[data-tubo] .tb-body{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .tb-shine{fill:color-mix(in oklab,var(--anatomy-top),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .tb-shade{fill:color-mix(in oklab,var(--anatomy-shade-0),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-fill{fill:color-mix(in oklab,var(--anatomy-face),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-top{fill:color-mix(in oklab,var(--anatomy-top),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-shade[data-shade="0"]{fill:color-mix(in oklab,var(--anatomy-shade-0),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-shade[data-shade="1"]{fill:color-mix(in oklab,var(--anatomy-shade-1),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-shade[data-shade="2"]{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+.it[data-tubo] .iso-shade[data-shade="3"]{fill:color-mix(in oklab,var(--anatomy-shade-3),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
+/* el cielo: el sol y la luna llena pasan por detrás de la maqueta */
+.sr-sol-disco{fill:var(--wm-orange)}
+.sr-sol-nucleo{fill:var(--wm-orange-300);opacity:.75}
+.sr-sol-halo{fill:url(#sr-sol-halo)}
+.sr-halo-0{stop-color:var(--wm-orange-300);stop-opacity:.6}
+.sr-halo-1{stop-color:var(--wm-orange-300);stop-opacity:.2}
+.sr-halo-2{stop-color:var(--wm-orange-300);stop-opacity:0}
+.sr-luna-disco{fill:var(--wm-gray-100)}
+.sr-luna-halo{fill:url(#sr-luna-halo)}
+.sr-lhalo-0{stop-color:var(--wm-blue-200);stop-opacity:.45}
+.sr-lhalo-1{stop-color:var(--wm-blue-200);stop-opacity:.14}
+.sr-lhalo-2{stop-color:var(--wm-blue-200);stop-opacity:0}
+.sr-crater{fill:var(--wm-gray-300);opacity:.6}
+/* la tarjeta de la brújula */
+.sr-rosa-lleno{fill:var(--anatomy-lo);stroke:none}
+.sr-rosa-norte{fill:var(--anatomy-hi);stroke:none}
+.sr-rosa-letra{font-family:var(--anatomy-mono);font-weight:600;fill:var(--anatomy-mid)}
+.sr-rosa-n{fill:var(--anatomy-hi);font-weight:700}
+.sr-rosa-eje{fill:var(--anatomy-hi);stroke:none}
 .sr-stage{position:relative}
 .sr-stage:focus-visible{outline:2px solid var(--sr-focus);outline-offset:4px}
 .sr-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -114,10 +206,10 @@ body.iso{font-family:var(--sr-font)}
 .sr-play:focus-visible,.sr-speed:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 
 @container plate (min-width:560px){
-  .sr-kpis{order:0;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .sr-kpis{order:0;grid-template-columns:repeat(4,minmax(0,1fr))}
 }
-@container plate (min-width:1000px){
-  .sr-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+@container plate (min-width:1280px){
+  .sr-kpis{grid-template-columns:repeat(8,minmax(0,1fr))}
 }
 /* En el teléfono la lectura va debajo de la hora, la barra ocupa todo el ancho (es más fácil con el dedo)
    y la velocidad baja a su propia fila, con botones del mismo ancho. */
@@ -157,6 +249,10 @@ input.sr-input{width:5.6em}
 .sr-step output{min-width:2.4em;text-align:center;color:var(--anatomy-strong);font-weight:700;font-variant-numeric:tabular-nums}
 .sr-pm{min-width:32px;padding:4px 0;font-size:15px;line-height:1}
 .sr-warn{margin:0;flex:1 1 14em;color:var(--anatomy-strong)}
+.sr-rumbo-row{flex-wrap:nowrap;gap:10px}
+.sr-rumbos{flex:1 1 auto;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:3px;max-width:340px}
+.sr-rumbo{padding:6px 0;min-width:0}
+.sr-rumbo[aria-checked="true"]{box-shadow:0 0 0 1px var(--anatomy-hi),inset 0 -2px 0 var(--wm-orange)}
 
 .sr-chart{margin:0;display:grid;gap:6px}
 .sr-chart-head{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;justify-content:space-between}

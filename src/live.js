@@ -97,8 +97,355 @@ function stepSpring(o, dt) {
   return true;
 }
 
+// ---------- sol, luna y sombras ----------
+const SVGNS = "http://www.w3.org/2000/svg";
+const O0 = iso([0, 0, 0], P);
+// El vector en pantalla de una dirección del mundo (la proyección es lineal fuera del origen).
+const pantalla = (v) => {
+  const q = iso(v, P);
+  return [q[0] - O0[0], q[1] - O0[1]];
+};
+const areaDe = (p) => {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const q = p[(i + 1) % p.length];
+    a += p[i][0] * q[1] - q[0] * p[i][1];
+  }
+  return a / 2;
+};
+const SOLIDOS = D.sombra.solidos.map((s) => {
+  const k = solido(s.a, s.b, { id: s.id, n: s.n, on: s.on });
+  k.iso = k.v.map((v) => iso(v, P));
+  k.alto = Math.max(...k.v.map((v) => v[2]));
+  return k;
+});
+const RECEPTORES = D.sombra.receptores.map((r) => ({
+  ...r,
+  el: svg.querySelector(`[data-sh="${r.id}"]`),
+  caras: r.caras.map((f) => ({ ...f, p: areaDe(f.p) < 0 ? [...f.p].reverse() : f.p })),
+  pool: [],
+}));
+const TUBOS = D.sombra.tubos.map((t, i) => ({ ...t, el: svg.querySelector(`[data-tubo="${i}"]`), sh: 0 }));
+const PLACAS = D.sombra.placas;
+const PISO_PLACAS = Math.min(...PLACAS.flatMap((p) => p.puntos.map((q) => q[2])));
+
+// Envoltura convexa (cadena monótona), en el sentido positivo.
+function casco(puntos) {
+  const q = puntos.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const giro = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const abajo = [];
+  for (const p of q) {
+    while (abajo.length >= 2 && giro(abajo[abajo.length - 2], abajo[abajo.length - 1], p) <= 0) abajo.pop();
+    abajo.push(p);
+  }
+  const arriba = [];
+  for (let i = q.length - 1; i >= 0; i--) {
+    while (arriba.length >= 2 && giro(arriba[arriba.length - 2], arriba[arriba.length - 1], q[i]) <= 0) arriba.pop();
+    arriba.push(q[i]);
+  }
+  abajo.pop();
+  arriba.pop();
+  return abajo.concat(arriba);
+}
+// Recorta un polígono por otro convexo (Sutherland–Hodgman), los dos en pantalla.
+function recorta(sujeto, borde) {
+  let out = sujeto;
+  for (let i = 0; i < borde.length && out.length; i++) {
+    const a = borde[i];
+    const b = borde[(i + 1) % borde.length];
+    const lado = (p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    const entra = out;
+    out = [];
+    for (let j = 0; j < entra.length; j++) {
+      const p = entra[j];
+      const q = entra[(j + 1) % entra.length];
+      const lp = lado(p);
+      const lq = lado(q);
+      if (lp >= 0) out.push(p);
+      if (lp >= 0 !== lq >= 0) {
+        const t = lp / (lp - lq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
+  }
+  return out;
+}
+// La sombra de un sólido sobre el plano de una cara: la parte del sólido delante del plano, llevada
+// por el rayo del sol hasta el plano. Se trabaja en pantalla, donde la proyección es lineal.
+function sombraDe(K, f, ns, Ss) {
+  const d = K.v.map((v) => v[0] * f.n[0] + v[1] * f.n[1] + v[2] * f.n[2] - f.c);
+  if (!d.some((x) => x > 0.02)) return null;
+  const pts = [];
+  d.forEach((x, i) => {
+    if (x >= 0) pts.push([K.iso[i][0] - (x / ns) * Ss[0], K.iso[i][1] - (x / ns) * Ss[1]]);
+  });
+  for (const [i, j] of K.e) {
+    if (d[i] > 0 !== d[j] > 0 && d[i] !== d[j]) {
+      const t = d[i] / (d[i] - d[j]);
+      pts.push([K.iso[i][0] + (K.iso[j][0] - K.iso[i][0]) * t, K.iso[i][1] + (K.iso[j][1] - K.iso[i][1]) * t]);
+    }
+  }
+  if (pts.length < 3) return null;
+  const h = casco(pts);
+  return h.length >= 3 ? h : null;
+}
+// Una placa, una batería o una caja de fila solo tapan el sol si están puestas.
+function activoPara(on, total, baterias) {
+  if (!on) return true;
+  const [tipo, n] = on.split(":");
+  if (tipo === "slot") return +n < total;
+  if (tipo === "bat") return +n <= baterias;
+  if (tipo === "rows") return Math.ceil(total / D.cols) >= +n;
+  return true;
+}
+const activo = (on) => activoPara(on, S.existentes.n + S.nuevas, S.baterias);
+const pathDe = (poly) => `M${poly.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join("L")}Z`;
+// Cada pieza pinta su sombra con pocos trazos: las partes con la misma fuerza van juntas en uno, así
+// dos caras a la sombra que se tocan no muestran una línea clara entre ellas.
+function pintaSombra(r, grupos, fuerza) {
+  let i = 0;
+  for (const [alpha, d] of grupos) {
+    let el = r.pool[i];
+    if (!el) {
+      el = document.createElementNS(SVGNS, "path");
+      r.el.appendChild(el);
+      r.pool.push(el);
+    }
+    if (el.__d !== d) {
+      el.setAttribute("d", d);
+      el.__d = d;
+    }
+    const op = (alpha * fuerza).toFixed(3);
+    if (el.__o !== op) {
+      el.setAttribute("opacity", op);
+      el.__o = op;
+    }
+    i++;
+  }
+  for (; i < r.pool.length; i++) {
+    if (r.pool[i].__d) {
+      r.pool[i].setAttribute("d", "");
+      r.pool[i].__d = "";
+    }
+  }
+}
+const sombra = { firma: "", fuerza: 0.4, version: 0, hay: false };
+const leerFuerza = () => {
+  sombra.fuerza = parseFloat(getComputedStyle(svg).getPropertyValue("--sr-sombra-a")) || 0.4;
+  sombra.firma = "";
+};
+// Las sombras de este momento: `s` es la dirección del sol en coordenadas de la casa y `cuanto`
+// (0 a 1) su fuerza, que crece al salir el sol y se apaga al ponerse.
+function sombras(s, cuanto) {
+  const firma = `${s[0].toFixed(4)},${s[1].toFixed(4)},${s[2].toFixed(4)}|${cuanto.toFixed(3)}|${sombra.version}|${sombra.fuerza}`;
+  if (firma === sombra.firma) return;
+  sombra.firma = firma;
+  if (cuanto <= 0.001) {
+    if (sombra.hay) {
+      for (const r of RECEPTORES) if (r.el) pintaSombra(r, new Map(), 0);
+      for (const t of TUBOS) {
+        if (t.el && t.sh) {
+          t.el.style.setProperty("--sh", "0");
+          t.sh = 0;
+        }
+      }
+      sombra.hay = false;
+    }
+    return;
+  }
+  sombra.hay = true;
+  const Ss = pantalla(s);
+  const activos = SOLIDOS.filter((k) => activo(k.on));
+  for (const r of RECEPTORES) {
+    if (!r.el || !activo(r.on)) continue;
+    const grupos = new Map();
+    const agrega = (alpha, poly) => {
+      if (alpha < 0.004 || poly.length < 3) return;
+      const key = Math.round(alpha * 100) / 100;
+      grupos.set(key, (grupos.get(key) ?? "") + pathDe(poly));
+    };
+    for (const f of r.caras) {
+      const ns = f.n[0] * s[0] + f.n[1] * s[1] + f.n[2] * s[2];
+      // una cara se oscurece a medida que el sol le pega de lado y queda a la sombra de espaldas a él
+      const luz = Math.min(1, Math.max(0, ns / 0.12));
+      agrega(cuanto * (1 - luz), f.p);
+      if (luz <= 0 || ns < 0.03) continue;
+      for (const K of activos) {
+        if (r.propios.includes(K.id)) continue;
+        const dc = f.n[0] * K.c[0] + f.n[1] * K.c[1] + f.n[2] * K.c[2] - f.c;
+        if (dc < -K.r) continue;
+        const t = dc / ns;
+        const px = K.c[0] - t * s[0] - f.m[0];
+        const py = K.c[1] - t * s[1] - f.m[1];
+        const pz = K.c[2] - t * s[2] - f.m[2];
+        const lim = f.rr + K.r / ns;
+        if (px * px + py * py + pz * pz > lim * lim) continue;
+        const h = sombraDe(K, f, ns, Ss);
+        if (!h) continue;
+        const c = recorta(h, f.p);
+        if (c.length >= 3 && Math.abs(areaDe(c)) > 0.02) agrega(cuanto * luz, c);
+      }
+    }
+    pintaSombra(r, grupos, sombra.fuerza);
+  }
+  // los tubos se oscurecen enteros, según cuántos de sus puntos de muestra quedan a la sombra
+  for (const t of TUBOS) {
+    if (!t.el || t.el.style.display === "none") continue;
+    let tapados = 0;
+    for (const p of t.p) {
+      for (const K of activos) {
+        if (K.id !== t.propio && tapa(p, s, K)) {
+          tapados++;
+          break;
+        }
+      }
+    }
+    const v = (cuanto * tapados) / t.p.length;
+    if (Math.abs(v - t.sh) > 0.004) {
+      t.el.style.setProperty("--sh", v.toFixed(3));
+      t.sh = v;
+    }
+  }
+}
+
+// Lo que tapan las sombras en el techo para un rumbo y unas placas puestas: el acceso solar del año
+// (Aurora) y la forma de la producción en el día del equinoccio. Solo cambia con el rumbo o las placas.
+let techo = { key: "", acceso: 1, perfil: null };
+function sombrasDelTecho() {
+  const total = Math.min(D.slots, S.existentes.n + S.nuevas);
+  const key = `${S.rumbo}|${total}|${S.existentes.n}|${S.existentes.w}`;
+  if (key === techo.key) return techo;
+  const az = S.rumbo * GRADO;
+  const puestas = PLACAS.slice(0, total);
+  const pesos = puestas.map((_, i) => (i < S.existentes.n ? S.existentes.w : D.vatios));
+  const suma = pesos.reduce((a, b) => a + b, 0) || 1;
+  // solo puede tapar el sol de una placa lo que sube más que el vidrio más bajo
+  const tapan = SOLIDOS.filter((k) => k.alto > PISO_PLACAS && activoPara(k.on, total, S.baterias));
+  const porPlaca = puestas.length ? accesoSolar(puestas, tapan, az) : [];
+  const acceso = puestas.length ? porPlaca.reduce((a, v, i) => a + v * pesos[i], 0) / suma : 1;
+  const perfil = formaDelDia(288, az, BASE.mediodia, (i, s) => (puestas.length ? puestas.reduce((a, p, j) => a + soleado(p, s, tapan) * pesos[j], 0) / suma : 1));
+  techo = { key, acceso, perfil };
+  return techo;
+}
+
+// ---------- cielo ----------
+const solEl = svg.querySelector("[data-sol]");
+const haloEl = svg.querySelector("[data-halo]");
+const lunaEl = svg.querySelector("[data-luna]");
+const mainEl = doc(".sr-main");
+const CIELO = D.cielo;
+const EJE_X = pantalla([1, 0, 0]);
+const EJE_Y = pantalla([0, 1, 0]);
+const LARGO = Math.hypot(EJE_X[0], EJE_Y[0]);
+// Dónde va el sol (o la luna) en el cielo de la tarjeta: a la derecha o a la izquierda según su dirección
+// vista desde esta cámara, y más arriba cuanto más alto está.
+function enCielo(pos, rumbo) {
+  const v = haciaCasa(pos, rumbo);
+  const h = Math.hypot(v[0], v[1]) || 1;
+  const lado = (EJE_X[0] * v[0] + EJE_Y[0] * v[1]) / (LARGO * h);
+  const x = CIELO.x0 + CIELO.rx * lado * Math.cos(pos.alt);
+  const f = (x - (CIELO.x0 - CIELO.rx)) / (2 * CIELO.rx);
+  const y = CIELO.yIzq + (CIELO.yDer - CIELO.yIzq) * f - CIELO.ry * Math.sin(pos.alt);
+  return [x, y];
+}
+let diaShown = -1;
+function cielo(hora, rumboRad) {
+  const sol = solDelDia(hora, BASE.mediodia);
+  const luna = lunaDelDia(hora, BASE.mediodia);
+  const [sx, sy] = enCielo(sol, rumboRad);
+  const [lx, ly] = enCielo(luna, rumboRad);
+  solEl.setAttribute("transform", `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
+  // con el sol bajo (al salir y al ponerse) el resplandor crece
+  haloEl.setAttribute("transform", `scale(${(1 + 1.4 * (1 - smooth(0, 0.35, sol.alt))).toFixed(3)})`);
+  lunaEl.setAttribute("transform", `translate(${lx.toFixed(1)} ${ly.toFixed(1)})`);
+  // la tarjeta se aclara del amanecer civil (sol 6° bajo el horizonte) a 6° sobre él, y al revés de tarde
+  const dia = smooth(-0.105, 0.105, sol.alt);
+  solEl.setAttribute("opacity", smooth(-0.02, 0.05, sol.alt).toFixed(3));
+  lunaEl.setAttribute("opacity", (smooth(-0.02, 0.05, luna.alt) * (0.35 + 0.65 * (1 - dia))).toFixed(3));
+  if (Math.abs(dia - diaShown) > 0.002) {
+    diaShown = dia;
+    mainEl.style.setProperty("--dia", dia.toFixed(3));
+    const fase = dia > 0.5 ? "dia" : "noche";
+    if (mainEl.dataset.cielo !== fase) mainEl.dataset.cielo = fase;
+  }
+  sombras(haciaCasa(sol, rumboRad), smooth(0.01, 0.14, sol.alt));
+}
+
+// ---------- brújula ----------
+const rosaG = svg.querySelector('[data-part="rosa"]');
+const ROSA = (() => {
+  const mk3 = (tag, attrs) => {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+    rosaG.appendChild(el);
+    return el;
+  };
+  return {
+    llenos: mk3("path", { class: "sr-rosa-lleno" }),
+    norte: mk3("path", { class: "sr-rosa-norte" }),
+    puntas: mk3("path", { class: "iso-line", "data-tone": "mid" }),
+    menores: mk3("path", { class: "iso-line", "data-tone": "faint" }),
+    mayores: mk3("path", { class: "iso-line", "data-tone": "lo" }),
+    letras: ["N", "E", "S", "O"].map((t, i) => {
+      const el = mk3("text", { class: `sr-rosa-letra${i === 0 ? " sr-rosa-n" : ""}`, "text-anchor": "middle", "font-size": "1.9", y: "0.68" });
+      el.textContent = t;
+      return el;
+    }),
+    eje: mk3("circle", { class: "sr-rosa-eje", r: "0.85" }),
+  };
+})();
+// La tarjeta: cada dirección con acimut `az` queda en el ángulo (az − rumbo) de la casa, así la marca fija
+// (en +x, hacia donde miran las placas) cae sobre el rumbo, y la N, la E, la S y la O siguen el sentido
+// del reloj como en una brújula de verdad vista desde arriba.
+function dibujaRosa(rumbo) {
+  const { x, y, z1: z, carta } = D.brujula;
+  const pt = (r, a) => iso([x + r * Math.cos(a), y + r * Math.sin(a), z], P);
+  const ang = (az) => (az - rumbo) * GRADO;
+  const xy = (p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`;
+  let menores = "";
+  let mayores = "";
+  for (let az = 10; az < 360; az += 10) {
+    if (az % 90 === 0) continue;
+    const r0 = az % 30 === 0 ? carta - 1.4 : carta - 0.8;
+    const line = `M${xy(pt(r0, ang(az)))}L${xy(pt(carta + 0.1, ang(az)))}`;
+    if (az % 30 === 0) mayores += line;
+    else menores += line;
+  }
+  ROSA.menores.setAttribute("d", menores);
+  ROSA.mayores.setAttribute("d", mayores);
+  const centro = pt(0, 0);
+  let puntas = "";
+  let llenos = "";
+  let norte = "";
+  for (let az = 0; az < 360; az += 45) {
+    const cardinal = az % 90 === 0;
+    const a = ang(az);
+    const punta = pt(az === 0 ? 5.4 : cardinal ? 4.7 : 3.2, a);
+    const ancho = cardinal ? 1.25 : 0.85;
+    const izq = pt(ancho, a + Math.PI / 4);
+    const der = pt(ancho, a - Math.PI / 4);
+    puntas += `M${xy(centro)}L${xy(izq)}L${xy(punta)}L${xy(der)}Z`;
+    const mitad = `M${xy(centro)}L${xy(izq)}L${xy(punta)}Z`;
+    if (az === 0) norte += `M${xy(centro)}L${xy(izq)}L${xy(punta)}L${xy(der)}Z`;
+    else llenos += mitad;
+  }
+  ROSA.puntas.setAttribute("d", puntas);
+  ROSA.llenos.setAttribute("d", llenos);
+  ROSA.norte.setAttribute("d", norte);
+  ROSA.letras.forEach((el, i) => {
+    const a = ang(i * 90);
+    const o = pt(6.6, a);
+    const u = pantalla([-Math.sin(a), Math.cos(a), 0]);
+    const v = pantalla([-Math.cos(a), -Math.sin(a), 0]);
+    el.setAttribute("transform", `matrix(${u[0].toFixed(4)} ${u[1].toFixed(4)} ${v[0].toFixed(4)} ${v[1].toFixed(4)} ${o[0].toFixed(2)} ${o[1].toFixed(2)})`);
+  });
+  ROSA.eje.setAttribute("cx", centro[0].toFixed(2));
+  ROSA.eje.setAttribute("cy", centro[1].toFixed(2));
+}
+
 // ---------- sistema ----------
-const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes };
+const S = { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, rumbo: D.rumbo };
+let factor = 1;
 let sug = null;
 let samples = null;
 let pvPeak = 1;
@@ -117,8 +464,13 @@ function recompute({ calm = false } = {}) {
   roofFull = S.existentes.n + S.nuevas > D.slots;
   S.nuevas = clamp(S.nuevas, 0, D.slots - S.existentes.n);
   S.baterias = clamp(S.baterias, D.limites.baterias[0], D.limites.baterias[1]);
-  diaPV = produccionDia({ existentes: S.existentes, nuevas: S.nuevas });
-  const sim = simulate({ diaPV, baterias: S.baterias, diaCasa: S.meses[S.mes] / 30 });
+  // El cotizador da la producción con las placas al sur y sin sombras; el rumbo (PVWatts) y el acceso
+  // solar (las sombras del año) la ajustan, y el día sigue al sol de ese rumbo con sus sombras.
+  const t = sombrasDelTecho();
+  factor = factorRumbo(S.rumbo);
+  diaPV = produccionDia({ existentes: S.existentes, nuevas: S.nuevas }) * factor * t.acceso;
+  const sim = simulate({ diaPV, baterias: S.baterias, diaCasa: S.meses[S.mes] / 30, perfil: t.perfil });
+  sombra.version++;
   samples = Object.fromEntries(KEYS.map((key) => [key, sim.rows.map((row) => row[key])]));
   pvPeak = sim.pico || 1;
   const total = S.existentes.n + S.nuevas;
@@ -258,13 +610,20 @@ function updateFicha() {
   const consumo = S.meses[S.mes];
   const anual = S.meses.reduce((a, b) => a + b, 0);
   const prodMes = diaPV * 30;
+  const tof = tofDe(S.rumbo);
   ficha.goal = {
     prod: prodMes,
     dia: diaPV,
     resp: S.baterias ? respaldoHoras(S.baterias, consumo / 30) : 0,
     mes: consumo > 0 ? (prodMes / consumo) * 100 : 0,
     anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
+    tsrf: tof * techo.acceso * 100,
   };
+  const r = rumboDe(S.rumbo);
+  F.rumbo.textContent = `${r.nombre} · ${r.az}°`;
+  F.inclin.textContent = `inclinación ${SOL.inclinacion}°`;
+  F.tof.textContent = `TOF ${Math.round(tof * 100)} % · acceso ${Math.round(techo.acceso * 100)} %`;
+  if (rumboV) rumboV.textContent = `${r.nombre} · ${r.az}°`;
   if (!ficha.show || still.matches) ficha.show = { ...ficha.goal };
   const watts = S.nuevas * D.vatios + S.existentes.n * S.existentes.w;
   F.kw.textContent = `${kw(watts)} kW`;
@@ -288,7 +647,8 @@ function renderFicha() {
   const consumo = S.meses[S.mes];
   const anual = S.meses.reduce((a, b) => a + b, 0);
   F.prod.textContent = `${fmt(v.prod)} kWh/mes`;
-  F.dia.textContent = `${fmt(v.dia, 1)} kWh al día`;
+  F.dia.textContent = `${fmt(v.prod * 12)} al año · ${fmt(v.dia, 1)} al día`;
+  F.tsrf.textContent = `${Math.round(v.tsrf)} %`;
   F.respaldo.textContent = S.baterias ? `${fmt(S.baterias * BASE.bateria, 1)} kWh · respaldo ${Math.round(v.resp)} h` : "toda la noche de LUMA";
   F.mes.textContent = consumo > 0 ? `cubre ${Math.round(v.mes)} %` : "—";
   F.anio.textContent = anual > 0 ? `cubre ${Math.round(v.anio)} %` : "—";
@@ -362,6 +722,30 @@ resetButton.addEventListener("click", () => {
   recompute();
   announce();
 });
+// Rumbo: ocho botones en el orden de la brújula; las flechas pasan al de al lado.
+const rumboV = doc("[data-rumbo-v]");
+const rumboButtons = [...document.querySelectorAll("[data-rumbo]")];
+function setRumbo(az, focus = false) {
+  S.rumbo = az;
+  for (const b of rumboButtons) {
+    const on = +b.dataset.rumbo === az;
+    b.setAttribute("aria-checked", String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  recompute();
+  announce();
+  if (still.matches || !frame) draw(0, true);
+}
+rumboButtons.forEach((b, i) => {
+  b.addEventListener("click", () => setRumbo(+b.dataset.rumbo));
+  b.addEventListener("keydown", (event) => {
+    const d = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!d) return;
+    event.preventDefault();
+    setRumbo(+rumboButtons[(i + d + rumboButtons.length) % rumboButtons.length].dataset.rumbo, true);
+  });
+});
 vatiosInput.addEventListener("change", () => {
   S.existentes.w = clamp(Math.round(parseFloat(vatiosInput.value) || D.ejemplo.existentes.w), D.limites.vatios[0], D.limites.vatios[1]);
   vatiosInput.value = String(S.existentes.w);
@@ -400,7 +784,7 @@ let quietSystem = 0;
 function announce() {
   clearTimeout(quietSystem);
   quietSystem = setTimeout(() => {
-    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.`;
+    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}: TSRF ${F.tsrf.textContent}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.`;
   }, 500);
 }
 
@@ -677,6 +1061,8 @@ chartSvg.addEventListener("pointercancel", endDrag);
 // ---------- bucle de la figura ----------
 let hour = D.start;
 let target = D.start;
+let rumboShow = D.rumbo;
+let rumboDibujado = Infinity;
 let playing = !still.matches;
 let rate = 0.25;
 let wait = 1.2;
@@ -723,6 +1109,13 @@ function draw(dt, calm) {
   }
   if (!scrubbing) scrub.value = String(((hour % 24) + 24) % 24);
   for (const button of sceneButtons) button.setAttribute("aria-pressed", String(!playing && Math.abs(target - +button.dataset.scene) < 0.01));
+  // la tarjeta de la brújula gira hasta el rumbo; el sol, la luna, la luz y las sombras siguen a la hora
+  if (calm) rumboShow = S.rumbo;
+  if (Math.abs(rumboShow - rumboDibujado) > 0.01) {
+    dibujaRosa(rumboShow);
+    rumboDibujado = rumboShow;
+  }
+  cielo(hour, rumboShow * GRADO);
 }
 
 function tick(now) {
@@ -744,6 +1137,9 @@ function tick(now) {
   // Con el día corriendo la hora sigue al reloj tal cual; un salto (escena, flechas) llega suave.
   hour = calm || scrubbing ? target : hour + (target - hour) * (1 - Math.exp(-dt / (playing ? 0.12 : 0.45)));
   if (Math.abs(target - hour) < 1e-4) hour = target;
+  // la brújula gira por el camino corto
+  const giro = ((((S.rumbo - rumboShow) % 360) + 540) % 360) - 180;
+  rumboShow = calm || Math.abs(giro) < 0.05 ? S.rumbo : rumboShow + giro * (1 - Math.exp(-dt / 0.45));
   for (const o of moving) {
     if (!stepSpring(o, dt)) moving.delete(o);
     o.apply();
@@ -839,6 +1235,7 @@ const setTheme = (theme) => {
   document.body.dataset.theme = theme;
   themeButton.setAttribute("aria-pressed", String(theme === "dark"));
   themeButton.textContent = theme === "dark" ? "Tema claro" : "Tema oscuro";
+  leerFuerza();
   if (!frame && samples) draw(0, true);
 };
 themeButton.addEventListener("click", () => {

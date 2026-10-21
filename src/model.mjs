@@ -76,12 +76,16 @@ const HORAS_CONSUMO = integral(crudo);
 
 // Un día del mes elegido: las placas cubren la casa, el excedente carga la batería y el resto sale a LUMA;
 // sin sol, la batería entrega hasta su reserva y después entra LUMA. Sin pérdidas de batería (supuesto).
-export function simulate({ diaPV, baterias, diaCasa }, steps = 288) {
+// `perfil` (opcional, steps + 1 valores) es la forma de la producción en el día con el rumbo y las
+// sombras (sol.mjs); se escala para que el día sume diaPV.
+export function simulate({ diaPV, baterias, diaCasa, perfil = null }, steps = 288) {
   const dt = 24 / steps;
   const cap = baterias * BASE.bateria;
-  const pico = diaPV / HORAS_FORMA;
+  const area = perfil ? perfil.slice(0, steps).reduce((a, b) => a + b, 0) * dt : 0;
+  const escalaPV = perfil && area > 0 ? diaPV / area : 0;
+  const pico = perfil ? Math.max(...perfil) * escalaPV : diaPV / HORAS_FORMA;
   const escala = diaCasa / HORAS_CONSUMO;
-  const pvAt = (t) => pico * forma(t);
+  const pvAt = (t, i) => (perfil ? perfil[i] * escalaPV : pico * forma(t));
   const loadAt = (t) => crudo(t) * escala;
   let soc = cap * 0.5;
   let rows = [];
@@ -91,7 +95,7 @@ export function simulate({ diaPV, baterias, diaCasa }, steps = 288) {
     let taken = 0;
     for (let i = 0; i <= steps; i++) {
       const t = i * dt;
-      const pv = pvAt(t);
+      const pv = pvAt(t, i);
       const load = loadAt(t);
       const surplus = pv - load;
       let batt = 0;
