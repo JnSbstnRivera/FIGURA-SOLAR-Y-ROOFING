@@ -23,10 +23,11 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
 - **Poner el agua de Windmar Water** en la pestaña Agua, con los equipos del cotizador Water de Sun Bot:
   - cuántas personas viven en la casa (usan 50 galones al día cada una, 15 de ellos de agua caliente);
   - el calentador solar Soltek (80/1, 80/2, 120/3 o 120/4). Un punto naranja marca el que sugiere el cotizador para esas personas. Va al fondo del techo, en el lugar de las últimas placas, así que el techo admite menos placas;
-  - la cisterna: torre Eco 150 o Hércules 600 en el techo, Eco 500 o Eco 1,000 en el patio, con su bomba y su presurizado junto a la pared;
-  - el corte de agua de la AAA: la cisterna deja de llenarse y baja con lo que se usa.
+  - la cisterna: Eco 500, Hércules 600 o Eco 1,000, todas en el techo, con su bomba y su presurizado junto a la pared. La Torre 150 va adentro, pegada a la pared, y queda para cuando se dibuje el apartamento;
+  - el corte de agua de la AAA: la cisterna deja de llenarse y baja con lo que se usa;
+  - el suavizador POE Water Care (10×54 o 13×54) donde el agua entra a la casa: prefiltro, tanque de resina con su válvula, tanque de sal y luz UV. El agua le llega de la bomba, o de la AAA si no hay cisterna.
 
-  Al abrir la pestaña por primera vez bajan el calentador sugerido y la Hércules 600. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. Las cisternas y el tanque del calentador llevan el logo de Windmar al frente, pegado a su curva como una calcomanía; la mirilla queda a su derecha. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
+  Al abrir la pestaña por primera vez bajan el calentador sugerido, la Hércules 600 y el suavizador 10×54. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. Las cisternas y el tanque del calentador llevan el logo de Windmar al frente, pegado a su curva como una calcomanía; la mirilla queda a su derecha. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
 - **Ver salir el sol y la luna:** el sol da la vuelta por fuera de la maqueta, siempre del lado de donde viene su luz: con las placas al sur sale por atrás a la derecha, a mediodía va arriba y de tarde baja por el frente a la izquierda, y las sombras caen del lado contrario. Nunca pasa por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
 - **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
@@ -38,9 +39,9 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
 
 ![De noche la tarjeta se pone azul oscuro y sale la luna llena](docs/noche-luna.png)
 
-![Pestaña Agua: el calentador solar al fondo del techo y la Hércules 600; el agua corre por los tubos y el panel dice la temperatura, el nivel, el ahorro y la reserva](docs/agua.png)
+![Pestaña Agua: el calentador solar al fondo del techo, la Hércules 600 y el suavizador POE junto a la pared; el agua corre por los tubos y el panel dice la temperatura, el nivel, el ahorro y la reserva](docs/agua.png)
 
-![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.3](docs/tanque-manana.png)
+![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.2](docs/tanque-manana.png)
 
 ![Con la Hércules 600 en el techo y las placas al sur, a las 17:00 su sombra cae sobre la placa de la punta; el TSRF baja 0.2](docs/tanque-tarde.png)
 
@@ -96,7 +97,8 @@ Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) e
    - en qué pestaña va y sus títulos;
    - cómo se nombra en las frases ("el calentador");
    - sus modelos, con los datos del cotizador de Sun Bot;
-   - sus partes: las piezas que se ven solo con algunos modelos, como los colectores del calentador;
+   - sus partes: las piezas que se ven solo con algunos modelos, como los colectores del calentador. Una parte también puede mirar lo escogido de otro producto: el tubo de la bomba va derecho a la casa si no hay suavizador, y al suavizador si lo hay;
+   - en qué escena va cada modelo (`escenas`): la casa, o el apartamento cuando exista (ahí queda guardada la Torre 150);
    - la nota que dice el panel.
 
    Si ocupa lugares de placas del techo, va en `lugares`. Si lleva el logo de Windmar, va `logo: true`.
@@ -178,12 +180,23 @@ El 80/1 y el 80/2 miden de 5 a 7 pies de ancho, más que una placa: por eso ocup
 
 | Modelo | Medidas | Dónde va | Bomba | Presurizado |
 |---|---|---|---|---|
-| Eco 150 (torre) | 25" × 72" | techo | ½ HP | 6 gal |
+| Eco 500 | 74" × 32" | techo | ¾ HP | 40 gal |
 | Hércules 600 | 56" × 61" | techo | ¾ HP | 40 gal |
-| Eco 500 | 74" × 32" | patio | ¾ HP | 40 gal |
-| Eco 1,000 | sin medidas en el PDF; se dibuja de 64" × 76" | patio | ¾ HP | 40 gal |
+| Eco 1,000 | sin medidas en el PDF; se dibuja de 64" × 76" | techo | ¾ HP | 40 gal |
+| Torre 150 | 25" × 72" | adentro, pegada a la pared (para el apartamento; no está en la casa) | ½ HP | 6 gal |
 
-La Eco 500 y la Eco 1,000 son más anchas que la franja libre del techo. La de 600 de Sun Bot se llama Hércules; en la Cotizadora Central, Ecowater 600. Las del techo bajan el agua por dentro de la casa (su tubo entra al techo por una bota sellada con Roof Patch); las del patio llegan a la bomba por un tubo.
+Van en la franja oeste del techo, entre las cajas de las filas y el borde. Para que quepa la Eco 500, la más ancha, la casa se alargó 5 unidades hacia el este (unos 19") y las placas se corrieron con ella. La de 600 de Sun Bot se llama Hércules; en la Cotizadora Central, Ecowater 600. El agua baja por dentro de la casa: su tubo entra al techo por una bota sellada con Roof Patch.
+
+**Suavizador POE Water Care** (`trat-poe` del cotizador y la página "Tratamiento de agua · Punto de entrada" del PDF maestro). Va donde el agua entra a la casa, a lo largo de la pared oeste. El agua le llega de la bomba, o de la AAA por un tubo que sube de una caja en el suelo si no hay cisterna.
+
+| Pieza | Qué es | Dónde va |
+|---|---|---|
+| Prefiltro | sedimento de 5 micras, cartucho lavable en carcasa transparente de 10" | en su bracket, debajo del inversor |
+| Tanque Water Care | 10" × 54" con carbón activado y resina (CSPRC1054), o el de 13" × 54" (add-on de más capacidad), con su válvula electrónica arriba | entre el panel y el inversor |
+| Tanque de sal | 18" × 36", 280 lb de sal | debajo del inversor, con el logo de Windmar |
+| Luz UV Viqua VH410 | 18 GPM | a la salida de la válvula, y de ahí a la pared |
+
+El tanque de sal del 13" × 54" se dibuja igual que el del 10" × 54": el PDF no dice si cambia.
 
 **Supuestos del agua** (decididos por Juan el 21-oct-2026 o del dibujo):
 

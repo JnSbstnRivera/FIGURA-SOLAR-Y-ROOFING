@@ -32,12 +32,14 @@ const PLATE = { x: -74, y: -102, w: 134, d: 186, r: 10 };
 const PLATE_H = 10;
 const FOOT_H = 5;
 
+// La casa se alargó 5 hacia el este (22-oct) para que las cisternas grandes quepan en la franja oeste del techo,
+// entre las placas y el borde: las placas se corrieron con ella y la fachada oeste quedó donde estaba.
 const HX1 = 44;
 const HY1 = 24;
-const PLINTH = { x: -63, y: -91, w: 108, d: 116, r: 0.6 };
-const WALLS = { x: -62, y: -90, w: 106, d: 114, r: 0.5 };
+const PLINTH = { x: -63, y: -96, w: 108, d: 121, r: 0.6 };
+const WALLS = { x: -62, y: -95, w: 106, d: 119, r: 0.5 };
 const WALL_Z = [3, 40];
-const SLAB = { x: -63.5, y: -91.5, w: 109, d: 117, r: 0.5 };
+const SLAB = { x: -63.5, y: -96.5, w: 109, d: 122, r: 0.5 };
 const SLAB_Z = [40, 45];
 const PRIMER_Z = [45, 45.8];
 const COAT_Z = [45.8, 48.2];
@@ -50,7 +52,7 @@ const COLS = 8;
 const ROWS = 4;
 const PITCH = PANEL.l * Math.cos(BETA) + 6;
 const ROWS_XS = Array.from({ length: ROWS }, (_, row) => 36 - row * PITCH);
-const ARRAY_Y0 = -88;
+const ARRAY_Y0 = -93;
 const LIFT = 6;
 const PAD_H = 0.8;
 const RAIL_D = [0.25, 0.75].map((f) => f * PANEL.l * Math.cos(BETA));
@@ -90,6 +92,9 @@ function tanqueCal(cal) {
   return { x: xf - L * Math.cos(beta) - 1.2, y0: yc - t.largo / 2, y1: yc + t.largo / 2, yc, z: z0 + L * Math.sin(beta) + grueso * Math.cos(beta) + 0.3 + t.r, r: t.r, largo: t.largo };
 }
 
+// El lugar de las cisternas en el techo (ver más abajo): la franja oeste, entre las cajas de las filas y el borde.
+const LUGAR_TECHO = { x: 1, y: 14.6, z: TOPZ + 4.8 };
+
 // ---------- el plano: cómo se dibuja cada producto de productos.mjs ----------
 // Cada producto del plano tiene aquí su dibujo, con el mismo id: lienzo(m) da los puntos más altos de cada modelo,
 // para que el lienzo los cuente; cielo(m), su caja, para que el sol y la luna den la vuelta por fuera; y dibujar(p)
@@ -112,12 +117,18 @@ const DIBUJOS = {
     dibujar: (p) => dibujarCalentador(p),
   },
   cisterna: {
+    lienzo: (m) => {
+      const { lugar, top } = medidasCisterna(m);
+      return [[lugar.x, lugar.y, top + 1]];
+    },
     cielo: (m) => {
       const { lugar, r, top } = medidasCisterna(m);
       return k.boxCorners({ x: lugar.x - r, y: lugar.y - r, w: 2 * r, d: 2 * r }, lugar.z, top + 1);
     },
     dibujar: (p) => dibujarCisterna(p),
   },
+  // el suavizador va en el suelo, contra la pared: no sale del lienzo ni del contorno del cielo
+  poe: { dibujar: (p) => dibujarPoe(p) },
 };
 const puntasDe = (cual) => PRODUCTOS.flatMap((p) => p.modelos.flatMap((m) => DIBUJOS[p.id][cual]?.(m) ?? []));
 // El logo de Windmar (logo.mjs) sobre un cilindro, como una calcomanía: cada punto se envuelve alrededor del
@@ -278,18 +289,18 @@ function box(name, [x0, y0, z0], [x1, y1, z1], style = {}, { r = 0.4, steps = 2,
   put(name, [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], wrapped(body, wrap) + capa, [shape], { bias, attrs });
   return shape;
 }
-function cyl(name, cx, cy, r, z0, z1, style = {}, { steps = 32, bevel = 0, extra = "", inner = "", bias = 0, attrs = "", sombra = "ambas", on = null, owner } = {}) {
+function cyl(name, cx, cy, r, z0, z1, style = {}, { steps = 32, bevel = 0, extra = "", inner = "", bias = 0, attrs = "", sombra = "ambas", on = null, owner, wrap = "" } = {}) {
   const shape = record(A.cylinder(cx, cy, r, z0, z1 - z0, { name, owner }));
   const paths = k.cylinder(cx, cy, r, z0, z1 - z0, P, steps, bevel);
   const capa = sombraCilindro(name, cx, cy, r, z0, z1, paths.fill, { sombra, on, lados: Math.max(12, Math.min(32, steps)) });
-  put(name, [cx, cy, (z0 + z1) / 2], S(paths, { tone: "mid", ...style, inner }) + extra + capa, [shape], { bias, attrs });
+  put(name, [cx, cy, (z0 + z1) / 2], wrapped(S(paths, { tone: "mid", ...style, inner }) + extra, wrap) + capa, [shape], { bias, attrs });
   return shape;
 }
-function turned(name, F, profile, style = {}, { extra = "", inner = "", bias = 0, owner, attrs = "", capa = null } = {}) {
+function turned(name, F, profile, style = {}, { extra = "", inner = "", bias = 0, owner, attrs = "", capa = null, wrap = "" } = {}) {
   const paths = G.solidOf(profile, F, P);
   const mid = (profile[0][0] + profile[profile.length - 1][0]) / 2;
   const shape = record(A.solid(F, profile, { name, owner }));
-  put(name, G.add3(F.o, G.mul3(F.a, mid)), S(paths, { tone: "mid", ...style, inner }) + extra + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
+  put(name, G.add3(F.o, G.mul3(F.a, mid)), wrapped(S(paths, { tone: "mid", ...style, inner }) + extra, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
   return shape;
 }
 function ringOn(name, F, s0, s1, rIn, rOut, style = {}, { owner, attrs = "" } = {}) {
@@ -403,7 +414,8 @@ for (const [x, y] of byDepth(k.corners(PLATE, 22))) {
 const PLATE_PATHS = k.slabOf(PLATE, -PLATE_H, PLATE_H, P, 8, 1.6);
 back.push(S(PLATE_PATHS, { tone: "mid", inner: Ln(k.sideSeam(PLATE, -4, P, 8), { tone: "faint" }) }));
 back.push(Ln(k.planOutline(k.insetPlan(PLATE, 5), 0, P), { tone: "lo" }));
-const plateScrews = k.corners(PLATE, 10);
+// los tornillos de las esquinas, afuera de la casa (más largo, su esquina noreste les quedaba encima)
+const plateScrews = k.corners(PLATE, 7);
 back.push(Ln(plateScrews.map(([x, y]) => k.ring(x, y, 2.2, 0, P, 16)).join(""), { tone: "lo" }));
 back.push(Dots(plateScrews.map(([x, y]) => at([x, y, 0])), { size: 0.5 }));
 record(A.slab(PLATE, -PLATE_H, PLATE_H, { name: "stand.plate", ground: true }, 8));
@@ -659,26 +671,23 @@ for (const dy of [-0.6, 0.6]) {
   pipe(`lineset${dy > 0 ? "b" : "a"}`, [[AC.x1, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, BOOT.z1]], 0.35, { tone: "mid", bend: 1.9 });
 }
 
-// ---------- cisternas Windmar: dos van en el techo y dos en el patio ----------
-// Medidas del PDF maestro de Water (Sun Bot), en productos.mjs: la torre Eco 150 mide 25" de diámetro y 72" de alto,
-// la Hércules 600, 56" × 61", y la Eco 500, 74" × 32"; la Eco 1,000 no trae medidas y se dibuja de 64" × 76" (unos
-// 1,000 gal). Cada una con su bomba y su presurizado: la 150, de ½ HP y 6 gal; las otras, de ¾ HP y 40 gal. La
-// torre y la Hércules caben en la franja oeste del techo, sobre una base baja de hierro con patas en sellos de Roof
-// Patch, y su sombra les cae a las placas del extremo oeste (de tarde si miran al sur, de mañana si miran al
-// norte); la Eco 500 y la Eco 1,000 van en el patio oeste, sobre una losa. Solo se ve la que se escoge. Todas
-// llevan una mirilla de nivel al frente, donde la página dibuja el agua que tienen.
-const LUGAR_TECHO = { x: 1, y: 17.2, z: TOPZ + 4.8 };
-const LUGAR_PATIO = { x: -14, y: 62, z: 0.8 };
+// ---------- cisternas Windmar: en el techo, en la franja oeste ----------
+// Medidas del PDF maestro de Water (Sun Bot), en productos.mjs: la Eco 500 mide 74" de diámetro y 32" de alto, la
+// Hércules 600, 56" × 61", y la Eco 1,000 no trae medidas y se dibuja de 64" × 76" (unos 1,000 gal). Cada una con su
+// bomba de ¾ HP y su presurizado de 40 gal. Van en la franja oeste del techo, entre las cajas de las filas y el borde,
+// sobre una base baja de hierro con patas en sellos de Roof Patch, y su sombra les cae a las placas del extremo oeste
+// (de tarde si miran al sur, de mañana si miran al norte). Solo se ve la que se escoge. Todas llevan una mirilla de
+// nivel al lado del logo, donde la página dibuja el agua que tienen. (La Torre 150 va adentro, pegada a la pared, y
+// es la de los apartamentos: queda guardada en productos.mjs para esa escena.)
 function medidasCisterna(c) {
-  const lugar = c.techo ? LUGAR_TECHO : LUGAR_PATIO;
+  const lugar = LUGAR_TECHO;
   const h = c.h * PULG;
   return { lugar, r: (c.d / 2) * PULG, h, z0: lugar.z, top: lugar.z + h };
 }
 // lo que es de otra cisterna, que nunca se ve con esta: sus tubos pueden pasar por ahí
 const otraCisterna = (c) => (name) => name.startsWith("cis") && !name.startsWith(`cis${c.id}`);
-// La bomba y el presurizado van en el suelo, debajo del inversor, con la cisterna que se escoja: la bomba (½ HP con
-// la torre de 150, ¾ HP con las otras) y el presurizado (6 o 40 gal). El agua entra a la casa por la pared. La
-// cisterna del patio llega a la bomba por un tubo; las del techo bajan por dentro de la casa.
+// La bomba y el presurizado van en el suelo, frente al inversor, con la cisterna que se escoja. El agua baja de la
+// cisterna por dentro de la casa y la bomba la empuja hacia la casa por la pared, o al suavizador si lo hay.
 const BOMBA = { x0: -8.2, x1: -5.2, y0: 37.6, y1: 40.4, z0: 0.5, z1: 3.9, eje: [39, 2] };
 const PRES = { x: -17.6, y: BOMBA.eje[0] };
 function dibujarCisterna(p) {
@@ -687,21 +696,16 @@ function dibujarCisterna(p) {
     const enCis = parte(p.id, c.id);
     const { on, attrs } = enCis;
     const { lugar, r, h, z0, top } = medidasCisterna(c);
-    const owner = c.techo ? "cisterna.techo" : "cisterna.patio";
-    if (c.techo) {
-      // base baja de hierro: plataforma cuadrada del ancho de la cisterna y cuatro patas en sus sellos
-      const S0 = { x0: lugar.x - r, x1: lugar.x + r, y0: lugar.y - r, y1: lugar.y + r };
-      [[S0.x0, S0.y0], [S0.x1, S0.y0], [S0.x0, S0.y1], [S0.x1, S0.y1]].forEach(([cx, cy], i) => {
-        const lx = cx + Math.sign(lugar.x - cx) * 1.1;
-        const ly = cy + Math.sign(lugar.y - cy) * 1.1;
-        cyl(`cis${c.id}.pad${i}`, lx, ly, 1.7, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 16, sombra: "recibe", owner, ...enCis });
-        box(`cis${c.id}.leg${i}`, [lx - 0.7, ly - 0.7, TOPZ + 0.6], [lx + 0.7, ly + 0.7, z0 - 1], { tone: "mid" }, { r: 0.2, sombra: "recibe", owner, ...enCis });
-      });
-      box(`cis${c.id}.stand`, [S0.x0, S0.y0, z0 - 1], [S0.x1, S0.y1, z0], { tone: "mid" }, { r: 0.3, steps: 2, owner, ...enCis });
-    } else {
-      // losa de concreto en el patio, un poco más ancha que la cisterna
-      box(`cis${c.id}.losa`, [lugar.x - r - 1.6, lugar.y - r - 1.6, 0], [lugar.x + r + 1.6, lugar.y + r + 1.6, z0], { tone: "lo" }, { r: 0.6, steps: 3, sombra: "recibe", owner, ...enCis });
-    }
+    const owner = "cisterna.techo";
+    // base baja de hierro: plataforma cuadrada del ancho de la cisterna y cuatro patas en sus sellos
+    const S0 = { x0: lugar.x - r, x1: lugar.x + r, y0: lugar.y - r, y1: lugar.y + r };
+    [[S0.x0, S0.y0], [S0.x1, S0.y0], [S0.x0, S0.y1], [S0.x1, S0.y1]].forEach(([cx, cy], i) => {
+      const lx = cx + Math.sign(lugar.x - cx) * 1.1;
+      const ly = cy + Math.sign(lugar.y - cy) * 1.1;
+      cyl(`cis${c.id}.pad${i}`, lx, ly, 1.7, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 16, sombra: "recibe", owner, ...enCis });
+      box(`cis${c.id}.leg${i}`, [lx - 0.7, ly - 0.7, TOPZ + 0.6], [lx + 0.7, ly + 0.7, z0 - 1], { tone: "mid" }, { r: 0.2, sombra: "recibe", owner, ...enCis });
+    });
+    box(`cis${c.id}.stand`, [S0.x0, S0.y0, z0 - 1], [S0.x1, S0.y1, z0], { tone: "mid" }, { r: 0.3, steps: 2, owner, ...enCis });
     // el cuerpo con sus anillos de refuerzo, el hombro redondo y la tapa de rosca arriba
     const TF = G.frameOf([lugar.x, lugar.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
     const hombroAlto = Math.min(2.6, h * 0.16);
@@ -738,13 +742,11 @@ function dibujarCisterna(p) {
     turned(`cis${c.id}`, TF, profile, { tone: "mid" }, { inner: ribs, extra: vidrio, owner, attrs, capa });
     const tapaR = Math.min(2.8, (r - adentro) * 0.75);
     cyl(`cis${c.id}.lid`, lugar.x, lugar.y, tapaR, top, top + 1, { tone: "mid" }, { steps: 24, bevel: 0.2, owner, ...enCis });
-    if (c.techo) {
-      // el agua baja por dentro de la casa: el tubo entra al techo por una bota sellada con Roof Patch
-      const bx = lugar.x - r - 3.6;
-      cyl(`cis${c.id}.parche`, bx, lugar.y, 2.2, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 24, sombra: "recibe", owner, ...enCis });
-      cyl(`cis${c.id}.bota`, bx, lugar.y, 1.1, TOPZ + 0.6, TOPZ + 2.2, { tone: "mid" }, { steps: 20, sombra: "recibe", owner, ...enCis });
-      pipe(`cis${c.id}.salida`, [[lugar.x - r, lugar.y, z0 + 1.6], [bx, lugar.y, z0 + 1.6], [bx, lugar.y, TOPZ + 2.2]], 0.6, { touch: [otraCisterna(c)], agua: true, flowOf: () => "agua", attrsOf: () => attrs, bend: 3 });
-    }
+    // el agua baja por dentro de la casa: el tubo entra al techo por una bota sellada con Roof Patch
+    const bx = lugar.x - r - 3.6;
+    cyl(`cis${c.id}.parche`, bx, lugar.y, 2.2, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 24, sombra: "recibe", owner, ...enCis });
+    cyl(`cis${c.id}.bota`, bx, lugar.y, 1.1, TOPZ + 0.6, TOPZ + 2.2, { tone: "mid" }, { steps: 20, sombra: "recibe", owner, ...enCis });
+    pipe(`cis${c.id}.salida`, [[lugar.x - r, lugar.y, z0 + 1.6], [bx, lugar.y, z0 + 1.6], [bx, lugar.y, TOPZ + 2.2]], 0.6, { touch: [otraCisterna(c)], agua: true, flowOf: () => "agua", attrsOf: () => attrs, bend: 3 });
   }
 
   // la bomba: va con cualquier cisterna
@@ -759,11 +761,14 @@ function dibujarCisterna(p) {
     const luz = at([(BOMBA.x0 + BOMBA.x1) / 2, BOMBA.y1, BOMBA.z1 - 1]);
     const extra = `<circle class="sr-led" data-part="bomba-led" cx="${f2(luz[0])}" cy="${f2(luz[1])}" r="0.7"/>` + Ln(faceY(BOMBA.y1, rect(BOMBA.x0 + 0.5, BOMBA.x1 - 0.5, BOMBA.z0 + 0.6, BOMBA.z1 - 1.8)), { tone: "faint" });
     box("bomba", [BOMBA.x0, BOMBA.y0, BOMBA.z0], [BOMBA.x1, BOMBA.y1, BOMBA.z1], { tone: "hi" }, { r: 0.4, steps: 2, bevel: 0.2, extra, sombra: "recibe", ...EN_BOMBA });
-    pipe("bomba.casa", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, WALLS.y + WALLS.d, 5.4]], 0.6, { agua: true, flowOf: () => "agua", attrsOf: () => EN_BOMBA.attrs, bend: 1.6 });
+    // sin suavizador, de la bomba el agua entra derecho a la casa por la pared
+    pipe("bomba.casa", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, WALLS.y + WALLS.d, 5.4]], 0.6, { agua: true, flowOf: () => "agua", attrsOf: () => parte(p.id, "aCasa").attrs, touch: ["poe.desdeBomba"], bend: 1.6 });
   }
-  // presurizado: 40 gal (16" × 47") con las cisternas grandes; 6 gal (11" × 16") con la torre
+  // presurizado: 40 gal (16" × 47") con las cisternas de la casa; 6 gal (11" × 16") con la torre. Solo se dibujan
+  // los de los modelos de esta escena.
   cyl("pres.base", PRES.x, PRES.y, 1.3, 0, 1, { tone: "lo" }, { steps: 20, sombra: "recibe", ...EN_BOMBA });
-  for (const [gal, d, alto] of [[40, 16, 47], [6, 11, 16]]) {
+  const presurizados = new Set(p.modelos.map((m) => m.presurizado));
+  for (const [gal, d, alto] of [[40, 16, 47], [6, 11, 16]].filter(([gal]) => presurizados.has(gal))) {
     const r = (d / 2) * PULG;
     const h = alto * PULG;
     const { on, attrs } = parte(p.id, `pres${gal}`);
@@ -773,18 +778,81 @@ function dibujarCisterna(p) {
     turned(`pres${gal}`, PF, [[1, r - 0.4], [1.5, r], [top - 0.9, r], [top - 0.25, r - 0.7, 1], [top, r - 1.3, 1]], { tone: "hi" }, { owner: "presurizado", attrs, capa });
     pipe(`pres${gal}.bomba`, [[PRES.x + r, PRES.y, 2], [-12.4, PRES.y, 2]], 0.5, { touch: [gal === 6 ? "pres40" : "pres6"], attrsOf: () => attrs });
   }
-  // de la cisterna del patio a la bomba
-  for (const c of p.modelos.filter((c) => !c.techo)) {
-    const { lugar, r } = medidasCisterna(c);
-    const dx = -6.7 - lugar.x;
-    const dy = BOMBA.y1 - lugar.y;
-    const L = Math.hypot(dx, dy);
-    // sale derecho de la pared (en la dirección del centro hacia la bomba) y después dobla hacia ella
-    const u = [dx / L, dy / L];
-    const ini = [lugar.x + r * u[0], lugar.y + r * u[1], 2.4];
-    const fuera = [ini[0] + 2.4 * u[0], ini[1] + 2.4 * u[1], 2.4];
-    pipe(`cis${c.id}.bomba`, [ini, fuera, [-6.7, 46, 2.4], [-6.7, BOMBA.y1, 2.4]], 0.6, { touch: [otraCisterna(c)], agua: true, flowOf: () => "agua", attrsOf: () => parte(p.id, c.id).attrs, bend: 2 });
+}
+
+// ---------- suavizador POE Water Care: donde el agua entra a la casa, en la pared oeste ----------
+// Del PDF maestro de Water: el prefiltro de sedimento (carcasa transparente de 10" en su bracket), el tanque Water
+// Care de 10" × 54" (o el de 13" × 54") con su válvula electrónica arriba, el tanque de sal de 18" × 36" y la luz UV
+// Viqua VH410. El agua llega de la bomba (o de la AAA, por un tubo que sube de una caja en el suelo), pasa por el
+// prefiltro, el tanque y la UV, y entra a la casa. Va a lo largo de la pared: el tanque de sal y el prefiltro debajo
+// del inversor (la sal al lado sur, para que el presurizado no la tape), el tanque en el hueco entre el panel y el
+// inversor (es más alto que el bajo del inversor) y la UV a la salida de la válvula, debajo del panel.
+const POE = {
+  prefiltro: { x: -22, y: 26.1, z0: 5.6, z1: 9.4, r: 0.62 },
+  puerto: 9.85,
+  registro: { x: -12.7, y: 26.1 },
+  resina: { x: -29.5, y: 30.2 },
+  valvula: { x0: -30.45, x1: -28.55, y0: 29.25, y1: 31.15, z1: 17.2 },
+  sal: { x: -16, y: 29.6, r: (18 / 2) * PULG, h: 36 * PULG },
+  uv: { x0: -36.6, x1: -32, y: 30.2, z: 15.2, r: 0.5 },
+};
+function dibujarPoe(p) {
+  const equipo = parte(p.id, "equipo");
+  const MIRILLA = Math.atan2(k.towardViewer(P)[1], k.towardViewer(P)[0]);
+  const frente = [Math.cos(MIRILLA), Math.sin(MIRILLA), 0];
+  const { prefiltro: PF, puerto: zp, valvula: V, sal: SAL, uv: UV } = POE;
+  // el tanque Water Care de cada modelo: base negra, cuerpo de fibra y el domo de arriba
+  for (const m of p.modelos) {
+    const { on, attrs } = parte(p.id, m.id);
+    const r = (m.resina[0] / 2) * PULG;
+    const h = m.resina[1] * PULG;
+    const owner = "poe.resina";
+    cyl(`poe${m.id}.base`, POE.resina.x, POE.resina.y, r + 0.25, 0, 0.5, { tone: "lo" }, { steps: 24, sombra: "recibe", owner, on, attrs });
+    const TF = G.frameOf([POE.resina.x, POE.resina.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
+    const capa = (fill) => sombraCilindro(`poe${m.id}`, POE.resina.x, POE.resina.y, r, 0.5, 0.5 + h, fill, { on, lados: 20 });
+    turned(`poe${m.id}`, TF, [[0.5, r], [h - 0.5, r], [h + 0.2, r * 0.72, 1]], { tone: "mid" }, { owner, attrs, capa, wrap: "sr-resina" });
   }
+  // la válvula electrónica, con su pantalla, encima del tanque (la misma en los dos modelos)
+  const pantalla = at([(V.x0 + V.x1) / 2, V.y1, V.z1 - 0.7]);
+  const vextra = `<circle class="sr-led sr-led-fija" cx="${f2(pantalla[0])}" cy="${f2(pantalla[1])}" r="0.45"/>` + Ln(faceY(V.y1, rect(V.x0 + 0.3, V.x1 - 0.3, V.z1 - 1.2, V.z1 - 0.25)), { tone: "faint" });
+  box("poe.valvula", [V.x0, V.y0, 54 * PULG + 0.1], [V.x1, V.y1, V.z1], { tone: "lo" }, { r: 0.3, steps: 2, extra: vextra, sombra: "recibe", owner: "poe.resina", ...equipo });
+  // el tanque de sal, con su tapa y el logo de Windmar al frente
+  {
+    const TF = G.frameOf([SAL.x, SAL.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
+    const ancho = Math.min(SAL.r * 1.32, ((SAL.h - 1) * 0.6) / LOGO.alto);
+    const logo = p.logo ? logoEnCilindro({ centro: [SAL.x + (SAL.r + 0.03) * frente[0], SAL.y + (SAL.r + 0.03) * frente[1], SAL.h * 0.5], frente, eje: [0, 0, 1], r: SAL.r + 0.03, ancho }) : "";
+    const capa = (fill) => sombraCilindro("poe.sal", SAL.x, SAL.y, SAL.r, 0, SAL.h, fill, { on: equipo.on, lados: 24 });
+    turned("poe.sal", TF, [[0, SAL.r - 0.2], [0.3, SAL.r], [SAL.h - 0.4, SAL.r], [SAL.h, SAL.r - 0.4, 1]], { tone: "hi" }, { extra: logo, attrs: equipo.attrs, capa });
+    cyl("poe.sal.tapa", SAL.x, SAL.y, SAL.r - 0.25, SAL.h, SAL.h + 0.5, { tone: "mid" }, { steps: 28, bevel: 0.15, sombra: "recibe", ...equipo });
+  }
+  // el prefiltro: bracket en la pared, tapa y la carcasa transparente colgando de ella
+  box("poe.bracket", [PF.x - 0.7, HY1, PF.z1 + 0.1], [PF.x + 0.7, PF.y - 0.75, PF.z1 + 0.8], { tone: "mid" }, { r: 0.15, sombra: "recibe", ...equipo });
+  cyl("poe.prefiltro.tapa", PF.x, PF.y, 0.8, PF.z1, PF.z1 + 0.9, { tone: "mid" }, { steps: 20, bevel: 0.1, sombra: "recibe", ...equipo });
+  cyl("poe.prefiltro", PF.x, PF.y, PF.r, PF.z0, PF.z1, { tone: "hi" }, { steps: 20, wrap: "sr-carcasa", inner: Ln(k.sideArc(PF.x, PF.y, PF.r, PF.z0 + 1.4, P, 12), { tone: "faint" }), sombra: "recibe", ...equipo });
+  // la luz UV: la cámara de acero acostada a la salida de la válvula, con su franja de luz, sostenida de la pared
+  // por un brazo, y en la pared su control con la luz prendida
+  {
+    const MF = G.frameOf([0, UV.y, UV.z], [1, 0, 0], [0, 1, 0], [0, 0, 1]);
+    const sobre = (x) => [x, UV.y + UV.r * 0.74, UV.z + UV.r * 0.74];
+    const luz = path3([sobre(UV.x0 + 0.5), sobre(UV.x1 - 0.5)]);
+    turned("poe.uv", MF, [[UV.x0, UV.r - 0.15], [UV.x0 + 0.25, UV.r], [UV.x1 - 0.25, UV.r], [UV.x1, UV.r - 0.15]], { tone: "hi" }, { extra: `<path class="sr-uv" d="${luz}"/>`, attrs: equipo.attrs });
+    const xm = (UV.x0 + UV.x1) / 2;
+    box("poe.uv.brazo", [xm - 0.25, HY1, UV.z - 0.3], [xm + 0.25, UV.y - UV.r + 0.05, UV.z + 0.3], { tone: "mid" }, { r: 0.1, sombra: false, ...equipo });
+    const led = at([xm - 0.2, HY1 + 0.8, UV.z - 2.2]);
+    box("poe.uv.control", [xm - 1.1, HY1, UV.z - 3.4], [xm + 0.7, HY1 + 0.8, UV.z - 1.4], { tone: "mid" }, { r: 0.2, extra: `<circle class="sr-led sr-led-fija" cx="${f2(led[0])}" cy="${f2(led[1])}" r="0.4"/>`, sombra: "recibe", ...equipo });
+  }
+  // los tubos: el agua llega de la bomba o de la AAA, pasa por el prefiltro, el tanque y la UV, y entra a la casa
+  const yp = PF.y;
+  const conAgua = (attrs) => ({ agua: true, flowOf: () => "agua", attrsOf: () => attrs, bend: 1.2 });
+  const desdeCalle = parte(p.id, "desdeCalle");
+  box("poe.registro", [POE.registro.x - 0.9, PLINTH.y + PLINTH.d + 0.2, 0], [POE.registro.x + 0.9, POE.registro.y + 0.9, 0.8], { tone: "lo" }, { r: 0.2, sombra: "recibe", ...desdeCalle });
+  pipe("poe.desdeCalle", [[POE.registro.x, yp, 0.8], [POE.registro.x, yp, zp], [PF.x + 0.8, yp, zp]], 0.4, { ...conAgua(desdeCalle.attrs), touch: ["poe.desdeBomba"] });
+  pipe("poe.desdeBomba", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, yp, 5.4], [POE.registro.x, yp, 5.4], [POE.registro.x, yp, zp], [PF.x + 0.8, yp, zp]], 0.4, { ...conAgua(parte(p.id, "desdeBomba").attrs), touch: ["bomba.casa", "poe.desdeCalle", "poe.registro"] });
+  // los codos que en pantalla casi se devuelven (de ir hacia la pared a bajar) van más abiertos
+  pipe("poe.filtrada", [[PF.x - 0.8, yp, zp], [-26.9, yp, zp], [-26.9, yp, 16.2], [-26.9, POE.resina.y, 16.2], [V.x1, POE.resina.y, 16.2]], 0.4, { ...conAgua(equipo.attrs), bend: 1.6 });
+  pipe("poe.suave", [[V.x0, UV.y, UV.z], [UV.x1, UV.y, UV.z]], 0.4, { ...conAgua(equipo.attrs), touch: ["poe10x54", "poe13x54"] });
+  // de la UV sale por su puerto de atrás, derecho a la pared
+  pipe("poe.casa", [[UV.x0 + 0.6, UV.y - UV.r + 0.05, UV.z], [UV.x0 + 0.6, HY1, UV.z]], 0.4, conAgua(equipo.attrs));
 }
 
 // ---------- calentador solar Soltek: al fondo del techo, en lugar de las últimas placas ----------
@@ -989,10 +1057,10 @@ turned("weatherhead", WH, [[MAST.z1, 1.9], [61.6, 1.9], [62.6, 1.5, 1], [63.2, 0
 const START = 12.5;
 
 // ---------- orden de pintado ----------
-// Las partes de un producto del plano que ningún modelo pone juntas (las cisternas del techo, las del patio, los
-// tanques del calentador) nunca se ven a la vez: no se ordenan entre ellas, y sus piezas comparten dueño para que
-// la auditoría no las cuente como metidas una en otra. Lo que ocupa lugares de placas (el calentador) tampoco se
-// ordena con las placas de esos lugares, que nunca se ven con él.
+// Las partes del plano que nunca se ven a la vez (las cisternas, los tanques del calentador, los del suavizador, el
+// tubo de la bomba a la casa y el que va al suavizador) no se ordenan entre ellas, y las piezas de los modelos que
+// comparten lugar comparten dueño para que la auditoría no las cuente como metidas una en otra. Lo que ocupa
+// lugares de placas (el calentador) tampoco se ordena con las placas de esos lugares, que nunca se ven con él.
 const parteDe = (it) => /data-p="([^":]+):([^"]+)"/.exec(it.attrs ?? "");
 const lugarDe = (it) => +(/data-slot="(\d+)"/.exec(it.attrs ?? "")?.[1] ?? -1);
 const LUGARES_DE = Object.fromEntries(PRODUCTOS.filter((p) => p.lugares).map((p) => [p.id, new Set(Array.from({ length: p.lugares }, (_, i) => ROWS * COLS - 1 - i))]));
@@ -1000,7 +1068,7 @@ const ocupaLugarDe = (it, otro) => LUGARES_DE[parteDe(it)?.[1]]?.has(lugarDe(otr
 const excluyentes = (a, b) => {
   const pa = parteDe(a);
   const pb = parteDe(b);
-  if (pa && pb && pa[1] === pb[1] && pa[2] !== pb[2] && nuncaJuntas(pa[1], pa[2], pb[2])) return true;
+  if (pa && pb && (pa[1] !== pb[1] || pa[2] !== pb[2]) && nuncaJuntas([pa[1], pa[2]], [pb[1], pb[2]])) return true;
   return ocupaLugarDe(a, b) || ocupaLugarDe(b, a);
 };
 A.settle(R, P, { skip: (a, b) => A.sameRun(a, b) || excluyentes(a, b) });
@@ -1154,12 +1222,12 @@ Object.assign(DATA.flows, {
 });
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, y una cisterna en el techo o en el patio, con su bomba y su presurizado junto a la pared. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna dan la vuelta por fuera de la maqueta, del lado de donde viene su luz, la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna dan la vuelta por fuera de la maqueta, del lado de donde viene su luz, la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, cielo] });
 
 const CSS = readFileSync(join(HERE, "page.css"), "utf8");
 const intro = `<header class="sr-head"><div><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1></div><button type="button" class="sr-btn sr-theme" data-theme-toggle aria-pressed="false">Tema oscuro</button></header>`;
-const about = `<p>Corre el día con el reproductor, o salta de hora con las escenas, y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador. Cambia hacia dónde miran las placas: la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua escoge cuántas personas viven en la casa, el calentador solar y la cisterna: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y la ficha dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio.</p>`;
+const about = `<p>Corre el día con el reproductor, o salta de hora con las escenas, y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador. Cambia hacia dónde miran las placas: la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y la ficha dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio.</p>`;
 const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
@@ -1260,7 +1328,7 @@ const caption =
   `De madrugada la batería llega a su reserva y entra LUMA; en la mañana las placas cubren la casa y cargan la batería; ya llena, el sobrante sale a LUMA por el medidor bidireccional; de noche la batería alimenta la casa. El ventilador del aire gira más rápido cuanto más consume la casa. ` +
   `La brújula de la base gira con el rumbo de las placas y su marca fija señala hacia dónde miran. El rumbo cambia lo que dan las placas según PVWatts v8 de NREL para San Juan a ${SOL.inclinacion}° de inclinación: al sur, ${fmtN(rumboDe(180).kwh)} kWh por kW al año; al este, ${pctN(factorRumbo(90))} de eso; al oeste, ${pctN(factorRumbo(270))}; al norte, ${pctN(factorRumbo(0))}. Con el sur, la figura da lo mismo que el cotizador. ` +
   `Las sombras salen del sol de cada momento y de las piezas del dibujo: el aire, el tubo de ventilación, el mástil, el poste, las mismas filas de placas y lo que se ponga de agua en el techo. La Hércules 600 va en la franja oeste del techo, al lado de las placas: con las placas al sur su sombra les cae de tarde a las del extremo oeste, y al norte, de mañana. Como a esas horas el sol ya está bajo, en el año les quita poco: la placa más cercana pierde de 3 a 4 % de su sol y el sistema, unas décimas, que la ficha muestra al lado del TSRF. Como en Aurora, el acceso solar es la parte del sol del año (directo y difuso, del año típico de PVGIS) que les llega a las placas con esas sombras; el TOF es el sol que recibe su plano frente al mejor plano de San Juan (sur a unos 17°, ${pctN(tofDe(180))} para el sur a ${SOL.inclinacion}°), y el TSRF es TOF × acceso solar. La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar, y en el día la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras. ` +
-  `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. El calentador solar Soltek va al fondo del techo, en el lugar de las últimas placas (el 80/1 y el 80/2 ocupan dos lugares, el 120/3 tres y el 120/4 cuatro): colectores de 34" × 76" con 7 tubos de cobre inclinados 18°, y el tanque acostado de 82 o 119 galones con su resistencia de 4,500 W de respaldo; el cotizador lo sugiere por personas (1 a 2, 80/1; 3 a 4, 80/2; 5 a 6, 120/3; 7 o más, 120/4). Las cisternas Eco 150 (torre, 25" × 72") y Hércules 600 (56" × 61") van en el techo; la Eco 500 (74" × 32") y la Eco 1,000 (sin medidas en el PDF: se dibuja de 64" × 76") van en el patio; todas con su bomba (½ HP con la 150, ¾ HP con las otras) y su presurizado (6 o 40 galones) junto a la pared. Las cisternas y el tanque del calentador llevan el logo de Windmar. Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
+  `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. El calentador solar Soltek va al fondo del techo, en el lugar de las últimas placas (el 80/1 y el 80/2 ocupan dos lugares, el 120/3 tres y el 120/4 cuatro): colectores de 34" × 76" con 7 tubos de cobre inclinados 18°, y el tanque acostado de 82 o 119 galones con su resistencia de 4,500 W de respaldo; el cotizador lo sugiere por personas (1 a 2, 80/1; 3 a 4, 80/2; 5 a 6, 120/3; 7 o más, 120/4). Las cisternas Eco 500 (74" × 32"), Hércules 600 (56" × 61") y Eco 1,000 (sin medidas en el PDF: se dibuja de 64" × 76") van en el techo, con su bomba de ¾ HP y su presurizado de 40 galones junto a la pared; la Torre 150 va adentro, pegada a la pared, y queda para el apartamento. El suavizador POE Water Care va donde el agua entra a la casa: prefiltro de sedimento de 5 micras en carcasa transparente de 10", tanque de 10" × 54" con carbón activado y resina (o el de 13" × 54", de más capacidad) con su válvula electrónica, tanque de sal de 18" × 36" y luz UV Viqua VH410; el agua le llega de la bomba, o de la AAA si no hay cisterna. Las cisternas, el tanque del calentador y el tanque de sal llevan el logo de Windmar. Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
   `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. No muestra dinero.`;
 
 const plate = k
@@ -1302,4 +1370,6 @@ mkdirSync(join(ROOT, "public"), { recursive: true });
 writeFileSync(join(ROOT, "public", "index.html"), page);
 console.log("wrote public/index.html", `${(page.length / 1024).toFixed(0)} KB`, `${R.items.length} items`, `${R.solids.length} solids`, `${R.routes.length} routes`, `scale ${KS.toFixed(3)}`);
 
-A.auditOrExit(R, P, {});
+// El codo del tubo de la bomba a la casa queda pegado, en pantalla, al tanque de sal del suavizador; nunca se ven
+// juntos (ese tubo solo está sin suavizador), así que no cuentan como amontonados.
+A.auditOrExit(R, P, { crowd: [["bomba.casa", "poe.sal"]] });

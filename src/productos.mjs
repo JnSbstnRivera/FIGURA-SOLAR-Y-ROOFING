@@ -17,12 +17,14 @@
 //   logo                     si lleva el logo de Windmar
 //   inicial                  el modelo que se pone la primera vez que se abre su pestaña ("sugerido": el del cotizador)
 //   modelos                  id, corto (el botón), techo (va en el techo: su sombra cuenta en el acceso solar de las
-//                            placas), lugares (los de placas que ocupa) y los datos del cotizador
-//   partes                   piezas que se ven con los modelos que cumplen la regla; las demás piezas son de un modelo
+//                            placas), lugares (los de placas que ocupa), escenas (dónde va: "casa", que es lo de
+//                            siempre, o "apartamento") y los datos del cotizador
+//   partes                   piezas que se ven cuando la regla se cumple con el modelo escogido (m) y con lo escogido
+//                            de los demás productos (e); las demás piezas son de un modelo
 //   etiqueta(m)              lo que dice el botón de cada modelo a un lector de pantalla
 //   nota(m, x)               la nota del panel con el modelo escogido (o null) y lo que pasa en la casa (x)
 //   interruptor              un botón de prender y apagar debajo de la nota
-export const PRODUCTOS = [
+const CATALOGO = [
   {
     id: "calentador",
     pestaña: "agua",
@@ -70,18 +72,21 @@ export const PRODUCTOS = [
     inicial: "600",
     fuente: "Sun Bot: cotizador Water (water/constants.ts, cis-eco-150, cis-eco-500, cis-herc-600 y cis-eco-1000) y su PDF maestro",
     // d × h: diámetro y alto en pulgadas; con su bomba y su presurizado (galones). La Eco 1,000 no trae medidas en
-    // el PDF: se dibuja de 64" × 76", unos 1,000 galones.
+    // el PDF: se dibuja de 64" × 76", unos 1,000 galones. En la casa van todas en el techo; la Torre 150 va adentro,
+    // pegada a la pared, y es la de los apartamentos: queda guardada para esa escena.
     modelos: [
-      { id: "150", corto: "150", nombre: "Torre 150", gal: 150, d: 25, h: 72, techo: true, bomba: "½ HP", presurizado: 6 },
-      { id: "500", corto: "500", nombre: "Eco 500", gal: 500, d: 74, h: 32, techo: false, bomba: "¾ HP", presurizado: 40 },
+      { id: "150", corto: "150", nombre: "Torre 150", gal: 150, d: 25, h: 72, techo: false, bomba: "½ HP", presurizado: 6, escenas: ["apartamento"] },
+      { id: "500", corto: "500", nombre: "Eco 500", gal: 500, d: 74, h: 32, techo: true, bomba: "¾ HP", presurizado: 40 },
       { id: "600", corto: "600", nombre: "Hércules 600", gal: 600, d: 56, h: 61, techo: true, bomba: "¾ HP", presurizado: 40 },
-      { id: "1000", corto: "1,000", nombre: "Eco 1,000", gal: 1000, d: 64, h: 76, techo: false, bomba: "¾ HP", presurizado: 40, aprox: true },
+      { id: "1000", corto: "1,000", nombre: "Eco 1,000", gal: 1000, d: 64, h: 76, techo: true, bomba: "¾ HP", presurizado: 40, aprox: true },
     ],
-    // la bomba va con cualquier cisterna; el presurizado, el de su modelo
+    // la bomba va con cualquier cisterna; el presurizado, el de su modelo; y de la bomba el agua va derecho a la
+    // casa, salvo que haya suavizador: entonces pasa primero por él
     partes: {
       bomba: () => true,
       pres6: (m) => m.presurizado === 6,
       pres40: (m) => m.presurizado === 40,
+      aCasa: (m, e) => !hay(e, "poe"),
     },
     etiqueta: (m) => `${m.nombre}, ${m.gal.toLocaleString("en-US")} galones`,
     nota(m, x) {
@@ -89,15 +94,50 @@ export const PRODUCTOS = [
       const r = x.agua.reserva;
       const reserva = r >= 1 ? `${x.fmt(r, 1)} ${r === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(r * 24))} horas`;
       if (!m) return `Una cisterna guarda agua para cuando la AAA corta el servicio. Con ${x.personas} ${x.personas === 1 ? "persona" : "personas"} se usan ${x.galones(x.agua.usoDia)} al día.`;
-      return `${m.nombre}${m.aprox ? " (medidas aproximadas)" : ""}, ${m.techo ? "en el techo" : "en el patio"}, con bomba de ${m.bomba} y presurizado de ${m.presurizado} gal. Sin servicio de la AAA alcanza para ${reserva}.`;
+      return `${m.nombre}${m.aprox ? " (medidas aproximadas)" : ""}, ${m.techo ? "en el techo" : "adentro, pegada a la pared"}, con bomba de ${m.bomba} y presurizado de ${m.presurizado} gal. Sin servicio de la AAA alcanza para ${reserva}.`;
     },
     interruptor: { id: "corte", texto: "Corte de agua de la AAA" },
   },
+  {
+    id: "poe",
+    pestaña: "agua",
+    grupo: "Suavizador POE",
+    titulo: "Suavizador POE Water Care",
+    nombre: "suavizador",
+    articulo: "el",
+    logo: true,
+    inicial: "10x54",
+    fuente: "Sun Bot: cotizador Water (water/constants.ts, trat-poe y el add-on pe-water-care-13x54) y su PDF maestro (Tratamiento de agua, punto de entrada)",
+    // Va donde el agua entra a la casa: prefiltro de sedimento de 5 micras (carcasa transparente de 10"), el tanque
+    // Water Care con su válvula, el tanque de sal de 18" × 36" (280 lb) y la luz UV Viqua VH410. El de 13" × 54" es
+    // el add-on de más capacidad; su tanque de sal se dibuja igual (el PDF no lo dice).
+    modelos: [
+      { id: "10x54", corto: "10×54", nombre: "Water Care 10×54", resina: [10, 54], tanque: 'de 10" × 54" con carbón activado y resina', techo: false },
+      { id: "13x54", corto: "13×54", nombre: "Water Care 13×54", resina: [13, 54], tanque: 'de 13" × 54", de más capacidad', techo: false },
+    ],
+    // el equipo (sal, válvula, prefiltro, UV y sus tubos) va con los dos modelos; el agua le llega de la bomba si
+    // hay cisterna, y si no, del tubo de la AAA que sube del suelo
+    partes: {
+      equipo: () => true,
+      desdeBomba: (m, e) => hay(e, "cisterna"),
+      desdeCalle: (m, e) => !hay(e, "cisterna"),
+    },
+    etiqueta: (m) => `${m.nombre}: tanque de ${m.resina[0]}" × ${m.resina[1]}"`,
+    nota(m, x) {
+      if (!m) return "Trata el agua de toda la casa donde entra: protege tuberías y enseres y mejora la calidad del agua.";
+      return `Prefiltro de sedimento, tanque ${m.tanque}, tanque de sal de 18" × 36" y luz UV Viqua VH410. Por él pasan los ${x.galones(x.agua.usoDia)} que usa la casa al día.`;
+    },
+  },
 ];
 
+// La escena de esta figura: la casa. Los modelos de otra escena (la Torre 150, del apartamento) quedan guardados.
+const ESCENA = "casa";
+export const PRODUCTOS = CATALOGO.map((p) => ({ ...p, modelos: p.modelos.filter((m) => (m.escenas ?? ["casa"]).includes(ESCENA)) })).filter((p) => p.modelos.length);
 export const PRODUCTO = Object.fromEntries(PRODUCTOS.map((p) => [p.id, p]));
 // lo escogido cuando no hay nada puesto
 export const SIN_NADA = Object.fromEntries(PRODUCTOS.map((p) => [p.id, "sin"]));
+// ¿Hay algo escogido de ese producto?
+export const hay = (escogidos, id) => Boolean(escogidos[id]) && escogidos[id] !== "sin";
 // el modelo escogido de un producto, o null si va "Sin"
 export const modeloDe = (escogidos, id) => PRODUCTO[id]?.modelos.find((m) => m.id === escogidos[id]) ?? null;
 // ¿Se ve esta parte con lo escogido? La parte es el id de un modelo o una de las partes del producto.
@@ -105,12 +145,18 @@ export function parteSeVe(escogidos, id, parte) {
   const m = modeloDe(escogidos, id);
   if (!m) return false;
   const regla = PRODUCTO[id].partes?.[parte];
-  return regla ? regla(m) : m.id === parte;
+  return regla ? regla(m, escogidos) : m.id === parte;
 }
-// Dos partes de un producto que ningún modelo pone juntas: nunca se ven a la vez.
-export function nuncaJuntas(id, a, b) {
-  return !PRODUCTO[id].modelos.some((m) => parteSeVe({ [id]: m.id }, id, a) && parteSeVe({ [id]: m.id }, id, b));
+// Dos partes que nunca se ven a la vez: ninguna combinación de lo que se puede escoger (cada producto, "Sin" o uno
+// de sus modelos) las pone juntas. Para cada parte se guarda en qué combinaciones se ve, un bit por combinación.
+const COMBOS = PRODUCTOS.reduce((lista, p) => lista.flatMap((e) => ["sin", ...p.modelos.map((m) => m.id)].map((id) => ({ ...e, [p.id]: id }))), [{}]);
+const MASCARAS = new Map();
+function mascara(id, parte) {
+  const llave = `${id}:${parte}`;
+  if (!MASCARAS.has(llave)) MASCARAS.set(llave, COMBOS.reduce((bits, e, i) => (parteSeVe(e, id, parte) ? bits | (1n << BigInt(i)) : bits), 0n));
+  return MASCARAS.get(llave);
 }
+export const nuncaJuntas = ([ida, a], [idb, b]) => (mascara(ida, a) & mascara(idb, b)) === 0n;
 // el modelo escogido del producto que hace ese papel en el agua
 export function conRol(escogidos, rol) {
   const p = PRODUCTOS.find((q) => q.rol === rol);
@@ -123,9 +169,9 @@ export const lugaresOcupados = (escogidos) => ocupan(escogidos).reduce((a, [, m]
 // "por el calentador" o "por calentador y cisterna").
 export const techoClave = (escogidos) => PRODUCTOS.map((p) => (modeloDe(escogidos, p.id)?.techo ? escogidos[p.id] : "sin")).join("|");
 export function porLoDelTecho(escogidos) {
-  const hay = PRODUCTOS.filter((p) => modeloDe(escogidos, p.id)?.techo);
-  if (!hay.length) return "";
-  return hay.length === 1 ? ` por ${hay[0].articulo} ${hay[0].nombre}` : ` por ${hay.map((p) => p.nombre).join(" y ")}`;
+  const hayArriba = PRODUCTOS.filter((p) => modeloDe(escogidos, p.id)?.techo);
+  if (!hayArriba.length) return "";
+  return hayArriba.length === 1 ? ` por ${hayArriba[0].articulo} ${hayArriba[0].nombre}` : ` por ${hayArriba.map((p) => p.nombre).join(" y ")}`;
 }
 // el modelo que sugiere el cotizador para tantas personas (los que dicen para cuántas personas son)
 export function sugeridoPara(p, personas) {
