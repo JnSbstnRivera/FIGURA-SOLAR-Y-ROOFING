@@ -213,10 +213,10 @@ export function accesoSolar(placas, solidos, rumbo) {
 }
 // Forma de la producción en el día del equinoccio (sin escala), paso por paso: el sol directo sobre
 // el plano de las placas (por la parte de cada una que no está en sombra) más el difuso del cielo.
-// `libre(i, s)` dice qué parte del techo instalado está al sol en el paso i.
-export function formaDelDia(pasos, rumbo, mediodia, libre) {
-  const n = normalPlacas();
-  const cielo = cieloQueVen();
+// `libre(i, s)` dice qué parte del techo instalado está al sol en el paso i. `n` es la normal de otro plano, en
+// las coordenadas de la casa (las PS400 del balcón, más paradas): ve el cielo que deja su inclinación.
+export function formaDelDia(pasos, rumbo, mediodia, libre, n = normalPlacas()) {
+  const cielo = (1 + n[2]) / 2;
   return Array.from({ length: pasos + 1 }, (_, i) => {
     const hora = (i / pasos) * 24;
     const sol = solDelDia(hora, mediodia);

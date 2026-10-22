@@ -1,25 +1,26 @@
-// Fig 1 · Solar y Roofing (Windmar Home, PR). Página suelta en public/index.html.
-//   node src/build.mjs           → public/index.html
-//   node src/build.mjs --audit   → además corre la auditoría de geometría de Anatomy
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+// Fig 1 · Solar y Roofing (Windmar Home, PR): la casa, en public/index.html. Después arma la Fig 2, el apartamento
+// (apartamento.mjs), en public/apartamento.html: el build de Vercel corre solo este archivo.
+//   node src/build.mjs           → public/index.html y public/apartamento.html
+//   node src/build.mjs --audit   → además corre la auditoría de geometría de Anatomy en las dos
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as k from "../vendor/anatomy/kit/iso-kit.mjs";
 import * as G from "../vendor/anatomy/kit/lathe.mjs";
-import { tubePieces, tubeSvg } from "../vendor/anatomy/kit/tube.mjs";
 import * as A from "../vendor/anatomy/kit/audit.mjs";
-import { kitScript } from "../vendor/anatomy/scripts/inline-kit.mjs";
-import { BASE, LIMITES, EJEMPLO, MESES, SALIDA, PUESTA, kwhPorPlacaDia, sugerencia } from "./model.mjs";
+import { BASE, LIMITES, EJEMPLO, MESES, kwhPorPlacaDia, sugerencia } from "./model.mjs";
 import { SOL, factorRumbo, tofDe, rumboDe } from "./sol.mjs";
 import { AGUA } from "./agua.mjs";
 import { ANKER as ANKER_MODELO, esencialEn } from "./anker.mjs";
 import { PRODUCTOS, nuncaJuntas } from "./productos.mjs";
 import { LOGO } from "./logo.mjs";
+import { taller } from "./taller.mjs";
+import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, piezas } from "./piezas.mjs";
+import { escribirPagina, stepper, seccionDe, rumbosHtml } from "./pagina.mjs";
 
 const fmtN = (v) => Math.round(v).toLocaleString("en-US");
 const pctN = (f) => `${Math.round(f * 100)} %`;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(HERE, "..");
 const W = 760;
 const AZ = 52;
 const EL = 33;
@@ -77,12 +78,13 @@ const MAST = { x: -55, y: 28.6, z0: 31, z1: 60 };
 const POLE = { x: -44, y: 72, z0: 1.2, z1: 88, r0: 2.9, r1: 2.2 };
 const poleR = (z) => POLE.r0 + ((POLE.r1 - POLE.r0) * (z - POLE.z0)) / (POLE.z1 - POLE.z0);
 const AC = { x0: -44, x1: -30, y0: 12.5, y1: 18.5, z0: TOPZ + 2.4, z1: TOPZ + 12 };
-const DC_Y = 29.5;
+const DC_Y = 27.6;
 const DC_Z = 43;
+// el cuarto de equipos de la fachada oeste (ver más abajo): de x0 a x1 y de la fachada a yf, con paredes de `muro`
+const CUARTO = { x0: -49.8, x1: -2, yf: 42.3, muro: 0.6, alero: 0.6, caida: 3.4, grueso: 0.3, puerta: [-47.4, -38.4, 22], persianas: [[-28.4, -18.4], [-12.6, -4.6]] };
 
 // El calentador solar y su tanque (ver más abajo): sus medidas van aquí porque el lienzo tiene que
 // contar el tanque, que es lo más alto del techo.
-const PULG = 0.0254 * 10.5;
 const COLECTOR = { ancho: 34 * PULG, largo: 76 * PULG, grueso: 0.9, beta: (18 * Math.PI) / 180, frente: -38.1, z0: TOPZ + 2.6, paso: 34 * PULG + 0.6 };
 const TANQUE_CAL = { 80: { largo: 53.5 * PULG, r: (23.5 / 2) * PULG }, 120: { largo: 63 * PULG, r: (28 / 2) * PULG } };
 const yColector = (j) => ARRAY_Y0 + 0.9 + COLECTOR.ancho / 2 + j * COLECTOR.paso;
@@ -130,50 +132,14 @@ const DIBUJOS = {
   },
   // el suavizador va en el suelo, contra la pared: no sale del lienzo ni del contorno del cielo
   poe: { dibujar: (p) => dibujarPoe(p) },
-  // el Anker y sus PS400 van en el patio, bajos: tampoco
+  // el Anker y sus PS400 van en el patio, bajos: tampoco; ni el E10, en el cuarto de equipos, ni la nevera
   anker: { dibujar: (p) => dibujarAnker(p) },
+  e10: { dibujar: (p) => dibujarE10(p) },
+  nevera: { dibujar: (p) => dibujarNevera(p) },
 };
 const puntasDe = (cual) => PRODUCTOS.flatMap((p) => p.modelos.flatMap((m) => DIBUJOS[p.id][cual]?.(m) ?? []));
-// El logo de Windmar (logo.mjs) sobre un cilindro, como una calcomanía: cada punto se envuelve alrededor del
-// cilindro y después se proyecta, así sigue la curva. `centro` es el punto de la superficie donde va el centro del
-// logo; `frente`, la dirección del eje hacia ese punto; `eje`, la del cilindro; `ancho`, lo que mide el logo. En
-// un cilindro parado el ancho da la vuelta y el alto sube por el eje; en uno acostado el ancho va a lo largo del
-// eje y el alto da la vuelta hacia arriba.
-function logoEnCilindro({ centro, frente, eje, r, ancho, acostado = false }) {
-  const derecha = (v) => (at(G.add3(centro, v))[0] > at(centro)[0] ? v : G.mul3(v, -1));
-  const vuelta = G.cross3(eje, frente);
-  const base = G.sub3(centro, G.mul3(frente, r));
-  const largo = acostado ? derecha(eje) : null;
-  const alrededor = acostado ? (vuelta[2] >= 0 ? vuelta : G.mul3(vuelta, -1)) : derecha(vuelta);
-  const punto = ([lx, ly]) => {
-    const a = (lx - 0.5) * ancho;
-    const b = (LOGO.alto / 2 - ly) * ancho;
-    const t = (acostado ? b : a) / r;
-    const sobre = G.add3(G.mul3(frente, r * Math.cos(t)), G.mul3(alrededor, r * Math.sin(t)));
-    return G.add3(G.add3(base, acostado ? G.mul3(largo, a) : G.mul3(eje, b)), sobre);
-  };
-  // cada contorno con un punto absoluto y los demás relativos, a una décima
-  const d1 = (v) => String(Math.round(v * 10) / 10);
-  const trazo = (contornos) =>
-    contornos
-      .map((c) => {
-        let antes = null;
-        return (
-          c
-            .map((q) => {
-              const p = at(punto(q)).map((v) => Math.round(v * 10) / 10);
-              const s = antes ? `l${d1(p[0] - antes[0])} ${d1(p[1] - antes[1])}` : `M${p[0]} ${p[1]}`;
-              antes = p;
-              return s;
-            })
-            .join("") + "Z"
-        );
-      })
-      .join("");
-  return `<path class="sr-logo-sol" d="${trazo(LOGO.sol)}"/><path class="sr-logo-azul" d="${trazo(LOGO.azul)}"/>`;
-}
-
-// El lienzo toma la proporción exacta del dibujo: sin franjas vacías, la casa llena la tarjeta.
+// Las puntas del dibujo: el lienzo (taller.mjs) toma su proporción exacta, sin franjas vacías, y la casa llena la
+// tarjeta.
 const FIT = [
   ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
   [POLE.x, POLE.y, POLE.z1 + 1.4],
@@ -183,228 +149,9 @@ const FIT = [
   [AC.x0, AC.y0, AC.z1],
   ...puntasDe("lienzo"),
 ];
-const PAD = 12;
-const H = (() => {
-  const flat = FIT.map((p) => k.iso(p, { origin: [0, 0], scale: 1, azimuth: AZ, elevation: EL }));
-  const span = (i) => Math.max(...flat.map((q) => q[i])) - Math.min(...flat.map((q) => q[i]));
-  return Math.round(((W - 2 * PAD) * span(1)) / span(0) + 2 * PAD);
-})();
-const P = k.fitProjection(FIT, W, H, { pad: PAD, azimuth: AZ, elevation: EL });
-const V = G.viewOf(P);
-const KS = G.scaleOf(P);
-const at = (p) => k.iso(p, P);
-const S = (paths, style) => k.solidSvg(paths, style);
-const Ln = (d, style) => k.lineSvg(d, style);
-const Dots = (points, style) => k.dotsSvg(points, style);
-const path3 = (points, closed = false) => k.pathOf(points.map(at), closed);
-const f2 = (v) => Math.round(v * 100) / 100;
-
-const R = A.recorder(P);
-const record = R.solid;
-function put(name, ref, svg, shapes = [], { bias = 0, attrs = "", ...rest } = {}) {
-  return R.put({ name, at: ref, bias, svg, shapes, piece: "fig", attrs, ...rest });
-}
-const wrapped = (body, wrap) => (wrap ? `<g class="${wrap}">${body}</g>` : body);
-
-// ---------- sombras: quién tapa el sol y dónde cae la sombra ----------
-// Cada sólido que tapa el sol se guarda como dos anillos (abajo y arriba) para sol.mjs. Cada pieza que
-// recibe sombra guarda sus caras que se ven (normal, plano y polígono en pantalla) y lleva al final una
-// capa vacía, recortada a su silueta, donde la página pinta la sombra de cada momento: la que le echan
-// las demás piezas y la de las caras que le dan la espalda al sol.
-const SOMBRA = { solidos: [], receptores: [], tubos: [] };
-const CLIPS = [];
-const VISTA = G.viewOf(P);
-const r2 = (v) => Math.round(v * 100) / 100;
-const p3 = (p) => p.map(r2);
-function tapaSol(name, abajo, arriba, on = null) {
-  const id = SOMBRA.solidos.length;
-  SOMBRA.solidos.push({ id, n: name, on, a: abajo.map(p3), b: arriba.map(p3) });
-  return id;
-}
-function cara(n, puntos) {
-  const centro = puntos.reduce((a, p) => G.add3(a, G.mul3(p, 1 / puntos.length)), [0, 0, 0]);
-  const radio = Math.max(...puntos.map((p) => G.len3(G.sub3(p, centro))));
-  return { n: n.map((v) => Math.round(v * 1e4) / 1e4), c: r2(G.dot3(n, puntos[0])), m: p3(centro), rr: r2(radio), p: puntos.map((q) => at(q).map(r2)) };
-}
-const seVe = (n) => G.dot3(n, VISTA) > 0.02;
-function recibeSol(name, silueta, caras, { on = null, propios = [] } = {}) {
-  const id = SOMBRA.receptores.length;
-  SOMBRA.receptores.push({ id, n: name, on, propios, caras });
-  CLIPS.push(`<clipPath id="sh${id}"><path d="${silueta}"/></clipPath>`);
-  return `<g class="sr-sh" data-sh="${id}" clip-path="url(#sh${id})"></g>`;
-}
-const anillosCaja = ([x0, y0, z0], [x1, y1, z1]) => [
-  [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]],
-  [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]],
-];
-function carasCaja([x0, y0, z0], [x1, y1, z1]) {
-  return [
-    [[0, 0, 1], [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]],
-    [[1, 0, 0], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]],
-    [[-1, 0, 0], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]],
-    [[0, 1, 0], [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]]],
-    [[0, -1, 0], [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]]],
-  ]
-    .filter(([n]) => seVe(n))
-    .map(([n, pts]) => cara(n, pts));
-}
-// Un anillo de piso (redondo o de esquinas redondas) levantado de z0 a z1, o un poste que se afina
-// (r1/r0): la tapa y los lados que se ven, cada lado con su normal.
-function carasAnillo(abajo, arriba, { tapa = true } = {}) {
-  const out = [];
-  const c = abajo.reduce((a, p) => G.add3(a, G.mul3(p, 1 / abajo.length)), [0, 0, 0]);
-  if (tapa) out.push(cara([0, 0, 1], arriba));
-  for (let i = 0; i < abajo.length; i++) {
-    const j = (i + 1) % abajo.length;
-    let n = G.unit3(G.cross3(G.sub3(abajo[j], abajo[i]), G.sub3(arriba[i], abajo[i])));
-    if (G.dot3(n, G.sub3(abajo[i], c)) < 0) n = G.mul3(n, -1);
-    if (seVe(n)) out.push(cara(n, [abajo[i], abajo[j], arriba[j], arriba[i]]));
-  }
-  return out;
-}
-const anilloEn = (ring, z) => ring.map(([x, y]) => [x, y, z]);
-const anilloRedondo = (cx, cy, r, z, n = 12) => Array.from({ length: n }, (_, i) => [cx + r * Math.cos((i / n) * 2 * Math.PI), cy + r * Math.sin((i / n) * 2 * Math.PI), z]);
-// dibujos sobre una cara que mira a +y (la fachada oeste y lo que va delante de ella)
-const faceY = (y, points, closed = true) => path3(points.map(([x, z]) => [x, y, z]), closed);
-const rect = (x0, x1, z0, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
-// Caja que tapa y recibe sombra. `sombra`: "ambas" (por defecto), "recibe", "tapa" o false.
-function sombraCaja(name, min, max, silueta, { sombra = "ambas", on = null } = {}) {
-  if (!sombra) return "";
-  const [abajo, arriba] = anillosCaja(min, max);
-  const id = sombra === "recibe" ? null : tapaSol(name, abajo, arriba, on);
-  return sombra === "tapa" ? "" : recibeSol(name, silueta, carasCaja(min, max), { on, propios: id === null ? [] : [id] });
-}
-function sombraCilindro(name, cx, cy, r, z0, z1, silueta, { sombra = "ambas", on = null, lados = 16, r1 = r } = {}) {
-  if (!sombra) return "";
-  const anillo = (rr, z) => Array.from({ length: lados }, (_, i) => [cx + rr * Math.cos((i / lados) * 2 * Math.PI), cy + rr * Math.sin((i / lados) * 2 * Math.PI), z]);
-  const abajo = anillo(r, z0);
-  const arriba = anillo(r1, z1);
-  const id = sombra === "recibe" ? null : tapaSol(name, abajo, arriba, on);
-  return sombra === "tapa" ? "" : recibeSol(name, silueta, carasAnillo(abajo, arriba), { on, propios: id === null ? [] : [id] });
-}
-
-function box(name, [x0, y0, z0], [x1, y1, z1], style = {}, { r = 0.4, steps = 2, bevel = 0, extra = "", inner = "", bias = 0, wrap = "", attrs = "", owner, sombra = "ambas", on = null } = {}) {
-  const plan = { x: x0, y: y0, w: x1 - x0, d: y1 - y0, r };
-  const shape = record(A.slab(plan, z0, z1 - z0, { name, owner }, steps));
-  const paths = k.slabOf(plan, z0, z1 - z0, P, steps, bevel);
-  const body = S(paths, { tone: "mid", ...style, inner }) + extra;
-  const capa = sombraCaja(name, [x0, y0, z0], [x1, y1, z1], paths.fill, { sombra, on });
-  put(name, [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], wrapped(body, wrap) + capa, [shape], { bias, attrs });
-  return shape;
-}
-function cyl(name, cx, cy, r, z0, z1, style = {}, { steps = 32, bevel = 0, extra = "", inner = "", bias = 0, attrs = "", sombra = "ambas", on = null, owner, wrap = "" } = {}) {
-  const shape = record(A.cylinder(cx, cy, r, z0, z1 - z0, { name, owner }));
-  const paths = k.cylinder(cx, cy, r, z0, z1 - z0, P, steps, bevel);
-  const capa = sombraCilindro(name, cx, cy, r, z0, z1, paths.fill, { sombra, on, lados: Math.max(12, Math.min(32, steps)) });
-  put(name, [cx, cy, (z0 + z1) / 2], wrapped(S(paths, { tone: "mid", ...style, inner }) + extra, wrap) + capa, [shape], { bias, attrs });
-  return shape;
-}
-function turned(name, F, profile, style = {}, { extra = "", inner = "", bias = 0, owner, attrs = "", capa = null, wrap = "" } = {}) {
-  const paths = G.solidOf(profile, F, P);
-  const mid = (profile[0][0] + profile[profile.length - 1][0]) / 2;
-  const shape = record(A.solid(F, profile, { name, owner }));
-  put(name, G.add3(F.o, G.mul3(F.a, mid)), wrapped(S(paths, { tone: "mid", ...style, inner }) + extra, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
-  return shape;
-}
-function ringOn(name, F, s0, s1, rIn, rOut, style = {}, { owner, attrs = "" } = {}) {
-  const shape = record(A.ring(F, s0, s1, rIn, rOut, { name, owner }));
-  // un anillo se oscurece entero, como un tubo: tres puntos de su cara que se ve
-  const centro = G.add3(F.o, G.mul3(F.a, (s0 + s1) / 2));
-  const hacia = G.unit3(G.sub3(VISTA, G.mul3(F.a, G.dot3(VISTA, F.a))));
-  const lado = G.unit3(G.cross3(F.a, hacia));
-  const muestras = [-0.6, 0, 0.6].map((f) => p3(G.add3(centro, G.mul3(G.unit3(G.add3(hacia, G.mul3(lado, f))), rOut * 1.05))));
-  const id = SOMBRA.tubos.length;
-  SOMBRA.tubos.push({ p: muestras, propio: null });
-  put(name, centro, S(G.ringBand(s0, s1, rIn, rOut, F, P), { tone: "mid", ...style }), [shape], { attrs: `${attrs} data-tubo="${id}"` });
-  return shape;
-}
-function prism(name, F, poly, s0, s1, style = {}, { extra = "", inner = "", bias = 0, wrap = "", attrs = "", capa = null, owner } = {}) {
-  const shape = record(A.prism(F, poly, s0, s1, { name, owner }));
-  const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length;
-  const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
-  const centre = G.add3(G.add3(G.add3(F.o, G.mul3(F.a, (s0 + s1) / 2)), G.mul3(F.u, cx)), G.mul3(F.v, cy));
-  const paths = G.prismOf(F, poly, s0, s1, P);
-  const body = S(paths, { tone: "mid", ...style, inner }) + extra;
-  put(name, centre, wrapped(body, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
-  return shape;
-}
-function layer(name, ring, z0, z1, style = {}, { extra = "", bias = 0, wrap = "", capa = null } = {}) {
-  const shape = record(A.extruded(ring, z0, z1 - z0, { name }));
-  const cx = ring.reduce((a, p) => a + p[0], 0) / ring.length;
-  const cy = ring.reduce((a, p) => a + p[1], 0) / ring.length;
-  const paths = k.extrude(ring, z0, z1 - z0, P, { convex: false });
-  const body = S(paths, { tone: "mid", ...style }) + extra;
-  put(name, [cx, cy, (z0 + z1) / 2], wrapped(body, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias });
-  return shape;
-}
-function ball(name, c, r, style = {}, { attrs = "" } = {}) {
-  const shape = record(A.ball(c, r, { name }));
-  put(name, c, S(G.sphereOf(c, r, P, { steps: 32 }), { tone: "mid", ...style }), [shape], { attrs });
-  return shape;
-}
-
-// ---------- conductos con flujo de energía ----------
-// Cada pedazo del tubo lleva su trazo naranja en fase con la longitud en pantalla desde el inicio
-// de la ruta, así los guiones siguen sin saltos de un pedazo al otro.
-const FLOWS = {};
-const screenLength = (points) => {
-  let sum = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = at(points[i - 1]);
-    const b = at(points[i]);
-    sum += Math.hypot(b[0] - a[0], b[1] - a[1]);
-  }
-  return sum;
-};
-const arcWhere = (route, test) => {
-  const dense = G.resample(route, 0.05);
-  let walked = 0;
-  for (let i = 1; i < dense.length; i++) {
-    walked += G.len3(G.sub3(dense[i], dense[i - 1]));
-    if (test(dense[i])) return walked;
-  }
-  return null;
-};
-// Un tubo no recibe la sombra recortada (las uniones entre pedazos se verían como rayas): cada pedazo
-// se oscurece entero según qué parte de su cara que se ve queda a la sombra (4 puntos de muestra).
-function sombraTubo(piece, r, propio) {
-  const pts = piece.points;
-  const muestras = [0.125, 0.375, 0.625, 0.875].map((f) => {
-    const i = Math.min(pts.length - 2, Math.floor(f * (pts.length - 1)));
-    const t = f * (pts.length - 1) - i;
-    const c = G.lerp3(pts[i], pts[i + 1], t);
-    const eje = G.unit3(G.sub3(pts[i + 1], pts[i]));
-    const hacia = G.unit3(G.sub3(VISTA, G.mul3(eje, G.dot3(VISTA, eje))));
-    return p3(G.add3(c, G.mul3(hacia, r * 1.05)));
-  });
-  const id = SOMBRA.tubos.length;
-  SOMBRA.tubos.push({ p: muestras, propio });
-  return ` data-tubo="${id}"`;
-}
-function pipe(name, points, r, { channel = null, flowOf = null, attrsOf = null, tone = "mid", bend, limp = false, maxLength = 12, bias = 0.05, gaps = [], breaks = [], propio = null, touch, agua = false } = {}) {
-  const route = G.fillet(points, bend ?? Math.max(r * 2.6, 1.2), 10, { P, tube: r });
-  R.route(name, route, r, { limp, piece: "fig", gaps, touch });
-  const pieces = tubePieces(route, r, P, { maxLength, spacing: Math.max(0.5, Math.min(1.4, r)), gaps, breaks });
-  pieces.forEach((piece, index) => {
-    let flow = "";
-    const key = flowOf ? flowOf(piece) : channel ? name : null;
-    if (key) {
-      const span = G.cut(route, piece.from, piece.to);
-      const s0 = piece.from > 0 ? screenLength(G.cut(route, 0, piece.from)) : 0;
-      flow = `<path class="sr-flow${agua ? ` sr-agua${agua === "caliente" ? " sr-caliente" : ""}` : ""}" data-flow="${key}" data-s0="${s0.toFixed(2)}" d="${path3(span)}"/>`;
-    }
-    const attrs = (attrsOf ? attrsOf(piece) : "") + sombraTubo(piece, r, propio);
-    put(`${name}:${index}`, piece.mid, tubeSvg(piece, { tone }) + flow, [A.tube(piece.points, piece.radii)], { bias, route: name, chunk: index, attrs });
-  });
-  return route;
-}
-// Abrazadera: un anillo alrededor del tubo (que queda cortado debajo) y un taco hasta la pared.
-function strap(name, route, s, pipeName, r, block) {
-  const centre = G.pointAlong(route, s);
-  const F = G.frameAlong(centre, G.tangentAlong(route, s));
-  ringOn(`${name}.ring`, F, -0.6, 0.6, r, r + 0.45, { tone: "mid" }, { owner: pipeName });
-  box(`${name}.block`, block[0], block[1], { tone: "mid" }, { r: 0.2, owner: pipeName, sombra: "recibe" });
-}
+const TALLER = taller({ W, AZ, EL, FIT });
+const { H, P, KS, at, S, Ln, Dots, path3, f2, R, record, SOMBRA, p3, tapaSol, cara, recibeSol, anillosCaja, carasCaja, carasAnillo, anilloEn, anilloRedondo, faceY, faceX, rect, sombraCilindro, box, cyl, turned, prism, layer, ball, arcWhere, pipe, strap, logoEnCilindro, cieloDe } = TALLER;
+const { cuerpoCisterna, bomba, presurizado, estacionAnker, bateriaExpansion, nevera, transferSwitch, ps400 } = piezas(TALLER, { mide });
 
 // ---------- base ----------
 const back = [];
@@ -427,7 +174,8 @@ back.push(recibeSol("stand.plate", PLATE_PATHS.fill, carasAnillo(anilloEn(k.ring
 
 // ---------- brújula: la tarjeta gira para que su N mire al norte, y la marca fija (la línea de fe, como en
 // un barco) apunta hacia donde miran las placas, así se lee el rumbo en la tarjeta ----------
-const BRUJULA = { x: 20, y: 64, r: 11, z0: 0.7, z1: 2.8, carta: 9.2 };
+// (en la esquina suroeste del patio: más adentro van las PS400 del Anker, hasta ocho)
+const BRUJULA = { x: 46, y: 65, r: 10, z0: 0.7, z1: 2.8, carta: 8.4 };
 cyl("compass.flange", BRUJULA.x, BRUJULA.y, BRUJULA.r + 0.8, 0, BRUJULA.z0, { tone: "lo" }, { steps: 56, sombra: "recibe" });
 {
   const { x, y, r, z1, carta } = BRUJULA;
@@ -694,7 +442,6 @@ const otraCisterna = (c) => (name) => name.startsWith("cis") && !name.startsWith
 const BOMBA = { x0: -8.2, x1: -5.2, y0: 37.6, y1: 40.4, z0: 0.5, z1: 3.9, eje: [39, 2] };
 const PRES = { x: -17.6, y: BOMBA.eje[0] };
 function dibujarCisterna(p) {
-  const MIRILLA = Math.atan2(k.towardViewer(P)[1], k.towardViewer(P)[0]);
   for (const c of p.modelos) {
     const enCis = parte(p.id, c.id);
     const { on, attrs } = enCis;
@@ -709,42 +456,8 @@ function dibujarCisterna(p) {
       box(`cis${c.id}.leg${i}`, [lx - 0.7, ly - 0.7, TOPZ + 0.6], [lx + 0.7, ly + 0.7, z0 - 1], { tone: "mid" }, { r: 0.2, sombra: "recibe", owner, ...enCis });
     });
     box(`cis${c.id}.stand`, [S0.x0, S0.y0, z0 - 1], [S0.x1, S0.y1, z0], { tone: "mid" }, { r: 0.3, steps: 2, owner, ...enCis });
-    // el cuerpo con sus anillos de refuerzo, el hombro redondo y la tapa de rosca arriba
-    const TF = G.frameOf([lugar.x, lugar.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
-    const hombroAlto = Math.min(2.6, h * 0.16);
-    const hombro = top - hombroAlto;
-    const adentro = Math.min(3.2, r * 0.42);
-    const profile = [[z0, r], [hombro, r], [top - hombroAlto * 0.35, r - adentro * 0.25, 1], [top, r - adentro, 1]];
-    const anillos = Math.max(1, Math.floor((hombro - z0) / 3.6) - 1);
-    const ribs = Array.from({ length: anillos }, (_, i) => Ln(G.arcOf(TF, z0 + ((i + 1) * (hombro - z0)) / (anillos + 1), r, P), { tone: "faint" })).join("");
-    // el logo de Windmar al frente, del ancho que quepa en el cuerpo, y la mirilla de nivel a su derecha: una
-    // franja angosta donde la página dibuja el agua que tiene
-    const alto = hombro - z0;
-    const ancho = Math.min(r * 1.32, 10.5, (alto * 0.7) / LOGO.alto);
-    const frente = [Math.cos(MIRILLA), Math.sin(MIRILLA), 0];
-    const logo = p.logo ? logoEnCilindro({ centro: [lugar.x + (r + 0.03) * frente[0], lugar.y + (r + 0.03) * frente[1], z0 + alto * 0.55], frente, eje: [0, 0, 1], r: r + 0.03, ancho }) : "";
-    const alFrente = [lugar.x + r * frente[0], lugar.y + r * frente[1], z0];
-    const giro = at(G.add3(alFrente, [-frente[1], frente[0], 0]))[0] > at(alFrente)[0] ? 1 : -1;
-    const centroMirilla = p.logo ? MIRILLA + giro * (ancho / 2 / r + 0.28) : MIRILLA;
-    const mirilla = { a0: centroMirilla - 0.16, a1: centroMirilla + 0.16, z0: z0 + 0.8, z1: hombro - 0.6 };
-    mide(p.id, c.id, { mirilla: { ...mirilla, x: lugar.x, y: lugar.y, r: r + 0.02 } });
-    const arco = (z, a0, a1) => Array.from({ length: 7 }, (_, i) => {
-      const a = a0 + ((a1 - a0) * i) / 6;
-      return [lugar.x + (r + 0.02) * Math.cos(a), lugar.y + (r + 0.02) * Math.sin(a), z];
-    });
-    const marco = path3([...arco(mirilla.z0, mirilla.a0, mirilla.a1), ...arco(mirilla.z1, mirilla.a1, mirilla.a0)], true);
-    const vidrio = `<path class="sr-mirilla" d="${marco}"/><path class="sr-nivel" data-nivel="${c.id}" d=""/>` + Ln(marco, { tone: "lo" }) + logo;
-    // tapa el sol y recibe sombra como un cilindro y un tronco de cono encima (el hombro)
-    const capa = (fill) => {
-      const anillo = (rr, z) => anilloRedondo(lugar.x, lugar.y, rr, z, 24);
-      const cuerpo = [anillo(r, z0), anillo(r, hombro)];
-      const arriba = [anillo(r, hombro), anillo(r - adentro, top)];
-      const propios = [tapaSol(`cis${c.id}`, ...cuerpo, on), tapaSol(`cis${c.id}.hombro`, ...arriba, on)];
-      return recibeSol(`cis${c.id}`, fill, [...carasAnillo(...cuerpo, { tapa: false }), ...carasAnillo(...arriba)], { on, propios });
-    };
-    turned(`cis${c.id}`, TF, profile, { tone: "mid" }, { inner: ribs, extra: vidrio, owner, attrs, capa });
-    const tapaR = Math.min(2.8, (r - adentro) * 0.75);
-    cyl(`cis${c.id}.lid`, lugar.x, lugar.y, tapaR, top, top + 1, { tone: "mid" }, { steps: 24, bevel: 0.2, owner, ...enCis });
+    // el cuerpo, con el logo de Windmar al frente y la mirilla de nivel a su lado (piezas.mjs)
+    cuerpoCisterna({ p, c, lugar, r, h, z0, top, owner, en: enCis });
     // el agua baja por dentro de la casa: el tubo entra al techo por una bota sellada con Roof Patch
     const bx = lugar.x - r - 3.6;
     cyl(`cis${c.id}.parche`, bx, lugar.y, 2.2, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 24, sombra: "recibe", owner, ...enCis });
@@ -755,31 +468,16 @@ function dibujarCisterna(p) {
   // la bomba: va con cualquier cisterna
   const EN_BOMBA = parte(p.id, "bomba");
   box("bomba.losa", [-13.2, 36.4, 0], [-4.4, 41.6, BOMBA.z0], { tone: "lo" }, { r: 0.4, steps: 2, sombra: "recibe", ...EN_BOMBA });
-  {
-    // el motor acostado, con sus aletas, y la cabeza de la bomba con su luz (prende cuando bombea)
-    const MF = G.frameOf([0, BOMBA.eje[0], BOMBA.eje[1]], [1, 0, 0], [0, 1, 0], [0, 0, 1]);
-    const aletas = [-11.7, -11.0, -10.3, -9.6].map((s) => Ln(G.arcOf(MF, s, 1.5, P), { tone: "faint" })).join("");
-    const capaMotor = (fill) => recibeSol("bomba.motor", fill, carasCaja([-12.4, BOMBA.eje[0] - 1.5, BOMBA.z0], [BOMBA.x0, BOMBA.eje[0] + 1.5, BOMBA.eje[1] + 1.5]), { on: EN_BOMBA.on });
-    turned("bomba.motor", MF, [[-12.4, 1.5], [BOMBA.x0, 1.5]], { tone: "mid" }, { inner: aletas, attrs: EN_BOMBA.attrs, capa: capaMotor });
-    const luz = at([(BOMBA.x0 + BOMBA.x1) / 2, BOMBA.y1, BOMBA.z1 - 1]);
-    const extra = `<circle class="sr-led" data-part="bomba-led" cx="${f2(luz[0])}" cy="${f2(luz[1])}" r="0.7"/>` + Ln(faceY(BOMBA.y1, rect(BOMBA.x0 + 0.5, BOMBA.x1 - 0.5, BOMBA.z0 + 0.6, BOMBA.z1 - 1.8)), { tone: "faint" });
-    box("bomba", [BOMBA.x0, BOMBA.y0, BOMBA.z0], [BOMBA.x1, BOMBA.y1, BOMBA.z1], { tone: "hi" }, { r: 0.4, steps: 2, bevel: 0.2, extra, sombra: "recibe", ...EN_BOMBA });
-    // sin suavizador, de la bomba el agua entra derecho a la casa por la pared
-    pipe("bomba.casa", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, WALLS.y + WALLS.d, 5.4]], 0.6, { agua: true, flowOf: () => "agua", attrsOf: () => parte(p.id, "aCasa").attrs, touch: ["poe.desdeBomba"], bend: 1.6 });
-  }
-  // presurizado: 40 gal (16" × 47") con las cisternas de la casa; 6 gal (11" × 16") con la torre. Solo se dibujan
-  // los de los modelos de esta escena.
+  // el motor acostado, con sus aletas, y la cabeza de la bomba con su luz (prende cuando bombea)
+  bomba({ B: BOMBA, motor: -12.4, aletas: [-11.7, -11.0, -10.3, -9.6], en: EN_BOMBA });
+  // sin suavizador, de la bomba el agua entra derecho a la casa por la pared
+  pipe("bomba.casa", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, WALLS.y + WALLS.d, 5.4]], 0.6, { agua: true, flowOf: () => "agua", attrsOf: () => parte(p.id, "aCasa").attrs, touch: ["poe.desdeBomba"], bend: 1.6 });
+  // el presurizado de 40 gal de las cisternas de la casa (los de los modelos de esta escena), con su tubo a la bomba
   cyl("pres.base", PRES.x, PRES.y, 1.3, 0, 1, { tone: "lo" }, { steps: 20, sombra: "recibe", ...EN_BOMBA });
-  const presurizados = new Set(p.modelos.map((m) => m.presurizado));
-  for (const [gal, d, alto] of [[40, 16, 47], [6, 11, 16]].filter(([gal]) => presurizados.has(gal))) {
-    const r = (d / 2) * PULG;
-    const h = alto * PULG;
-    const { on, attrs } = parte(p.id, `pres${gal}`);
-    const PF = G.frameOf([PRES.x, PRES.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
-    const top = 1 + h;
-    const capa = (fill) => sombraCilindro(`pres${gal}`, PRES.x, PRES.y, r, 1, top, fill, { sombra: "recibe", on, lados: 20 });
-    turned(`pres${gal}`, PF, [[1, r - 0.4], [1.5, r], [top - 0.9, r], [top - 0.25, r - 0.7, 1], [top, r - 1.3, 1]], { tone: "hi" }, { owner: "presurizado", attrs, capa });
-    pipe(`pres${gal}.bomba`, [[PRES.x + r, PRES.y, 2], [-12.4, PRES.y, 2]], 0.5, { touch: [gal === 6 ? "pres40" : "pres6"], attrsOf: () => attrs });
+  for (const gal of new Set(p.modelos.map((m) => m.presurizado))) {
+    const en = parte(p.id, `pres${gal}`);
+    const { r } = presurizado({ gal, x: PRES.x, y: PRES.y, en });
+    pipe(`pres${gal}.bomba`, [[PRES.x + r, PRES.y, 2], [-12.4, PRES.y, 2]], 0.5, { touch: [gal === 6 ? "pres40" : "pres6"], attrsOf: () => en.attrs });
   }
 }
 
@@ -850,7 +548,7 @@ function dibujarPoe(p) {
   const desdeCalle = parte(p.id, "desdeCalle");
   box("poe.registro", [POE.registro.x - 0.9, PLINTH.y + PLINTH.d + 0.2, 0], [POE.registro.x + 0.9, POE.registro.y + 0.9, 0.8], { tone: "lo" }, { r: 0.2, sombra: "recibe", ...desdeCalle });
   pipe("poe.desdeCalle", [[POE.registro.x, yp, 0.8], [POE.registro.x, yp, zp], [PF.x + 0.8, yp, zp]], 0.4, { ...conAgua(desdeCalle.attrs), touch: ["poe.desdeBomba"] });
-  pipe("poe.desdeBomba", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, yp, 5.4], [POE.registro.x, yp, 5.4], [POE.registro.x, yp, zp], [PF.x + 0.8, yp, zp]], 0.4, { ...conAgua(parte(p.id, "desdeBomba").attrs), touch: ["bomba.casa", "poe.desdeCalle", "poe.registro"] });
+  pipe("poe.desdeBomba", [[-6.7, BOMBA.eje[0], BOMBA.z1], [-6.7, BOMBA.eje[0], 5.4], [-6.7, yp, 5.4], [POE.registro.x, yp, 5.4], [POE.registro.x, yp, zp], [PF.x + 0.8, yp, zp]], 0.4, { ...conAgua(parte(p.id, "desdeBomba").attrs), touch: ["bomba.casa", "poe.desdeCalle", "poe.registro"], bend: 1.6 });
   // los codos que en pantalla casi se devuelven (de ir hacia la pared a bajar) van más abiertos
   pipe("poe.filtrada", [[PF.x - 0.8, yp, zp], [-26.9, yp, zp], [-26.9, yp, 16.2], [-26.9, POE.resina.y, 16.2], [V.x1, POE.resina.y, 16.2]], 0.4, { ...conAgua(equipo.attrs), bend: 1.6 });
   pipe("poe.suave", [[V.x0, UV.y, UV.z], [UV.x1, UV.y, UV.z]], 0.4, { ...conAgua(equipo.attrs), touch: ["poe10x54", "poe13x54"] });
@@ -862,83 +560,142 @@ function dibujarPoe(p) {
 // La estación va en el suelo frente a la pared oeste, al lado del panel, con su transfer switch en la pared (un tubo
 // corto lo lleva al panel, a los circuitos de lo esencial) y la BP3800, la batería de expansión, a su lado. Las PS400
 // van abiertas en el patio sobre sus patas, inclinadas 40° hacia donde miran las placas del techo, con sus cables
-// por el suelo hasta la estación. Medidas de las fichas de Anker: la F3800 Plus mide 27.6" × 15.3" × 15.6", la
-// BP3800 15.5" × 14" × 10.3" y cada PS400 abierta 102" × 36" (la F2600 va aproximada, en productos.mjs).
-const ANKER = { x: -44.1, y: 31 };
-const TS = { x0: -49.5, x1: -46, y1: HY1 + 2, z0: 18, z1: 23 };
-const PS400 = { frentes: [-26, -14, -2], y0: 44, largo: 102 * PULG, ancho: 35.9 * PULG, inclina: (40 * Math.PI) / 180, z0: 1, grueso: 0.3, bus: 42.6 };
+// por el suelo hasta la estación. Medidas de las fichas de Anker: la F2600 mide 20.7" × 15.5" × 9.8", la F3800 Plus
+// 27.6" × 15.3" × 15.6", la BP3800 15.5" × 14" × 10.3" y cada PS400 abierta 102" × 36". Todo eso, menos las PS400,
+// va en el cuarto de equipos, contra su pared norte. `cable` es la x por donde los cables llegan a la estación.
+const ANKER = { x: -41.44, y: 31, cable: -46 };
+const TS = { x0: -48.9, x1: -45.4, y1: HY1 + 2, z0: 18, z1: 23 };
+// Las PS400 van en el patio, una fila detrás de otra, en el orden en que se suman: las tres de siempre, tres más hacia
+// la brújula y dos al norte del poste (no caben a su lado). `hacia` dice a qué cable se une el de cada una: al de la
+// anterior, o al de la estación.
+const PS400 = { frentes: [-26, -14, -2, 10, 22, 34, -50, -62], hacia: [null, 0, 1, 2, 3, 4, "estacion", 6], y0: 44, z0: 1, bus: 42.6 };
 function dibujarAnker(p) {
   const equipo = parte(p.id, "equipo");
-  // la estación, una por tamaño: la F2600 y la F3800 Plus (con o sin la BP3800); al frente, su pantalla y las cinco
-  // luces de la carga
-  const estaciones = [["f2600", p.modelos.find((m) => m.id === "f2600")], ["f3800", p.modelos.find((m) => m.id !== "f2600")]].filter(([, m]) => m);
-  for (const [nombre, m] of estaciones) {
-    const [l, a, h] = m.medidas.map((v) => v * PULG);
-    const [x0, x1, y0, y1] = [ANKER.x - l, ANKER.x, ANKER.y, ANKER.y + a];
-    const luces = Array.from({ length: 5 }, (_, i) => {
-      const xa = x1 - 2.8 + i * 0.46;
-      return `<path class="sr-led" data-anker-led="${i}" d="${faceY(y1, rect(xa, xa + 0.32, h - 1.3, h - 0.9))}"/>`;
-    }).join("");
-    const extra = Ln(faceY(y1, rect(x0 + 0.8, x0 + 2.8, h - 1.7, h - 0.7)), { tone: "lo" }) + luces + Ln(faceY(y1, rect(x0 + 0.6, x1 - 0.6, 0.5, h - 2.3)), { tone: "faint" });
-    box(`anker.${nombre}`, [x0, y0, 0], [x1, y1, h], { tone: "mid" }, { r: 0.5, steps: 3, bevel: 0.3, wrap: "sr-anker", extra, owner: "anker.estacion", ...parte(p.id, nombre) });
-  }
-  // la BP3800, al sur de la estación
-  if (p.modelos.some((m) => m.bp)) {
-    const [l, a, h] = [15.5, 14, 10.3].map((v) => v * PULG);
-    const luz = Ln(faceY(ANKER.y + a, rect(ANKER.x + 1.1, ANKER.x + l - 0.3, h - 1.1, h - 0.6)), { tone: "lo" });
-    box("anker.bp3800", [ANKER.x + 0.4, ANKER.y, 0], [ANKER.x + 0.4 + l, ANKER.y + a, h], { tone: "mid" }, { r: 0.4, steps: 3, bevel: 0.25, wrap: "sr-anker", extra: luz, ...parte(p.id, "bp3800") });
-  }
+  // la estación, una por tamaño: la F2600 (con o sin la BP2600) y la F3800 Plus (con o sin la BP3800), y su batería de
+  // expansión al sur de ella
+  const estaciones = [["f2600", p.modelos.find((m) => m.id.startsWith("f2600"))], ["f3800", p.modelos.find((m) => m.id.startsWith("f3800"))]].filter(([, m]) => m);
+  for (const [nombre, m] of estaciones) estacionAnker({ nombre, m, x1: ANKER.x, y0: ANKER.y, en: parte(p.id, nombre) });
+  if (p.modelos.some((m) => m.bp2600)) bateriaExpansion({ nombre: "bp2600", x: ANKER.x, y0: ANKER.y, en: parte(p.id, "bp2600") });
+  if (p.modelos.some((m) => m.bp)) bateriaExpansion({ nombre: "bp3800", x: ANKER.x, y0: ANKER.y, en: parte(p.id, "bp3800") });
   // el transfer switch en la pared: el manual con su palanca, el automático con su luz; y el tubo corto al panel
   for (const tipo of ["manual", "automatico"].filter((t) => p.modelos.some((m) => (m.transfer === "manual") === (t === "manual")))) {
-    const yf = TS.y1;
-    const xm = (TS.x0 + TS.x1) / 2;
-    const led = at([xm + 0.8, yf, TS.z1 - 1.0]);
-    const detalle =
-      tipo === "manual"
-        ? Ln(faceY(yf, [[xm, TS.z0 + 1.2], [xm, TS.z1 - 1.6]], false), { tone: "lo", free: true }) + Ln(faceY(yf, rect(xm - 0.5, xm + 0.5, TS.z1 - 1.6, TS.z1 - 1.0)), { tone: "lo" })
-        : `<circle class="sr-led sr-led-fija" cx="${f2(led[0])}" cy="${f2(led[1])}" r="0.35"/>` + Ln(faceY(yf, rect(TS.x0 + 0.6, xm + 0.2, TS.z1 - 1.8, TS.z1 - 0.6)), { tone: "lo" });
-    box(`anker.ts.${tipo}`, [TS.x0, HY1, TS.z0], [TS.x1, TS.y1, TS.z1], { tone: "hi" }, { r: 0.25, steps: 2, extra: Ln(faceY(yf, rect(TS.x0 + 0.4, TS.x1 - 0.4, TS.z0 + 0.4, TS.z1 - 0.4)), { tone: "faint" }) + detalle, owner: "anker.ts", sombra: "recibe", ...parte(p.id, tipo) });
+    transferSwitch({ tipo, x0: TS.x0, x1: TS.x1, pared: HY1, y1: TS.y1, z0: TS.z0, z1: TS.z1, en: parte(p.id, tipo) });
   }
-  pipe("anker.tablero", [[TS.x1, HY1 + 1, 20.5], [MAIN.x0, HY1 + 1, 20.5]], 0.45, { flowOf: () => "anker", attrsOf: () => equipo.attrs });
+  // (lo del E10 nunca va con el portátil: sus piezas pueden ocupar el mismo lugar)
+  pipe("anker.tablero", [[TS.x1, HY1 + 1, 20.5], [MAIN.x0, HY1 + 1, 20.5]], 0.45, { flowOf: () => "anker", attrsOf: () => equipo.attrs, touch: ["e10.*"] });
   // el cable de la estación al transfer switch: sale por detrás, va a la pared y sube
-  pipe("anker.cable", [[-47.75, ANKER.y, 1], [-47.75, HY1 + 1.6, 1], [-47.75, HY1 + 1.6, TS.z0]], 0.3, { flowOf: () => "anker", attrsOf: () => equipo.attrs, bend: 1.4 });
-  // las PS400: cada una inclinada sobre dos patas atrás y dos pies adelante, con su vidrio oscuro en cuatro hojas
-  const { inclina: b, largo: L, ancho: Wd, grueso, z0 } = PS400;
-  const n = [Math.sin(b), 0, Math.cos(b)];
-  const arriba = [-Math.cos(b), 0, Math.sin(b)];
-  const yc = PS400.y0 + L / 2;
+  pipe("anker.cable", [[ANKER.cable, ANKER.y, 1], [ANKER.cable, HY1 + 1.6, 1], [ANKER.cable, HY1 + 1.6, TS.z0]], 0.3, { flowOf: () => "anker", attrsOf: () => equipo.attrs, bend: 1.4, touch: ["e10.*"] });
+  // las PS400 en el patio (piezas.mjs): se ven las que lleva, en el orden de PS400.frentes
+  const yc = PS400.y0 + PS400_MEDIDAS.largo / 2;
+  // (y en los primeros cuatro lugares, las PS200 de la F2600, más chicas, con el mismo cable)
   const muestras = [];
+  const muestras200 = [];
   PS400.frentes.forEach((xf, j) => {
     const ps = parte(p.id, `ps${j}`);
-    const owner = `anker.ps${j}`;
-    const o = [xf - (Wd / 2) * Math.cos(b), yc, z0 + (Wd / 2) * Math.sin(b)];
-    const F = G.frameOf(o, n, [0, 1, 0], arriba);
-    const pt = (u, v, s) => G.add3(G.add3(G.add3(o, G.mul3(n, s)), G.mul3([0, 1, 0], u)), G.mul3(arriba, v));
-    const [hu, hv] = [L / 2, Wd / 2];
-    const borde = (s) => [pt(-hu, -hv, s), pt(hu, -hv, s), pt(hu, hv, s), pt(-hu, hv, s)];
-    const vidrio = path3(borde(grueso + 0.01), true);
-    const hojas = [1, 2, 3].map((k) => path3([pt(-hu + (k * L) / 4, -hv, grueso + 0.01), pt(-hu + (k * L) / 4, hv, grueso + 0.01)])).join("");
-    const extra = `<path class="sr-sun" data-sun-ps d="${vidrio}"/>` + Ln(vidrio, { tone: "lo" }) + Ln(hojas, { tone: "faint" });
-    const solido = tapaSol(`anker.ps${j}`, borde(0), borde(grueso), ps.on);
-    const capa = (fill) => recibeSol(`anker.ps${j}`, fill, [cara(n, borde(grueso))], { on: ps.on, propios: [solido] });
-    prism(`anker.ps${j}`, F, [[-hu, -hv], [hu, -hv], [hu, hv], [-hu, hv]], 0, grueso, { tone: "mid" }, { extra, wrap: "sr-colector", capa, owner, ...ps });
-    // patas atrás (hasta la cara de atrás de la placa) y pies adelante, bajo el borde de abajo
-    for (const [i, yy] of [yc - L / 3, yc + L / 3].entries()) {
-      const xa = xf - Wd * Math.cos(b) + 0.6;
-      const za = o[2] + ((o[0] - xa) / Math.cos(b)) * Math.sin(b);
-      box(`anker.ps${j}.pata${i}`, [xa - 0.2, yy - 0.2, 0], [xa + 0.2, yy + 0.2, za], { tone: "lo" }, { r: 0.1, sombra: false, owner, ...ps });
-      box(`anker.ps${j}.pie${i}`, [xf - 0.6, yy - 0.3, 0], [xf - 0.1, yy + 0.3, z0 + 0.05], { tone: "lo" }, { r: 0.1, sombra: false, owner, ...ps });
-    }
-    muestras.push({ id: solido, puntos: [-2, 0, 2].flatMap((i) => [-2, 0, 2].map((k) => p3(pt((i / 3) * hu, (k / 3) * hv, grueso + 0.02)))) });
+    muestras.push(ps400({ j, xf, yc, z0: PS400.z0, en: ps, owner: `anker.ps${j}` }));
     // su cable por el suelo: baja de la placa al cable que corre hasta la estación (en la base, debajo de todo)
     const xc = xf - 0.35;
-    const siguiente = j === 0 ? null : PS400.frentes[j - 1] - 0.35;
-    const camino = [[xc, PS400.y0 + 1, 0.02], [xc, PS400.bus, 0.02], ...(siguiente === null ? [[-47.75, PS400.bus, 0.02], [-47.75, ANKER.y + 3, 0.02]] : [[siguiente, PS400.bus, 0.02]])];
-    const d = path3(camino);
-    back.push(`<g${ps.attrs}><path class="sr-cable" d="${d}"/><path class="sr-flow" data-flow="ps400" data-s0="0" d="${d}"/></g>`);
+    const k = PS400.hacia[j];
+    const fin = k === null ? [[ANKER.cable, PS400.bus, 0.02], [ANKER.cable, ANKER.y + 3, 0.02]] : k === "estacion" ? [[ANKER.cable, PS400.bus, 0.02]] : [[PS400.frentes[k] - 0.35, PS400.bus, 0.02]];
+    const d = path3([[xc, PS400.y0 + 1, 0.02], [xc, PS400.bus, 0.02], ...fin]);
+    const cable = `<path class="sr-cable" d="${d}"/><path class="sr-flow" data-flow="ps400" data-s0="0" d="${d}"/>`;
+    back.push(`<g${ps.attrs}>${cable}</g>`);
+    if (j < 4) {
+      const ps2 = parte(p.id, `ps200_${j}`);
+      muestras200.push(ps400({ j, xf, yc: PS400.y0 + PS200_MEDIDAS.largo / 2, z0: PS400.z0, en: ps2, owner: `anker.ps${j}`, nombre: `anker.ps200_${j}`, medidas: PS200_MEDIDAS }));
+      back.push(`<g${ps2.attrs}>${cable}</g>`);
+    }
   });
-  // lo que mide cada modelo para la página: las muestras de sus PS400, para la sombra de cada momento
-  for (const m of p.modelos) mide(p.id, m.id, { ps: muestras.slice(0, m.ps400) });
+  // lo que mide cada modelo para la página: las muestras de cada lugar de PS400 (y de PS200), para la sombra de cada
+  // momento (la página toma las de las que lleva)
+  for (const m of p.modelos) mide(p.id, m.id, { ps: muestras, ps200: muestras200 });
+}
+
+// ---------- Anker SOLIX E10: en el cuarto de equipos, contra su pared norte ----------
+// El módulo de poder encima de sus baterías B6000 (de una a cinco), de frente al sur: sobre su carrito (el kit
+// portátil), sobre su base o, con cuatro o más baterías, en su montura de pared. Su caja va en la pared de la casa, al
+// lado del panel: la Smart Inlet Box (MTS) o la Power Dock (ATS). Las placas del kit solar van en el patio, en los
+// lugares de las primeras PS400, y el Smart Generator 5500 afuera, al norte del cuarto, con su cable a la pared.
+// Medidas de las fichas de Anker, en pulgadas: el módulo 26.4 × 11.8 × 10.2, la B6000 26.4 × 12.7 × 11.1, la Smart
+// Inlet Box 16.5 × 11 × 5.2, la Power Dock 15 × 36.1 × 7.1 y el generador 27.9 × 22.2 × 16.5. Comparte dueño con la
+// estación del portátil, que nunca va con él.
+const E10 = { x0: CUARTO.x0 + CUARTO.muro, yc: 35, base: 1.2, caja: -48.9, cable: -47.8, gen: { x0: -58.5, y0: 34.5 } };
+function dibujarE10(p) {
+  const [ancho, hB, fB] = [26.4, 12.7, 11.1].map((v) => v * PULG);
+  const [hM, fM] = [11.8, 10.2].map((v) => v * PULG);
+  const { x0, yc, base, caja } = E10;
+  const [ya, yb] = [yc - ancho / 2, yc + ancho / 2];
+  const owner = "anker.estacion";
+  // la base: el carrito con sus ruedas y su agarradera, la base en el piso o los rieles de la montura en la pared
+  const carrito = parte(p.id, "carrito");
+  box("e10.carrito", [x0 + 0.1, ya - 0.2, 0.7], [x0 + fB + 0.3, yb + 0.2, base], { tone: "lo" }, { r: 0.2, owner, ...carrito });
+  for (const [i, y] of [ya - 0.6, yb + 0.6].entries()) {
+    const F = G.frameOf([x0 + fB - 0.6, y, 0.7], [0, 1, 0], [1, 0, 0], [0, 0, 1]);
+    turned(`e10.rueda${i}`, F, [[-0.3, 0.7], [0.3, 0.7]], { tone: "lo" }, { owner, attrs: carrito.attrs });
+  }
+  pipe("e10.agarradera", [[x0 + 0.5, yb + 0.2, 0.95], [x0 + 0.5, yb + 1.2, 0.95], [x0 + 0.5, yb + 1.2, base + 9]], 0.22, { tone: "mid", bend: 0.8, attrsOf: () => carrito.attrs, ends: [true, false] });
+  box("e10.base", [x0 + 0.1, ya - 0.2, 0], [x0 + fB + 0.3, yb + 0.2, base], { tone: "lo" }, { r: 0.2, owner, sombra: "recibe", ...parte(p.id, "base") });
+  const montura = parte(p.id, "montura");
+  for (const [i, y] of [ya - 0.5, yb + 0.1].entries()) box(`e10.riel${i}`, [x0, y, base], [x0 + 0.5, y + 0.4, base + 5 * hB + hM], { tone: "lo" }, { r: 0.1, owner, ...montura });
+  // las baterías, una encima de otra, con su franja y su luz al frente
+  for (let j = 0; j < 5; j++) {
+    const z = base + j * hB;
+    const xf = x0 + fB;
+    const extra = Ln(faceX(xf, rect(ya + 0.8, yb - 0.8, z + 0.6, z + hB - 0.6)), { tone: "faint" }) + Ln(faceX(xf, [[ya + 1.6, z + hB - 1.2], [ya + 3.6, z + hB - 1.2]], false), { tone: "lo", free: true });
+    box(`e10.b${j}`, [x0, ya, z], [xf, yb, z + hB], { tone: "mid" }, { r: 0.3, steps: 2, bevel: 0.2, wrap: "sr-anker", extra, owner, ...parte(p.id, `b${j}`) });
+  }
+  // el módulo de poder encima de la última, con su pantalla y las cinco luces de la carga
+  for (let k = 1; k <= 5; k++) {
+    const z = base + k * hB;
+    const xf = x0 + fM;
+    const luces = Array.from({ length: 5 }, (_, i) => {
+      const y = ya + 1.6 + i * 0.5;
+      return `<path class="sr-led" data-anker-led="${i}" d="${faceX(xf, rect(y, y + 0.34, z + hM - 1.3, z + hM - 0.9))}"/>`;
+    }).join("");
+    const extra = Ln(faceX(xf, rect(yb - 3.6, yb - 1, z + 0.9, z + hM - 0.9)), { tone: "lo" }) + luces;
+    box(`e10.modulo${k}`, [x0, ya + 0.15, z], [xf, yb - 0.15, z + hM], { tone: "mid" }, { r: 0.4, steps: 3, bevel: 0.3, wrap: "sr-anker", extra, owner, ...parte(p.id, `modulo${k}`) });
+  }
+  // la caja en la pared de la casa: la Smart Inlet Box (MTS) o la Power Dock (ATS), con su tubo corto al panel
+  const cajas = { mts: [16.5, 11, 5.2, 16], ats: [15, 36.1, 7.1, 12.6] };
+  for (const [nombre, [w, h, d, z0]] of Object.entries(cajas)) {
+    const en = parte(p.id, nombre);
+    // la otra caja nunca va con esta, ni nada del portátil
+    const nunca = ["anker.*", `e10.${nombre === "mts" ? "ats" : "mts"}*`];
+    const [cw, ch, cd] = [w, h, d].map((v) => v * PULG);
+    const y1 = HY1 + cd;
+    const led = at([caja + cw - 0.8, y1, z0 + ch - 0.8]);
+    const extra = Ln(faceY(y1, rect(caja + 0.4, caja + cw - 0.4, z0 + 0.4, z0 + ch - 0.4)), { tone: "faint" }) + `<circle class="sr-led sr-led-fija" cx="${f2(led[0])}" cy="${f2(led[1])}" r="0.3"/>`;
+    box(`e10.${nombre}`, [caja, HY1, z0], [caja + cw, y1, z0 + ch], { tone: "hi" }, { r: 0.25, steps: 2, extra, owner: "anker.ts", sombra: "recibe", ...en });
+    const zt = Math.min(z0 + ch - 1, 20.5);
+    pipe(`e10.${nombre}.tablero`, [[caja + cw, HY1 + Math.min(1, cd / 2), zt], [MAIN.x0, HY1 + Math.min(1, cd / 2), zt]], 0.45, { flowOf: () => "anker", attrsOf: () => en.attrs, touch: nunca });
+    pipe(`e10.${nombre}.cable`, [[E10.cable, ya, 3.6], [E10.cable, HY1 + cd / 2, 3.6], [E10.cable, HY1 + cd / 2, z0]], 0.35, { flowOf: () => "anker", attrsOf: () => en.attrs, bend: 1.4, touch: nunca });
+  }
+  // el Smart Generator 5500, afuera, con su tablero y sus rejillas, y su cable a la pared del cuarto
+  const gen = parte(p.id, "generador");
+  const [gl, ga, gh] = [27.9, 22.2, 16.5].map((v) => v * PULG);
+  const { x0: gx, y0: gy } = E10.gen;
+  const rejillas = faceY(gy + ga, rect(gx + 0.8, gx + gl * 0.45, 0.9, 4.1)) + [1, 2, 3].map((i) => faceY(gy + ga, [[gx + 0.8, 0.9 + i * 0.8], [gx + gl * 0.45, 0.9 + i * 0.8]], false)).join("");
+  const gextra = Ln(faceY(gy + ga, rect(gx + gl * 0.55, gx + gl - 0.8, gh * 0.35, gh - 0.8)) + rejillas, { tone: "lo" });
+  box("e10.generador", [gx, gy, 0], [gx + gl, gy + ga, gh], { tone: "mid" }, { r: 0.6, steps: 3, bevel: 0.3, extra: gextra, ...gen });
+  pipe("e10.generador.cable", [[gx + gl, gy + ga / 2, 2.2], [CUARTO.x0, gy + ga / 2, 2.2]], 0.35, { flowOf: () => "gen", attrsOf: () => gen.attrs });
+  // las placas del kit solar, en los lugares de las primeras PS400, con su cable por el suelo hasta el E10
+  const yc0 = PS400.y0 + PS400_MEDIDAS.largo / 2;
+  const muestras = [];
+  for (let j = 0; j < 4; j++) {
+    const ps = parte(p.id, `ps${j}`);
+    const xf = PS400.frentes[j];
+    muestras.push(ps400({ j, xf, yc: yc0, z0: PS400.z0, en: ps, owner: `anker.ps${j}`, nombre: `e10.ps${j}` }));
+    const xc = xf - 0.35;
+    const fin = j === 0 ? [[E10.cable, PS400.bus, 0.02], [E10.cable, yb + 0.2, 0.02]] : [[PS400.frentes[j - 1] - 0.35, PS400.bus, 0.02]];
+    const d = path3([[xc, PS400.y0 + 1, 0.02], [xc, PS400.bus, 0.02], ...fin]);
+    back.push(`<g${ps.attrs}><path class="sr-cable" d="${d}"/><path class="sr-flow" data-flow="ps400" data-s0="0" d="${d}"/></g>`);
+  }
+  for (const m of p.modelos) mide(p.id, m.id, { ps: muestras });
+}
+
+// ---------- nevera EverFrost: en el cuarto de equipos, frente al suavizador ----------
+function dibujarNevera(p) {
+  for (const m of p.modelos) nevera({ m, x0: -34, y0: 35.8, en: parte(p.id, m.id) });
 }
 
 // ---------- calentador solar Soltek: al fondo del techo, en lugar de las últimas placas ----------
@@ -1086,6 +843,54 @@ cyl("ground.rod", ROD.x, ROD.y, 0.55, 0, 2.4, { tone: "mid" }, { steps: 16, somb
 cyl("ground.clamp", ROD.x, ROD.y, 1, 2.4, 3.2, { tone: "mid" }, { steps: 16, sombra: false });
 pipe("ground.wire", [[ROD.x, ROD.y, SOCKET.z0], [ROD.x, ROD.y, 3.2]], 0.35, { tone: "mid" });
 
+// ---------- cuarto de equipos: lo de tierra de la fachada oeste, adentro ----------
+// El Anker y su transfer switch, el suavizador, la bomba y el presurizado no se dejan a la intemperie (la F2600 no
+// tiene protección contra el agua y la F3800 Plus no es impermeable, dicen sus fichas): van en un cuarto de bloques
+// pegado a la fachada oeste, con su puerta y sus persianas de ventilación. Su techo sale de una viga en el borde de la
+// losa, por encima de la caja de la luz de la casa, y baja hacia afuera. Adentro quedan también el panel y el
+// inversor; los Powerwall (hechos para afuera), el medidor de LUMA y el mástil quedan fuera. Las paredes y el techo se
+// dibujan transparentes para ver adentro ("Ver adentro" los cierra) y dan sombra como de verdad. Lo que cruza una
+// pared (el conducto de las placas, el de las baterías y el de la acometida) llega a ella por los dos lados.
+{
+  const { x0, x1, yf, muro, alero, caida, grueso } = CUARTO;
+  // el techo: de la viga en el borde de la losa hasta un alero pasado el frente, y de punta a punta con su alero
+  const [tx0, tx1, ty0, ty1, tz0] = [x0 - alero, x1 + alero, SE[1], yf + alero, SLAB_Z[0] + 0.25];
+  const largo = ty1 - ty0;
+  const b = Math.atan2(caida, largo);
+  // la cara de arriba del techo a cada y, y la de abajo (donde llegan las paredes)
+  const arribaEn = (y) => tz0 - ((y - ty0) * caida) / largo;
+  const bajoEn = (y) => arribaEn(y) - grueso / Math.cos(b);
+  const n = [0, Math.sin(b), Math.cos(b)];
+  const subeHaciaLaPared = [0, -Math.cos(b), Math.sin(b)];
+  const centro = G.sub3([(tx0 + tx1) / 2, (ty0 + ty1) / 2, arribaEn((ty0 + ty1) / 2)], G.mul3(n, grueso));
+  const F = G.frameOf(centro, n, [1, 0, 0], subeHaciaLaPared);
+  const [hu, hv] = [(tx1 - tx0) / 2, largo / Math.cos(b) / 2];
+  const pt = (u, v, s) => G.add3(G.add3(G.add3(centro, G.mul3(n, s)), G.mul3([1, 0, 0], u)), G.mul3(subeHaciaLaPared, v));
+  const borde = (s) => [pt(-hu, -hv, s), pt(hu, -hv, s), pt(hu, hv, s), pt(-hu, hv, s)];
+  tapaSol("cuarto.techo", borde(0), borde(grueso));
+  prism("cuarto.techo", F, [[-hu, -hv], [hu, -hv], [hu, hv], [-hu, hv]], 0, grueso, { tone: "mid" }, { wrap: "sr-techo" });
+  // la viga en la losa, justo debajo del techo, entre las paredes
+  box("cuarto.viga", [x0 + muro, ty0, tz0 - grueso - 0.7], [x1 - muro, ty0 + 0.8, tz0 - grueso], { tone: "mid" }, { r: 0.1, sombra: "recibe" });
+  // las paredes de los lados (de la fachada al frente, con su borde de arriba bajo el techo, y sentadas sobre el zócalo
+  // de la casa donde lo pisan) y la del frente, entre ellas
+  const zocalo = PLINTH.y + PLINTH.d;
+  const lado = [[zocalo, 0], [yf - muro, 0], [yf - muro, bajoEn(yf - muro) - 0.02], [ty0, bajoEn(ty0) - 0.02], [HY1, SLAB_Z[0]], [HY1, WALL_Z[0]], [zocalo, WALL_Z[0]]];
+  for (const [nombre, xa] of [["norte", x0], ["sur", x1 - muro]]) {
+    const FL = G.frameOf([xa, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]);
+    tapaSol(`cuarto.${nombre}`, lado.map(([y, z]) => [xa, y, z]), lado.map(([y, z]) => [xa + muro, y, z]));
+    prism(`cuarto.${nombre}`, FL, lado, 0, muro, { tone: "mid" }, { wrap: "sr-pared" });
+  }
+  // el frente: la puerta (con su manija) del lado del Anker y las persianas de ventilación arriba
+  const [pa, pb, ph] = CUARTO.puerta;
+  const persianas = CUARTO.persianas.map(([a, c]) => {
+    const lineas = [];
+    for (let z = 26.2; z < 31.4; z += 1.1) lineas.push(faceY(yf, [[a, z], [c, z]], false));
+    return faceY(yf, rect(a, c, 25.4, 32)) + lineas.join("");
+  });
+  const extra = Ln(faceY(yf, rect(pa, pb, 0.2, ph)) + faceY(yf, rect(pa + 0.9, pb - 0.9, 1.1, ph - 0.9)) + persianas.join(""), { tone: "lo" }) + Dots([at([pb - 1.4, yf, ph * 0.45])], { size: 0.45 });
+  box("cuarto.frente", [x0, yf - muro, 0], [x1, yf, bajoEn(yf) - 0.02], { tone: "mid" }, { r: 0.1, wrap: "sr-pared", sombra: "tapa", extra });
+}
+
 // ---------- poste de LUMA ----------
 cyl("pole.base", POLE.x, POLE.y, 4.2, 0, POLE.z0, { tone: "lo" }, { steps: 32, sombra: "recibe" });
 const PF = G.frameOf([POLE.x, POLE.y, 0], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
@@ -1103,19 +908,29 @@ box("pole.bracket", [BR.x0, BR.y0, BR.z0], [BR.x1, BR.y1, BR.z1], { tone: "mid" 
 
 // ---------- conductos de energía ----------
 {
-  // de la T al inversor: cruza el techo, baja por el borde de la losa y corre por la fachada
-  const points = [[TEE.x, TEE.y + RIM, TEE.z], [TEE.x, DC_Y, TEE.z], [TEE.x, DC_Y, DC_Z], [-17, DC_Y, DC_Z], [-17, DC_Y, INV.z1]];
+  // de la T al inversor: cruza el techo, baja por la fachada al este del cuarto de equipos (así no atraviesa su
+  // techo), corre por la pared, entra al cuarto por su pared sur y baja al inversor por arriba
+  const DC_CORRE = 35.5;
+  const DC_ENTRA = -12;
+  const points = [[TEE.x, TEE.y + RIM, TEE.z], [TEE.x, DC_Y, TEE.z], [TEE.x, DC_Y, DC_CORRE], [CUARTO.x1, DC_Y, DC_CORRE]];
   const probe = G.fillet(points, 3.12, 10, { P, tube: 1.2 });
-  const straps = [2, -9].map((x) => arcWhere(probe, (p) => p[2] < DC_Z + 0.01 && p[0] <= x));
+  // una abrazadera en el borde de la losa, donde baja, y otra en la pared, donde corre
+  const straps = [arcWhere(probe, (p) => p[0] > TEE.x - 0.01 && p[2] <= DC_Z - 0.5), arcWhere(probe, (p) => p[2] < DC_CORRE + 0.01 && p[0] <= 2)];
   const route = pipe("dc", points, 1.2, { channel: "pv", gaps: straps.map((s) => [s - 0.6, s + 0.6]) });
-  [2, -9].forEach((x, i) => strap(`dc.strap${i}`, route, straps[i], "dc", 1.2, [[x - 0.6, SE[1], DC_Z - 0.8], [x + 0.6, DC_Y - 1.65 + 0.05, DC_Z + 0.8]]));
+  strap("dc.strap0", route, straps[0], "dc", 1.2, [[TEE.x - 0.6, SE[1], DC_Z - 1.3], [TEE.x + 0.6, DC_Y - 1.65 + 0.05, DC_Z + 0.3]]);
+  strap("dc.strap1", route, straps[1], "dc", 1.2, [[2 - 0.6, HY1, DC_CORRE - 0.8], [2 + 0.6, DC_Y - 1.65 + 0.05, DC_CORRE + 0.8]]);
+  pipe("dc.dentro", [[CUARTO.x1 - CUARTO.muro, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, INV.z1]], 1.2, { channel: "pv" });
 }
 const BAT1X = (BATS[0].x0 + BATS[0].x1) / 2;
-pipe("bat", [[INV.x1, 27.3, 26], [BAT1X, 27.3, 26], [BAT1X, 27.3, BATS[0].z1]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
+// del inversor al primer Powerwall, que va afuera: cruza la pared sur del cuarto
+pipe("bat", [[INV.x1, 27.3, 20], [CUARTO.x1 - CUARTO.muro, 27.3, 20]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
+pipe("bat.fuera", [[CUARTO.x1, 27.3, 20], [BAT1X, 27.3, 20], [BAT1X, 27.3, BATS[0].z1]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
 for (let k = 0; k < 3; k++) pipe(`bat.l${k + 1}`, [[BATS[k].x1, 27.3, 7], [BATS[k + 1].x0, 27.3, 7]], 0.8, { channel: `bat.l${k + 1}`, attrsOf: () => ` data-bat="${k + 2}"` });
 pipe("ac", [[INV.x0, 27.4, 24], [MAIN.x1, 27.4, 24]], 1.2, { channel: "ac" });
 pipe("casa", [[-38.5, 26.6, MAIN.z1], [-38.5, 26.6, LB.z0]], 1.2, { channel: "casa" });
-pipe("red", [[-41, 27.4, MAIN.z0], [-41, 27.4, 5.5], [-55, 27.4, 5.5], [-55, 27.4, SOCKET.z0]], 1.2, { channel: "red" });
+// del panel a la base del medidor, que va afuera: cruza la pared norte del cuarto
+pipe("red", [[-41, 27.4, MAIN.z0], [-41, 27.4, 5.5], [CUARTO.x0 + CUARTO.muro, 27.4, 5.5]], 1.2, { channel: "red" });
+pipe("red.fuera", [[CUARTO.x0, 27.4, 5.5], [-55, 27.4, 5.5], [-55, 27.4, SOCKET.z0]], 1.2, { channel: "red" });
 // el mástil y su capuchón tapan el sol como un tubo parado
 const MAST_TAPA = tapaSol("mast", anilloRedondo(MAST.x, MAST.y, 1.9, MAST.z0), anilloRedondo(MAST.x, MAST.y, 1.9, 63.4));
 {
@@ -1161,26 +976,9 @@ A.settle(R, P, { skip: (a, b) => A.sameRun(a, b) || excluyentes(a, b) });
 R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
-// ---------- cielo: el sol y la luna dan la vuelta por fuera de la maqueta ----------
-// Cada uno va en la dirección de pantalla de su dirección real, la de donde viene su luz, justo afuera del
-// contorno de la maqueta: nunca pasa por detrás de la casa y las sombras caen siempre del lado contrario
-// (de mañana sale por el lado de atrás, a mediodía va arriba y de tarde baja por el frente). El contorno es
-// la envoltura convexa, en pantalla, de las puntas del dibujo. El resplandor va detrás de la maqueta y el
-// disco, con su textura, delante.
-function envoltura(puntos) {
-  const q = puntos.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const giro = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const cadena = (lista) => {
-    const out = [];
-    for (const p of lista) {
-      while (out.length >= 2 && giro(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
-      out.push(p);
-    }
-    out.pop();
-    return out;
-  };
-  return [...cadena(q), ...cadena(q.slice().reverse())];
-}
+// ---------- cielo: el sol y la luna dan la vuelta por fuera de la maqueta (cieloDe, en taller.mjs) ----------
+// El contorno sale de las puntas de lo que más asoma del dibujo: la base, el techo y sus placas, el aire, lo que se
+// ponga en el techo, el transformador, el poste y el mástil.
 const PUNTAS = [
   ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
   ...k.boxCorners({ x: SLAB.x, y: SLAB.y, w: SLAB.w, d: SLAB.d }, SLAB_Z[0], TOPZ),
@@ -1191,115 +989,28 @@ const PUNTAS = [
   ...k.boxCorners({ x: POLE.x - 2.4, y: POLE.y - 2.4, w: 4.8, d: 4.8 }, POLE.z1, POLE.z1 + 1.2),
   ...k.boxCorners({ x: MAST.x - 1.9, y: MAST.y - 1.9, w: 3.8, d: 3.8 }, MAST.z1, 63.4),
 ];
-const CIELO = {
-  contorno: envoltura(PUNTAS.map(at)).map(p3),
-  centro: at([-9, -33, 30]).map(r2),
-  margen: 9,
-  sol: 14,
-  luna: 13,
-  w: W,
-  h: H,
-};
-// Textura del sol: granos repartidos como las semillas de un girasol (ángulo de oro), unos claros y otros
-// oscuros, dos manchas, el borde más oscuro (por el gradiente) y una corona de rayos que gira despacio.
-const circulos = (lista) => lista.map(([x, y, r]) => `M${f2(x - r)} ${f2(y)}a${f2(r)} ${f2(r)} 0 1 0 ${f2(2 * r)} 0a${f2(r)} ${f2(r)} 0 1 0 ${f2(-2 * r)} 0`).join("");
-const SOL_GRANOS = Array.from({ length: 52 }, (_, i) => {
-  const r = CIELO.sol * 0.88 * Math.sqrt((i + 0.5) / 52);
-  const a = i * 2.39996;
-  return [r * Math.cos(a), r * Math.sin(a), i % 4 === 0 ? 1.05 : 0.7, i % 3 === 0];
-});
-const SOL_RAYOS = Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * 2 * Math.PI;
-  const largo = CIELO.sol * (i % 2 ? 1.38 : 1.62);
-  const p = (r, da) => `${f2(r * Math.cos(a + da))} ${f2(r * Math.sin(a + da))}`;
-  return `M${p(CIELO.sol * 1.04, -0.13)}L${p(largo, 0)}L${p(CIELO.sol * 1.04, 0.13)}Z`;
-}).join("");
-// Textura de la luna llena como se ve desde Puerto Rico: los mares (manchas oscuras, cada uno hecho de
-// elipses que se juntan), los cráteres claros con su borde y los rayos de Tycho. Medidas en radios de luna.
-const elipse = (cx, cy, rx, ry, giro = 0) => {
-  const R = CIELO.luna;
-  const c = Math.cos((giro * Math.PI) / 180);
-  const s = Math.sin((giro * Math.PI) / 180);
-  const a = [R * (cx - rx * c), R * (cy - rx * s)];
-  const b = [R * (cx + rx * c), R * (cy + rx * s)];
-  return `M${f2(a[0])} ${f2(a[1])}A${f2(R * rx)} ${f2(R * ry)} ${giro} 1 0 ${f2(b[0])} ${f2(b[1])}A${f2(R * rx)} ${f2(R * ry)} ${giro} 1 0 ${f2(a[0])} ${f2(a[1])}Z`;
-};
-const LUNA_MARES = [
-  [0.7, -0.27, 0.16, 0.12, 0], // Crisium
-  [0.53, 0.14, 0.15, 0.2, 20], // Fecunditatis
-  [0.33, -0.04, 0.21, 0.16, -15], // Tranquillitatis
-  [0.2, -0.38, 0.17, 0.15, 0], // Serenitatis
-  [-0.24, -0.43, 0.29, 0.22, -10], // Imbrium
-  [-0.58, -0.08, 0.24, 0.42, 8], // Procellarum
-  [-0.4, 0.16, 0.2, 0.18, 0],
-  [-0.14, 0.33, 0.18, 0.13, 10], // Nubium
-  [-0.43, 0.36, 0.1, 0.09, 0], // Humorum
-  [0.41, 0.33, 0.09, 0.08, 0], // Nectaris
-  [0.02, -0.19, 0.08, 0.06, 0], // Vaporum
-  [-0.12, -0.72, 0.36, 0.07, 4], // Frigoris
-].map((m) => elipse(...m)).join("");
-const LUNA_CRATERES = [
-  [-0.12, 0.66, 0.06], // Tycho
-  [-0.3, -0.13, 0.055], // Copérnico
-  [-0.52, -0.12, 0.035], // Kepler
-  [-0.69, -0.35, 0.03], // Aristarco
-  [0.62, 0.52, 0.05],
-  [0.15, 0.78, 0.045],
-  [0.75, 0.15, 0.035],
-].map(([x, y, r]) => [x * CIELO.luna, y * CIELO.luna, r * CIELO.luna]);
-const LUNA_RAYOS = [-80, -35, 10, 55, 100, 150, 200, 250].map((g) => {
-  const a = (g * Math.PI) / 180;
-  const [tx, ty] = LUNA_CRATERES[0];
-  const largo = CIELO.luna * (g % 2 ? 0.4 : 0.62);
-  return `M${f2(tx + Math.cos(a) * 1.2)} ${f2(ty + Math.sin(a) * 1.2)}L${f2(tx + Math.cos(a) * largo)} ${f2(ty + Math.sin(a) * largo)}`;
-}).join("");
-const cieloFondo =
-  `<g class="sr-cielo-fondo" aria-hidden="true">` +
-  `<g data-sol-halo opacity="0"><circle class="sr-sol-halo" data-halo r="${CIELO.sol * 2.8}"/></g>` +
-  `<g data-luna-halo opacity="0"><circle class="sr-luna-halo" r="${CIELO.luna * 2.5}"/></g>` +
-  `</g>`;
-const cielo =
-  `<g class="sr-cielo" aria-hidden="true">` +
-  `<g class="sr-sol" data-sol opacity="0">` +
-  `<g data-part="rayos"><path class="sr-sol-rayos" d="${SOL_RAYOS}"/></g>` +
-  `<circle class="sr-sol-disco" r="${CIELO.sol}"/>` +
-  `<path class="sr-sol-grano" d="${circulos(SOL_GRANOS.filter((g) => !g[3]))}"/>` +
-  `<path class="sr-sol-grano sr-sol-grano-b" d="${circulos(SOL_GRANOS.filter((g) => g[3]))}"/>` +
-  `<path class="sr-sol-mancha" d="${circulos([[-4.6, 3.2, 1.25], [-2.9, 4.1, 0.75], [5.2, -2.4, 0.9]])}"/>` +
-  `</g>` +
-  `<g class="sr-luna" data-luna opacity="0">` +
-  `<circle class="sr-luna-disco" r="${CIELO.luna}"/>` +
-  `<g clip-path="url(#sr-luna-borde)"><path class="sr-luna-mar" filter="url(#sr-luna-suave)" d="${LUNA_MARES}"/><path class="sr-luna-rayo" d="${LUNA_RAYOS}"/></g>` +
-  `<path class="sr-luna-crater" d="${circulos(LUNA_CRATERES)}"/>` +
-  `<path class="sr-luna-brillo" d="${circulos(LUNA_CRATERES.map(([x, y, r]) => [x - r * 0.25, y - r * 0.25, r * 0.55]))}"/>` +
-  `</g>` +
-  `</g>`;
-const defs =
-  `<defs>${CLIPS.join("")}` +
-  `<clipPath id="sr-luna-borde"><circle r="${CIELO.luna}"/></clipPath>` +
-  `<filter id="sr-luna-suave" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".45"/></filter>` +
-  `<radialGradient id="sr-sol-halo"><stop class="sr-halo-0" offset="0"/><stop class="sr-halo-1" offset=".42"/><stop class="sr-halo-2" offset="1"/></radialGradient>` +
-  `<radialGradient id="sr-sol-cara"><stop class="sr-sol-0" offset="0"/><stop class="sr-sol-1" offset=".55"/><stop class="sr-sol-2" offset=".86"/><stop class="sr-sol-3" offset="1"/></radialGradient>` +
-  `<radialGradient id="sr-luna-cara"><stop class="sr-luna-0" offset="0"/><stop class="sr-luna-1" offset=".7"/><stop class="sr-luna-2" offset="1"/></radialGradient>` +
-  `<radialGradient id="sr-luna-halo"><stop class="sr-lhalo-0" offset="0"/><stop class="sr-lhalo-1" offset=".5"/><stop class="sr-lhalo-2" offset="1"/></radialGradient></defs>`;
+const { CIELO, cieloFondo, cielo, defs } = cieloDe({ puntas: PUNTAS, centro: [-9, -33, 30] });
 
 const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
-const DATA = { P, start: START, flows: FLOWS, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180 };
+const DATA = { P, start: START, flows: {}, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180 };
 DATA.agua = { personas: 4 };
 DATA.medidas = MEDIDAS;
 Object.assign(DATA.flows, {
   dc: "pv",
+  "dc.dentro": "pv",
   "trunk-a": "row3",
   "trunk-b": "row23",
   "trunk-c": "row123",
   "trunk-s": "row0",
   bat: "bat",
+  "bat.fuera": "bat",
   "bat.l1": "batl1",
   "bat.l2": "batl2",
   "bat.l3": "batl3",
   ac: "ac",
   casa: "casa",
   red: "red",
+  "red.fuera": "red",
   mast: "red",
   drop: "red",
   agua: "agua",
@@ -1307,32 +1018,15 @@ Object.assign(DATA.flows, {
   fria: "caliente",
   ps400: "ps400",
   anker: "anker",
+  gen: "gen",
 });
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone un Anker SOLIX con su batería en el suelo junto al panel, su transfer switch en la pared y sus placas PS400 abiertas en el patio, aparte de las placas del techo. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna dan la vuelta por fuera de la maqueta, del lado de donde viene su luz, la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone un Anker SOLIX con su batería en el suelo junto al panel, su transfer switch en la pared y de una a ocho placas PS400 abiertas en el patio, aparte de las placas del techo. Lo que va en el suelo junto a la pared queda bajo un cobertizo de aluminio con el techo transparente. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna dan la vuelta por fuera de la maqueta, del lado de donde viene su luz, la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, cielo] });
 
-const CSS = readFileSync(join(HERE, "page.css"), "utf8");
-const intro = `<header class="sr-head"><div><p class="sr-kicker">Windmar Home · Puerto Rico</p><h1>Cómo funciona un sistema Solar y Roofing</h1></div><button type="button" class="sr-btn sr-theme" data-theme-toggle aria-pressed="false">Tema oscuro</button></header>`;
 const about = `<p>Corre el día con el reproductor, o salta de hora con las escenas, y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador. Cambia hacia dónde miran las placas: la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Anker escoge un Anker SOLIX con sus placas PS400: de día lo cargan, de noche mantiene lo esencial y la ficha dice para cuántas horas alcanza sin LUMA. En la pestaña Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y la ficha dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio.</p>`;
-const stepper = (key, label) =>
-  `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
-// Botones de una sola escogida (calentador y cisterna): el primero es "Sin".
-const opciones = (key, label, lista, columnas = 5) =>
-  `<div class="sr-opciones" role="radiogroup" aria-label="${label}" data-opciones="${key}"${columnas === 5 ? "" : ` style="grid-template-columns:repeat(${columnas},minmax(0,1fr))"`}>` +
-  [["sin", "Sin", `Sin ${label.toLowerCase()}`], ...lista].map(([id, corto, largo], i) => `<button type="button" class="sr-btn sr-opcion" role="radio" aria-checked="${i === 0}" tabindex="${i === 0 ? 0 : -1}" data-opcion="${id}" aria-label="${largo}">${corto}</button>`).join("") +
-  `</div>`;
-// La sección de un producto del plano (productos.mjs): su título, un botón por modelo (y "Sin"), su nota y su
-// interruptor, si tiene.
-const seccionDe = (p) =>
-  `<section class="sr-group" aria-label="${p.grupo}">
-    <p class="sr-tag">${p.titulo}</p>
-    ${opciones(p.id, p.nombre[0].toUpperCase() + p.nombre.slice(1), p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas)}
-    <p class="sr-nota" data-nota="${p.id}"></p>${p.interruptor ? `
-    <div class="sr-row"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-${p.interruptor.id}><span class="sr-switch-pista" aria-hidden="true"></span>${p.interruptor.texto}</button></div>` : ""}
-  </section>`;
 // Panel de controles: en pantalla ancha va a la derecha de la figura. Dos pestañas sutiles arriba, en el
 // lugar del título del primer grupo para no sumar alto: Energía (placas y baterías primero) y Agua (las
 // personas de la casa, el calentador solar y la cisterna).
@@ -1350,7 +1044,7 @@ const controls = `
       <span class="sr-lab">Placas que ya tenía</span><span class="sr-inline">${stepper("existentes", "una placa que ya tenía")}<label>de <input class="sr-input sr-w" type="number" data-vatios min="${LIMITES.vatios[0]}" max="${LIMITES.vatios[1]}" step="5" inputmode="numeric" value="${EJEMPLO.existentes.w}" aria-label="Vatios de cada placa que ya tenía"> W</label></span>
       <span class="sr-lab">Powerwall de ${BASE.bateria} kWh</span>${stepper("baterias", "una batería")}
     </div>
-    <div class="sr-row sr-rumbo-row"><span class="sr-lab" id="sr-rumbo-lab">Miran al</span><div class="sr-rumbos" role="radiogroup" aria-labelledby="sr-rumbo-lab" aria-describedby="sr-rumbo-v"><span class="sr-sr" id="sr-rumbo-v" data-rumbo-v></span>${SOL.rumbos.map((r) => `<button type="button" class="sr-btn sr-rumbo" role="radio" aria-checked="${r.az === 180}" tabindex="${r.az === 180 ? 0 : -1}" data-rumbo="${r.az}" aria-label="${r.nombre}, ${r.az} grados" title="${r.nombre}">${r.corto}</button>`).join("")}</div></div>
+    <div class="sr-row sr-rumbo-row">${rumbosHtml("Miran al")}</div>
     <div class="sr-row"><button type="button" class="sr-btn" data-reset>Volver a lo sugerido</button><p class="sr-warn" data-warn></p></div>
   </section>${PRODUCTOS.filter((p) => p.pestaña === "energia").map((p) => `\n  ${seccionDe(p)}`).join("")}
   <section class="sr-group" aria-label="Escenas del día">
@@ -1402,7 +1096,7 @@ const controls = `
     <p class="sr-tag">En este momento</p>
     <dl class="sr-agua-ficha">
       <div><dt>Batería</dt><dd data-anker="bateria"></dd></div>
-      <div><dt>Placas PS400</dt><dd data-anker="ps400"></dd></div>
+      <div><dt>Placas</dt><dd data-anker="ps400"></dd></div>
       <div><dt>Lo esencial</dt><dd data-anker="esencial"></dd></div>
     </dl>
   </section>
@@ -1410,18 +1104,6 @@ const controls = `
 </div>`;
 // Ficha del sistema: una franja de datos arriba de la tarjeta, para que la casa use todo el alto.
 const ficha = `<div class="sr-kpis" role="group" aria-label="Ficha del sistema"><div class="sr-kpi"><span class="sr-kpi-l">Placas</span><span class="sr-kpi-v" data-f="kw"></span><span class="sr-kpi-s" data-f="placas"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Producción</span><span class="sr-kpi-v" data-f="prod"></span><span class="sr-kpi-s" data-f="dia"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Rumbo</span><span class="sr-kpi-v" data-f="rumbo"></span><span class="sr-kpi-s" data-f="inclin"></span></div><div class="sr-kpi"><span class="sr-kpi-l">TSRF (Aurora)</span><span class="sr-kpi-v"><span data-f="tsrf"></span><span class="sr-kpi-d" data-f="tanque" title="Lo que baja el TSRF por la sombra de lo que hay de agua en el techo" hidden><span data-f="menos"></span><span class="sr-kpi-dl" data-f="porque"></span></span></span><span class="sr-kpi-s" data-f="tof"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Baterías</span><span class="sr-kpi-v" data-f="bat"></span><span class="sr-kpi-s" data-f="respaldo"></span></div><div class="sr-kpi"><span class="sr-kpi-l" data-f="mesNombre"></span><span class="sr-kpi-v" data-f="mes"></span><span class="sr-kpi-s" data-f="mesUsa"></span></div><div class="sr-kpi"><span class="sr-kpi-l">En el año</span><span class="sr-kpi-v" data-f="anio"></span><span class="sr-kpi-s" data-f="anioUsa"></span></div><div class="sr-kpi"><span class="sr-kpi-l">Cotizador</span><span class="sr-kpi-v" data-f="sug"></span><span class="sr-kpi-s" data-f="nota"></span></div></div>`;
-// Reproductor del día, como uno de música: play/pausa, la hora y lo que pasa en ese momento,
-// la barra de 24 horas (la franja clara es el sol, de 6:25 a 18:25) y la velocidad.
-const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
-const pct = (h) => `${((h / 24) * 100).toFixed(2)}%`;
-const player = `<div class="sr-player" role="group" aria-label="Reproductor del día">` +
-  `<button type="button" class="sr-play" data-play aria-label="Pausar el día" aria-pressed="true"><span class="sr-i-pause">${icon("M7 5h3.5v14H7zM13.5 5H17v14h-3.5z")}</span><span class="sr-i-play">${icon("M8 5.5v13l11-6.5z")}</span></button>` +
-  `<span class="sr-np"><span class="sr-clock" data-clock>12:30</span><span class="sr-readout" data-readout aria-hidden="true"></span></span>` +
-  `<input class="sr-scrub" type="range" data-scrub min="0" max="24" step="0.05" value="${START}" aria-label="Hora del día" style="--sr-sale:${pct(SALIDA)};--sr-pone:${pct(PUESTA)}">` +
-  `<span class="sr-speeds" role="group" aria-label="Velocidad del día">` +
-  [["Normal", 0.25], ["Rápido", 1], ["Súper rápido", 3]].map(([label, rate], i) => `<button type="button" class="sr-speed" data-speed="${rate}" aria-pressed="${i === 0}">${label}</button>`).join("") +
-  `</span></div>`;
-
 const caption =
   `Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home. El techo lleva el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, sin uniones. En la esquina se ven el concreto con una grieta reparada, el imprimador y la capa; cada pata de la estructura, el tubo de ventilación, la bota del aire y la unidad de aire van sobre sellos de Roof Patch. ` +
   `El consumo de los 12 meses arma el sistema con la regla del cotizador de LUMA de Sun Bot, la misma que usa con clientes que ya tienen placas: la meta es el mayor entre 110 % del promedio y el mes pico; con ${BASE.horasSol} horas de sol pico todo el año y ${BASE.rendimiento} de rendimiento, cada placa da sus vatios × ${BASE.horasSol} × ${BASE.rendimiento} ÷ 1000 kWh al día (${kwhPorPlacaDia(BASE.vatios).toFixed(2)} una QCells de ${BASE.vatios} W); a los kW que hacen falta se les restan los de las placas que ya tiene y el resto se cubre con placas de ${BASE.vatios} W. Los Powerwall de ${BASE.bateria} kWh cubren la mitad del consumo diario, al menos uno, y con batería el cotizador pide al menos ${BASE.placasConBateria} placas; el respaldo de noche es la fórmula de la herramienta Enseres (baterías × ${BASE.bateria} ÷ consumo diario × 24 horas). Con la factura de ejemplo (promedio 600 kWh, pico 700 en agosto) salen ${SUG.nuevas} placas nuevas y ${SUG.baterias} Powerwall. ` +
@@ -1429,49 +1111,35 @@ const caption =
   `La brújula de la base gira con el rumbo de las placas y su marca fija señala hacia dónde miran. El rumbo cambia lo que dan las placas según PVWatts v8 de NREL para San Juan a ${SOL.inclinacion}° de inclinación: al sur, ${fmtN(rumboDe(180).kwh)} kWh por kW al año; al este, ${pctN(factorRumbo(90))} de eso; al oeste, ${pctN(factorRumbo(270))}; al norte, ${pctN(factorRumbo(0))}. Con el sur, la figura da lo mismo que el cotizador. ` +
   `Las sombras salen del sol de cada momento y de las piezas del dibujo: el aire, el tubo de ventilación, el mástil, el poste, las mismas filas de placas y lo que se ponga de agua en el techo. La Hércules 600 va en la franja oeste del techo, al lado de las placas: con las placas al sur su sombra les cae de tarde a las del extremo oeste, y al norte, de mañana. Como a esas horas el sol ya está bajo, en el año les quita poco: la placa más cercana pierde de 3 a 4 % de su sol y el sistema, unas décimas, que la ficha muestra al lado del TSRF. Como en Aurora, el acceso solar es la parte del sol del año (directo y difuso, del año típico de PVGIS) que les llega a las placas con esas sombras; el TOF es el sol que recibe su plano frente al mejor plano de San Juan (sur a unos 17°, ${pctN(tofDe(180))} para el sur a ${SOL.inclinacion}°), y el TSRF es TOF × acceso solar. La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar, y en el día la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras. ` +
   `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. El calentador solar Soltek va al fondo del techo, en el lugar de las últimas placas (el 80/1 y el 80/2 ocupan dos lugares, el 120/3 tres y el 120/4 cuatro): colectores de 34" × 76" con 7 tubos de cobre inclinados 18°, y el tanque acostado de 82 o 119 galones con su resistencia de 4,500 W de respaldo; el cotizador lo sugiere por personas (1 a 2, 80/1; 3 a 4, 80/2; 5 a 6, 120/3; 7 o más, 120/4). Las cisternas Eco 500 (74" × 32"), Hércules 600 (56" × 61") y Eco 1,000 (sin medidas en el PDF: se dibuja de 64" × 76") van en el techo, con su bomba de ¾ HP y su presurizado de 40 galones junto a la pared; la Torre 150 va adentro, pegada a la pared, y queda para el apartamento. El suavizador POE Water Care va donde el agua entra a la casa: prefiltro de sedimento de 5 micras en carcasa transparente de 10", tanque de 10" × 54" con carbón activado y resina (o el de 13" × 54", de más capacidad) con su válvula electrónica, tanque de sal de 18" × 36" y luz UV Viqua VH410; el agua le llega de la bomba, o de la AAA si no hay cisterna. Las cisternas, el tanque del calentador y el tanque de sal llevan el logo de Windmar. ` +
-  `La pestaña Anker pone un Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual; la ficha no trae sus medidas y se dibuja aproximada), la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático) o la F3800 Plus con la batería de expansión BP3800 (7.68 kWh). Va aparte de las placas del techo, con sus propias placas PS400 de 400 W abiertas en el patio (dos, o tres con la BP3800), y mantiene lo esencial de la casa por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol del plano de las placas del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
+  `La pestaña Anker pone un Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual), la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático) o la F3800 Plus con la batería de expansión BP3800 (7.68 kWh). Va aparte de las placas del techo, con sus propias placas PS400 de 400 W abiertas en el patio, y mantiene lo esencial de la casa por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Empieza con dos PS400 (tres con la BP3800) y con − y + se ponen de una hasta las que admite su entrada solar, según las fichas: la F2600 tiene una sola entrada de 1,000 W y le caben dos PS400 en paralelo, y la F3800 Plus tiene dos de 1,600 W y le caben ocho (dos en serie y dos de esas en paralelo por entrada); en el patio caben las ocho. La estación, su batería de expansión y su transfer switch van bajo el cobertizo, con el suavizador, la bomba y el presurizado: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable, así que nada de eso va a la intemperie. Las PS400 sí van afuera: son IP67. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol del plano de las placas del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
   `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. No muestra dinero.`;
 
-const plate = k
-  .plateHtml({
-    fig: "Fig 1",
-    title: "Solar y Roofing",
-    hint: "",
-    readout: "",
-    keys: [
-      { mark: "dashed", label: "Energía: corre en el sentido del flujo, más rápido con más kW" },
-      { mark: "raised", label: "Capas del techo en la esquina: concreto, imprimador, silicona" },
-      { mark: "dim", label: "Placas que ya tenía el cliente: vidrio claro" },
-    ],
-    caption,
-    body: `<div class="iso-stage sr-stage" tabindex="0" role="slider" aria-label="Sistema Solar y Roofing. Usa las flechas para cambiar la hora del día y la barra espaciadora para pausar." aria-valuemin="0" aria-valuemax="24" aria-valuenow="${START}">${svg}<span class="sr-sr" role="status" aria-live="polite" data-status></span></div>${player}`,
-  })
-  .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
-  // la lectura en vivo va dentro del reproductor, no en la esquina
-  .replace('<span class="iso-plate-corner" data-corner="readout" data-readout></span>', "")
-  .replace('<div class="iso-stage', `${ficha}<div class="iso-stage`);
-if (plate.includes('data-corner="readout"')) throw new Error("readout corner still in the plate");
-// La leyenda y el pie van plegados debajo de las dos columnas: solo ocupan lugar si se abren.
-const legendAt = plate.indexOf('<figcaption class="iso-legend">');
-const legendEnd = plate.indexOf("</figcaption>", legendAt) + "</figcaption>".length;
-const legendBody = plate.slice(legendAt, legendEnd).replace('<figcaption class="iso-legend">', '<div class="iso-legend sr-notes">').replace(/<\/figcaption>$/, "</div>");
-const legend = `<details class="sr-more"><summary>Cómo leer la figura y de dónde salen los números</summary>${about}${legendBody}</details>`;
-// En pantalla ancha el título, los controles y "Más información" van en la columna derecha,
-// y la tarjeta con la casa ocupa todo el alto de la ventana a la izquierda.
-const layout = `<div class="sr-layout">${intro}<div class="sr-main">${plate.slice(0, legendAt) + plate.slice(legendEnd)}</div><aside class="sr-side" aria-label="Controles">${controls}${legend}</aside></div>`;
-
-const strip = (file) => readFileSync(join(HERE, file), "utf8").replace(/^export /gm, "");
-const notice = `/* Kit de figuras isométricas Anatomy (github.com/wheresryan22/anatomy), licencia MIT, © 2026 Ryan. Ver vendor/anatomy/LICENSE. */\n`;
-const LIVE = strip("live.js").replace("__DATA__", JSON.stringify(DATA));
-const page = k
-  .pageHtml({ title: "Solar y Roofing · Windmar Home", theme: "light", body: `<style>${CSS}</style>${layout}`, script: notice + kitScript() + strip("model.mjs") + strip("sol.mjs") + strip("agua.mjs") + strip("anker.mjs") + strip("productos.mjs") + LIVE, width: 760 })
-  .replace('<html lang="en">', '<html lang="es">')
-  .replace("<head>", `<head><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"><meta name="description" content="Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.">`);
-mkdirSync(join(ROOT, "public"), { recursive: true });
-writeFileSync(join(ROOT, "public", "index.html"), page);
+const { page } = escribirPagina({
+  escena: "casa",
+  titulo: "Solar y Roofing · Windmar Home",
+  h1: "Cómo funciona un sistema Solar y Roofing",
+  descripcion: "Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.",
+  fig: "Fig 1",
+  about,
+  keys: [
+    { mark: "dashed", label: "Energía: corre en el sentido del flujo, más rápido con más kW" },
+    { mark: "raised", label: "Capas del techo en la esquina: concreto, imprimador, silicona" },
+    { mark: "dim", label: "Placas que ya tenía el cliente: vidrio claro" },
+  ],
+  caption,
+  svg,
+  ficha,
+  controls,
+  etiqueta: "Sistema Solar y Roofing.",
+  DATA,
+});
 console.log("wrote public/index.html", `${(page.length / 1024).toFixed(0)} KB`, `${R.items.length} items`, `${R.solids.length} solids`, `${R.routes.length} routes`, `scale ${KS.toFixed(3)}`);
 
 // El codo del tubo de la bomba a la casa queda pegado, en pantalla, al tanque de sal del suavizador; nunca se ven
 // juntos (ese tubo solo está sin suavizador), así que no cuentan como amontonados.
 A.auditOrExit(R, P, { crowd: [["bomba.casa", "poe.sal"]] });
+
+// La Fig 2, el apartamento, en su propio proceso: su plano se carga con los modelos de su escena. Si su auditoría
+// falla, el build también.
+execFileSync(process.execPath, [join(HERE, "apartamento.mjs"), ...process.argv.slice(2)], { stdio: "inherit" });

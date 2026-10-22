@@ -1,4 +1,5 @@
-// Agua: cuánta usa la casa, cuánto le dura la cisterna y cuánto calienta el calentador solar en el día.
+// Agua: cuánta usa la casa (o el apartamento), cuánto le dura la cisterna, cuánto calienta el calentador solar y
+// cuánta agua de beber da la ósmosis en el día.
 // Corre igual en Node (build) y en la página (se incrusta sin los `export`).
 // Los equipos y la regla del calentador por personas (productos.mjs) son del cotizador Water de Sun Bot; lo
 // marcado "supuesto" es del dibujo y lo dice el pie de figura.
@@ -15,6 +16,7 @@ export const AGUA = {
   resistencia: 4.5,        // kW de la resistencia de respaldo (cotizador)
   maximo: 160,             // supuesto: °F a la que el tanque deja de calentar
   llenado: 300,            // supuesto: galones por hora que entran de la AAA cuando hay servicio
+  beber: 1,                // supuesto: galones al día por persona de agua de beber y cocinar (la de la ósmosis)
   personas: [1, 10],
 };
 
@@ -32,6 +34,8 @@ const repartir = (bumps, base) => {
 };
 const USO = repartir([[6.8, 0.8, 1.0], [12.5, 1.2, 0.35], [15.8, 1.4, 0.25], [19.3, 1.0, 0.9], [21.6, 1.0, 0.4]], 0.04);
 const CALIENTE = repartir([[6.7, 0.7, 1.0], [12.6, 1.0, 0.12], [19.4, 0.9, 0.85]], 0.005);
+// el agua de beber y cocinar: el café de la mañana, el almuerzo y la cena
+const BEBER = repartir([[6.9, 0.6, 0.8], [12.3, 0.8, 1.0], [18.8, 0.9, 1.0]], 0.05);
 
 // Un día de agua, paso por paso. `poa` es el sol sobre el plano de los colectores (W/m², pasos + 1 valores)
 // y `cortado` dice si la AAA no da servicio (la cisterna no se llena y baja con lo que se usa).
@@ -39,6 +43,7 @@ export function simularAgua({ personas, calentador = null, cisterna = null, cort
   const dt = 24 / pasos;
   const usoDia = personas * AGUA.porPersona;
   const calienteDia = personas * AGUA.calientePorPersona;
+  const potableDia = personas * AGUA.beber;
   const masa = calentador ? calentador.real * 8.34 : 0; // BTU por °F: libras de agua del tanque
   const area = calentador ? calentador.colectores * AGUA.colector : 0;
   let T = AGUA.uso;
@@ -55,7 +60,7 @@ export function simularAgua({ personas, calentador = null, cisterna = null, cort
       const caliente = calienteDia * CALIENTE(t);
       const sol = poa ? Math.max(0, poa[i]) : 0;
       const elec = calentador && T < AGUA.uso && caliente > 0.2 ? AGUA.resistencia : 0;
-      filas.push({ t, fria, caliente, sol, T, nivel, elec, calor: area * sol * AGUA.eficiencia });
+      filas.push({ t, fria, caliente, potable: potableDia * BEBER(t), sol, T, nivel, elec, calor: area * sol * AGUA.eficiencia });
       if (i === pasos) break;
       if (calentador) {
         const solar = T < AGUA.maximo ? area * sol * AGUA.eficiencia * 3.412 : 0;
@@ -76,6 +81,7 @@ export function simularAgua({ personas, calentador = null, cisterna = null, cort
     filas,
     usoDia,
     calienteDia,
+    potableDia,
     reserva: cisterna ? cisterna.gal / usoDia : 0,
     resistencia,
     ahorroMes: calentador ? Math.max(0, electrico - resistencia) * 30 : 0,
