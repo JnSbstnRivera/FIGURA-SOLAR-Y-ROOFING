@@ -16,6 +16,7 @@
 //   lugares                  cuántos de los últimos lugares de placas del techo puede ocupar
 //   logo                     si lleva el logo de Windmar
 //   inicial                  el modelo que se pone la primera vez que se abre su pestaña ("sugerido": el del cotizador)
+//   columnas                 en cuántas columnas van sus botones (5 si no lo dice; menos para nombres largos)
 //   modelos                  id, corto (el botón), techo (va en el techo: su sombra cuenta en el acceso solar de las
 //                            placas), lugares (los de placas que ocupa), escenas (dónde va: "casa", que es lo de
 //                            siempre, o "apartamento") y los datos del cotizador
@@ -126,6 +127,45 @@ const CATALOGO = [
     nota(m, x) {
       if (!m) return "Trata el agua de toda la casa donde entra: protege tuberías y enseres y mejora la calidad del agua.";
       return `Prefiltro de sedimento, tanque ${m.tanque}, tanque de sal de 18" × 36" y luz UV Viqua VH410. Por él pasan los ${x.galones(x.agua.usoDia)} que usa la casa al día.`;
+    },
+  },
+  {
+    id: "anker",
+    pestaña: "anker",
+    grupo: "Anker SOLIX",
+    titulo: "Anker SOLIX con placas PS400",
+    nombre: "Anker",
+    articulo: "el",
+    rol: "respaldo",
+    inicial: "f3800",
+    columnas: 4,
+    fuente: "Sun Bot: cotizador Anker (anker/constants.ts: la F2600, la F3800 Plus, la BP3800, la PS400 y los transfer switch) y las fichas de Anker (kWh, kW y medidas)",
+    // Va aparte de las placas del techo: sus propias placas PS400 (400 W, 102" × 36" abiertas) y su transfer switch al
+    // lado del panel. kwh: la batería (con la de expansión); kw: lo que da a la vez; ps400: las placas que se dibujan
+    // (supuesto); transfer: el automático no va con la F2600 (regla del cotizador). La ficha de la F2600 no trae sus
+    // medidas: se dibuja aproximada.
+    modelos: [
+      { id: "f2600", corto: "F2600", nombre: "SOLIX F2600", kwh: 2.56, kw: 2.4, ps400: 2, transfer: "manual", medidas: [22, 13.5, 13.5], aprox: true, techo: false },
+      { id: "f3800", corto: "F3800 Plus", nombre: "SOLIX F3800 Plus", kwh: 3.84, kw: 6, ps400: 2, transfer: "automático", medidas: [27.6, 15.3, 15.6], techo: false },
+      { id: "f3800bp", corto: "F3800 + BP", nombre: "SOLIX F3800 Plus con BP3800", kwh: 7.68, kw: 6, ps400: 3, transfer: "automático", medidas: [27.6, 15.3, 15.6], bp: true, techo: false },
+    ],
+    // los cables van con cualquier modelo; la F3800 Plus es la misma con o sin la batería de expansión; las PS400 se
+    // ven de una en una; y el transfer switch es el manual o el automático
+    partes: {
+      equipo: () => true,
+      f3800: (m) => m.id !== "f2600",
+      bp3800: (m) => Boolean(m.bp),
+      ps0: (m) => m.ps400 > 0,
+      ps1: (m) => m.ps400 > 1,
+      ps2: (m) => m.ps400 > 2,
+      manual: (m) => m.transfer === "manual",
+      automatico: (m) => m.transfer === "automático",
+    },
+    etiqueta: (m) => `${m.nombre}: ${m.kwh} kWh y ${m.kw} kW, con ${m.ps400} placas PS400`,
+    nota(m, x) {
+      if (!m) return `Un Anker SOLIX con sus placas PS400 y su transfer switch mantiene lo esencial (nevera, internet, luces y abanicos), aparte de las placas del techo.`;
+      const a = x.anker;
+      return `${m.nombre}${m.aprox ? " (medidas aproximadas)" : ""}: ${x.fmt(m.kwh, 2)} kWh y ${x.fmt(m.kw, m.kw % 1 ? 1 : 0)} kW, con ${m.ps400} placas PS400 y transfer switch ${m.transfer}. Hoy las PS400 le dan ${x.fmt(a.solDia, 1)} de los ${x.fmt(a.esencialDia, 1)} kWh de lo esencial; sin LUMA, la batería sola alcanza para unas ${Math.round(a.horas)} horas.`;
     },
   },
 ];

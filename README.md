@@ -28,6 +28,7 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
   - el suavizador POE Water Care (10×54 o 13×54) donde el agua entra a la casa: prefiltro, tanque de resina con su válvula, tanque de sal y luz UV. El agua le llega de la bomba, o de la AAA si no hay cisterna.
 
   Al abrir la pestaña por primera vez bajan el calentador sugerido, la Hércules 600 y el suavizador 10×54. El agua corre por los tubos en azul (la caliente, en rojizo) con el uso de cada hora y la energía queda tenue. Los tubos de cobre de los colectores brillan con el sol, el tanque toma color con la temperatura, la mirilla de la cisterna muestra el nivel y la luz de la bomba prende cuando bombea. Las cisternas y el tanque del calentador llevan el logo de Windmar al frente, pegado a su curva como una calcomanía; la mirilla queda a su derecha. El panel dice la temperatura del agua caliente, el nivel de la cisterna, la luz que ahorra el calentador y para cuántos días alcanza la cisterna sin servicio. La sombra de la Hércules y la del calentador cuentan en el acceso solar, y la ficha dice cuánto baja el TSRF por ellas.
+- **Poner un Anker SOLIX** en la pestaña Anker, aparte de las placas del techo: la F2600, la F3800 Plus o la F3800 Plus con su batería de expansión BP3800, con sus placas PS400 abiertas en el patio y su transfer switch junto al panel (el automático no va con la F2600). Mantiene lo esencial de la casa: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Las luces de la estación dicen su carga, el vidrio de las PS400 se ilumina con el sol, su sombra y la de la casa les quitan sol, y el panel dice cuánto de lo esencial le dan las PS400 en el día y para cuántas horas alcanza sin LUMA.
 - **Ver salir el sol y la luna:** el sol da la vuelta por fuera de la maqueta, siempre del lado de donde viene su luz: con las placas al sur sale por atrás a la derecha, a mediodía va arriba y de tarde baja por el frente a la izquierda, y las sombras caen del lado contrario. Nunca pasa por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
 - **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
@@ -40,6 +41,8 @@ En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con to
 ![De noche la tarjeta se pone azul oscuro y sale la luna llena](docs/noche-luna.png)
 
 ![Pestaña Agua: el calentador solar al fondo del techo, la Hércules 600 y el suavizador POE junto a la pared; el agua corre por los tubos y el panel dice la temperatura, el nivel, el ahorro y la reserva](docs/agua.png)
+
+![Pestaña Anker: la F3800 Plus junto al panel, su transfer switch en la pared y dos PS400 en el patio; a las 12:30 las PS400 cubren lo esencial y cargan la batería](docs/anker.png)
 
 ![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.2](docs/tanque-manana.png)
 
@@ -81,7 +84,8 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 | `src/model.mjs` | Regla de dimensionamiento y modelo de energía del día; corre en la construcción y en la página |
 | `src/sol.mjs` | El sol y la luna del día, los rumbos de PVWatts, el año típico de PVGIS y lo que tapa el sol (acceso solar y forma del día); corre en la construcción y en la página |
 | `src/agua.mjs` | El día del agua: el uso por hora, el nivel de la cisterna, la temperatura del calentador solar, la resistencia que hace falta y la luz que ahorra; corre en la construcción y en la página |
-| `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (hoy el calentador solar y la cisterna), con sus modelos, sus partes y su nota; corre en la construcción y en la página |
+| `src/anker.mjs` | El día del Anker: lo esencial por hora, lo que dan las PS400, la carga de la batería y las horas sin LUMA; corre en la construcción y en la página |
+| `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (el calentador solar, la cisterna, el suavizador y el Anker), con sus modelos, sus partes y su nota; corre en la construcción y en la página |
 | `src/logo.mjs` | El logo de Windmar en mínimo (el sol, el molino y "windmar"), calcado del de Windmar Water de Sun Bot |
 | `src/live.js` | Lo que se mueve: el reproductor del día, el flujo de energía, placas y baterías que entran y salen, la brújula, el cielo, las sombras, ficha, gráfica, escenas y tema |
 | `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
@@ -91,7 +95,7 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 
 ## El plano: agregar o quitar un producto
 
-Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) están en `src/productos.mjs`. Para agregar uno:
+Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) están en `src/productos.mjs`: hoy el calentador solar, la cisterna y el suavizador en la pestaña Agua, y el Anker en la suya. Para agregar uno:
 
 1. **Una entrada en `PRODUCTOS`**, con:
    - en qué pestaña va y sus títulos;
@@ -209,6 +213,30 @@ El tanque de sal del 13" × 54" se dibuja igual que el del 10" × 54": el PDF no
 - El ahorro de luz compara con calentar la misma agua caliente con una resistencia eléctrica (95 % de eficiencia).
 
 Con 4 personas, el 80/1 necesita unos 3 kWh al día de resistencia y el 80/2 casi nada; el ahorro es de unos 175 a 185 kWh al mes. La Hércules 600 alcanza para 3 días sin servicio.
+
+### El Anker (Anker SOLIX)
+
+Equipos del cotizador Anker de Sun Bot (`src/components/crm/cotizadores/anker/constants.ts`). Sus reglas: la F3800 Plus no va con el panel de 200 W y el transfer switch automático no va con la F2600.
+
+Va aparte de las placas del techo, como lo venden: sus propias placas PS400 y su transfer switch, que lleva lo esencial al panel. Los kWh, kW y medidas son de las fichas de Anker ([F3800 Plus](https://ankersolix.com/products/f3800-plus), [F2600](https://anker.com/products/a1781), [BP3800](https://ankersolix.com/au/products/bp3800-expansion-battery) y [PS400](https://www.anker.com/eu-en/products/a24330a1)):
+
+| Modelo | Batería | Potencia | Transfer switch | Placas PS400 que se dibujan |
+|---|---|---|---|---|
+| SOLIX F2600 | 2.56 kWh | 2.4 kW | manual | 2 |
+| SOLIX F3800 Plus | 3.84 kWh | 6 kW | automático | 2 |
+| F3800 Plus con BP3800 | 7.68 kWh | 6 kW | automático | 3 |
+
+La F3800 Plus mide 27.6" × 15.3" × 15.6", la BP3800 15.5" × 14" × 10.3" y cada PS400 abierta 102" × 36". La ficha de la F2600 no trae sus medidas: se dibuja de 22" × 13.5" × 13.5", aproximada.
+
+**Supuestos del Anker** (del dibujo):
+
+- Lo esencial que mantiene: la nevera y el internet todo el día, las luces al anochecer y un poco al amanecer, y los abanicos de noche y en la tarde. Son unos 7.4 kWh al día.
+- Las PS400 entregan el 85 % de su potencia con el sol del plano de las placas del techo (hacia donde también miran), menos lo que les tapan las sombras. Lo que sobra con la batería llena no se usa.
+- La batería no baja de 10 %; cuando llega ahí, lo esencial lo da LUMA.
+- Las horas sin LUMA son las de la batería sola con lo esencial, desde llena hasta su reserva, como en la fórmula de Enseres.
+- Cuántas PS400 lleva cada modelo es del dibujo: el cotizador las vende sueltas.
+
+Con dos PS400, la F3800 Plus le da a lo esencial unos 3.6 de sus 7.4 kWh al día y sin LUMA alcanza para unas 11 horas. Con la BP3800 y tres PS400, unos 5.4 kWh y 22 horas. La F2600 da para unas 7 horas.
 
 **Supuestos del dibujo**, que no vienen del cotizador:
 

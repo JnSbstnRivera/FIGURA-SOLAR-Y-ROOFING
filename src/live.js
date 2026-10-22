@@ -629,6 +629,7 @@ function recompute({ calm = false } = {}) {
   const sum = inRow.reduce((a, b) => a + b, 0) || 1;
   shares = { row0: inRow[0] / sum, row3: inRow[3] / sum, row23: (inRow[2] + inRow[3]) / sum, row123: (inRow[1] + inRow[2] + inRow[3]) / sum };
   recomputeAgua();
+  recomputeAnker();
   setTargets(calm || still.matches);
   updateFicha();
   updateControls();
@@ -654,6 +655,36 @@ function aguaEn(hour) {
   const t = x - i;
   const mezcla = (key) => f[i][key] + (f[i + 1][key] - f[i][key]) * t;
   return { fria: mezcla("fria"), caliente: mezcla("caliente"), T: mezcla("T"), nivel: mezcla("nivel"), elec: f[i].elec, calor: mezcla("calor") };
+}
+
+// ---------- Anker ----------
+// El día del Anker (anker.mjs) con el modelo que se escogió. Sus PS400 miran hacia donde miran las placas del techo:
+// reciben el sol de ese plano menos lo que les tapan las sombras de la casa y de lo demás en cada momento.
+let anker = null;
+let ankerSol = { key: "", sol: null };
+function recomputeAnker() {
+  const m = modeloDe(S.escogido, "anker");
+  if (!m) {
+    anker = null;
+    return;
+  }
+  const key = `${S.rumbo}|${m.id}|${JSON.stringify(S.escogido)}|${S.existentes.n + S.nuevas}|${S.baterias}`;
+  if (ankerSol.key !== key) {
+    const tapan = SOLIDOS.filter((k) => activo(k.on));
+    const placas = m.ps ?? [];
+    ankerSol = { key, sol: formaDelDia(288, S.rumbo * GRADO, BASE.mediodia, (i, s) => (placas.length ? placas.reduce((a, q) => a + soleado(q, s, tapan), 0) / placas.length : 1)) };
+  }
+  anker = simularAnker({ modelo: m, sol: ankerSol.sol });
+}
+function ankerEn(hour) {
+  if (!anker) return null;
+  const f = anker.filas;
+  const n = f.length - 1;
+  const x = (clamp(hour, 0, 24) / 24) * n;
+  const i = Math.min(n - 1, Math.floor(x));
+  const t = x - i;
+  const mezcla = (key) => f[i][key] + (f[i + 1][key] - f[i][key]) * t;
+  return { puede: mezcla("puede"), ps400: mezcla("ps400"), esencial: mezcla("esencial"), luma: mezcla("luma"), anker: mezcla("anker"), soc: mezcla("soc") };
 }
 
 function setTargets(calm) {
@@ -747,8 +778,12 @@ const CHANNEL = {
   // el agua corre más rápido cuanto más se usa (galones por hora); la fría que entra al calentador va con la caliente
   agua: (s, w) => w.fria / 40,
   caliente: (s, w) => w.caliente / 15,
+  // las PS400 cargan el Anker y el Anker da lo esencial por su transfer switch (kW)
+  ps400: (s, w, a) => a?.ps400 ?? 0,
+  anker: (s, w, a) => a?.anker ?? 0,
 };
-const DE_AGUA = new Set(["agua", "caliente"]);
+// Cada canal es de una pestaña: en la suya corre; en las otras, la energía queda tenue y lo demás se apaga.
+const PESTAÑA_CANAL = { agua: "agua", caliente: "agua", ps400: "anker", anker: "anker" };
 
 // ---------- textos ----------
 const clock = (h) => {
@@ -970,7 +1005,7 @@ function updateAgua() {
   for (const p of PRODUCTOS) {
     const sugerido = sugeridoPara(p, a.personas);
     for (const b of grupos[p.id] ?? []) b.toggleAttribute("data-sugerido", b.dataset.opcion === sugerido?.id);
-    if (NOTAS[p.id] && p.nota) NOTAS[p.id].textContent = p.nota(modeloDe(S.escogido, p.id), { personas: a.personas, sugerido, agua, fmt, galones });
+    if (NOTAS[p.id] && p.nota) NOTAS[p.id].textContent = p.nota(modeloDe(S.escogido, p.id), { personas: a.personas, sugerido, agua, anker, fmt, galones });
   }
   const enLugares = ocupan(S.escogido);
   AQ.ahorro.textContent = calentadorDe(S.escogido) ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
@@ -997,14 +1032,32 @@ const sayAgua = (w) => {
   if (cisternaDe(S.escogido)) partes.push(`cisterna ${Math.round(w.nivel * 100)} %`);
   return partes.join(" · ");
 };
-// ---------- pestañas: Energía y Agua ----------
-// La pestaña cambia los controles de la columna y lo que corre por los tubos: la energía o el agua.
+// el Anker de este momento, en el panel y en el reproductor
+const AK = Object.fromEntries([...document.querySelectorAll("[data-anker]")].map((el) => [el.dataset.anker, el]));
+let ankerDicho = "";
+function ankerAhora(a) {
+  const m = modeloDe(S.escogido, "anker");
+  const bateria = m && a ? `${Math.round(a.soc * 100)} % (${fmt(a.soc * m.kwh, 1)} kWh)` : "sin Anker";
+  const ps = m && a ? `${fmt(a.ps400, 2)} kW` : "sin placas PS400";
+  const de = !a ? "" : a.luma > 0.005 ? ", de LUMA" : a.ps400 >= a.esencial - 0.005 ? ", de las PS400" : ", de la batería";
+  const esencial = m && a ? `${fmt(a.esencial, 2)} kW${de}` : "de LUMA";
+  const firma = `${bateria}|${ps}|${esencial}`;
+  if (firma !== ankerDicho && AK.bateria) {
+    ankerDicho = firma;
+    AK.bateria.textContent = bateria;
+    AK.ps400.textContent = ps;
+    AK.esencial.textContent = esencial;
+  }
+}
+const sayAnker = (a) => (a ? `PS400 ${fmt(a.ps400, 1)} kW · lo esencial ${fmt(a.esencial, 1)} kW · Anker ${Math.round(a.soc * 100)} %` : "sin Anker");
+// ---------- pestañas: Energía, Agua y Anker ----------
+// La pestaña cambia los controles de la columna y lo que corre por los tubos: la energía, el agua o lo del Anker.
 const tabs = [...document.querySelectorAll("[data-tab]")];
 const paneles = Object.fromEntries([...document.querySelectorAll("[data-panel]")].map((el) => [el.dataset.panel, el]));
-let modoAgua = false;
+let modo = "energia";
 const vistas = new Set();
 function setTab(nombre, focus = false) {
-  modoAgua = nombre === "agua";
+  modo = nombre;
   for (const t of tabs) {
     const on = t.dataset.tab === nombre;
     t.setAttribute("aria-selected", String(on));
@@ -1094,6 +1147,10 @@ function selectMonth(i) {
   recompute();
 }
 let quietSystem = 0;
+const delAnker = () => {
+  const m = modeloDe(S.escogido, "anker");
+  return m && anker ? ` Anker: ${m.nombre}; las PS400 le dan ${fmt(anker.solDia, 1)} de los ${fmt(anker.esencialDia, 1)} kWh de lo esencial y sin LUMA alcanza para unas ${Math.round(anker.horas)} horas.` : " Sin Anker.";
+};
 function announce() {
   clearTimeout(quietSystem);
   quietSystem = setTimeout(() => {
@@ -1102,7 +1159,7 @@ function announce() {
     const cal = calentadorDe(S.escogido);
     const cis = cisternaDe(S.escogido);
     const delAgua = ` Agua: ${S.agua.personas} personas, ${cal ? `calentador ${cal.nombre}, ahorra unos ${fmt(agua.ahorroMes)} kWh al mes` : "sin calentador solar"}, ${cis ? `cisterna ${cis.nombre}, alcanza para ${fmt(agua.reserva, 1)} días sin servicio` : "sin cisterna"}.`;
-    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.${delAgua}`;
+    status.textContent = `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: ${F.anio.textContent}.${delAgua}${delAnker()}`;
   }, 500);
 }
 
@@ -1426,15 +1483,28 @@ function dibujaAgua(w) {
   if (bombaLed) bombaLed.style.opacity = (0.12 + 0.88 * smooth(0.5, 3, w.fria)).toFixed(3);
   aguaAhora(w);
 }
+// Lo que se mueve del Anker: las cinco luces de su carga y el vidrio de las PS400, que se ilumina con el sol.
+const ankerLeds = $$("[data-anker-led]").map((el) => ({ el, i: +el.dataset.ankerLed }));
+const sunsPs = $$("[data-sun-ps]");
+function dibujaAnker(a) {
+  const m = modeloDe(S.escogido, "anker");
+  const soc = a ? a.soc : 0;
+  for (const { el, i } of ankerLeds) el.style.opacity = (0.12 + 0.88 * clamp(soc * 5 - i, 0, 1)).toFixed(3);
+  const tope = m ? m.ps400 * ANKER.ps400 * ANKER.rinde : 1;
+  const luz = a ? (((document.body.dataset.theme === "dark" ? 0.45 : 0.62) * a.puede) / tope).toFixed(3) : "0";
+  for (const el of sunsPs) if (el.__o !== luz) el.style.opacity = el.__o = luz;
+  ankerAhora(a);
+}
 
 function draw(dt, calm) {
   const s = sample(hour);
   const w = aguaEn(hour);
+  const a = ankerEn(hour);
   for (const [key, list] of Object.entries(flows)) {
     const canal = D.flows[key];
-    const v = CHANNEL[canal](s, w);
-    // en la pestaña del agua corre el agua y la energía queda tenue; en la de energía, al revés
-    const peso = DE_AGUA.has(canal) ? (modoAgua ? 1 : 0) : modoAgua ? 0.25 : 1;
+    const v = CHANNEL[canal](s, w, a);
+    const suya = PESTAÑA_CANAL[canal] ?? "energia";
+    const peso = suya === modo ? 1 : suya === "energia" ? 0.25 : 0;
     const want = smooth(0.03, 0.3, Math.abs(v)) * peso;
     shown[key] = calm || shown[key] === undefined ? want : shown[key] + (want - shown[key]) * (1 - Math.exp(-dt / 0.2));
     if (!calm) phase[key] = (phase[key] ?? 0) + Math.sign(v) * (5 + 7 * Math.abs(v)) * dt;
@@ -1452,7 +1522,8 @@ function draw(dt, calm) {
   if (!calm) spin = (spin + (40 + 150 * s.load) * dt) % 360;
   fan.setAttribute("transform", `rotate(${spin.toFixed(1)})`);
   dibujaAgua(w);
-  const text = modoAgua ? sayAgua(w) : say(s);
+  dibujaAnker(a);
+  const text = modo === "agua" ? sayAgua(w) : modo === "anker" ? sayAnker(a) : say(s);
   if (readout.textContent !== text) readout.textContent = text;
   const value = (s.net >= -0.005 ? "+" : "−") + Math.abs(s.net).toFixed(1);
   if (lcd.textContent !== value) lcd.textContent = value;

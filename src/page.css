@@ -153,6 +153,13 @@ body.iso{font-family:var(--sr-font)}
 .sr-carcasa .iso-fill,.sr-carcasa .iso-top,.sr-carcasa .iso-shade{fill:color-mix(in srgb,var(--wm-blue-200) 45%,var(--anatomy-shade-3));fill-opacity:.8}
 .sr-uv{fill:none;stroke:color-mix(in srgb,var(--wm-blue-400) 55%,#8b5cf6);stroke-width:.5;stroke-linecap:round}
 .sr-led-fija{opacity:.9}
+/* el Anker: la estación y la batería de expansión en gris oscuro, y los cables de las PS400 por el suelo */
+.sr-anker .iso-fill,.sr-anker .iso-top{fill:color-mix(in srgb,var(--wm-gray-700) 72%,var(--anatomy-shade-1))}
+.sr-anker .iso-shade[data-shade="0"]{fill:color-mix(in srgb,var(--wm-gray-700) 80%,var(--anatomy-shade-0))}
+.sr-anker .iso-shade[data-shade="1"]{fill:color-mix(in srgb,var(--wm-gray-700) 74%,var(--anatomy-shade-1))}
+.sr-anker .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-gray-700) 68%,var(--anatomy-shade-2))}
+.sr-anker .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-gray-700) 62%,var(--anatomy-shade-3))}
+.sr-cable{fill:none;stroke:color-mix(in srgb,var(--wm-ink) 80%,var(--anatomy-shade-0));stroke-width:.55;stroke-linecap:round;stroke-linejoin:round}
 /* sombras: cada pieza las pinta en su capa, recortada a su silueta; los tubos se oscurecen enteros */
 .sr-sh path{fill:var(--sr-sombra);stroke:none;mix-blend-mode:multiply}
 .it[data-tubo] .tb-body{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
