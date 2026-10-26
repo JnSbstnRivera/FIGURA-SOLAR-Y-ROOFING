@@ -23,25 +23,74 @@ const selector = (escena) => `<nav class="sr-escenas" aria-label="Escena">${ESCE
 
 export const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
-// Botones de una sola escogida (los modelos de un producto del plano): el primero es "Sin".
-export const opciones = (key, label, lista, columnas = 5) =>
-  `<div class="sr-opciones" role="radiogroup" aria-label="${label}" data-opciones="${key}"${columnas === 5 ? "" : ` style="grid-template-columns:repeat(${columnas},minmax(0,1fr))"`}>` +
-  [["sin", "Sin", `Sin ${label.toLowerCase()}`], ...lista].map(([id, corto, largo], i) => `<button type="button" class="sr-btn sr-opcion" role="radio" aria-checked="${i === 0}" tabindex="${i === 0 ? 0 : -1}" data-opcion="${id}" aria-label="${largo}">${corto}</button>`).join("") +
+// El título de una sección del panel; con `n`, el número de su paso (live.js numera de nuevo los que se ven).
+export const tag = (titulo, n = null) => `<p class="sr-tag">${n ? `<span class="sr-num" aria-hidden="true">${n}</span>` : ""}${titulo}</p>`;
+// Un botón de una sola escogida: `attr` dice de qué grupo es (data-opcion, data-tipo o data-familia).
+const radio = (attr, id, corto, largo, on) => `<button type="button" class="sr-btn sr-opcion" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-${attr}="${id}" aria-label="${largo}">${corto}</button>`;
+const columnasDe = (n) => (n === 5 ? "" : ` style="grid-template-columns:repeat(${n},minmax(0,1fr))"`);
+// Botones de una sola escogida (los modelos de un producto del plano): el primero es "Sin", salvo que el "Sin" vaya en
+// otro paso (los kits del E10: "Sin" es el tipo de respaldo).
+export const opciones = (key, label, lista, columnas = 5, sin = true) =>
+  `<div class="sr-opciones" role="radiogroup" aria-label="${label}" data-opciones="${key}"${columnasDe(columnas)}>` +
+  [...(sin ? [["sin", "Sin", `Sin ${label.toLowerCase()}`]] : []), ...lista].map(([id, corto, largo]) => radio("opcion", id, corto, largo, id === "sin")).join("") +
   `</div>`;
-// La sección de un producto del plano (productos.mjs): su título, un botón por modelo (y "Sin"), lo que cuenta con − y
-// + (las PS400 del Anker), su nota y su interruptor, si tiene.
-export const seccionDe = (p) =>
+const interruptorHtml = (p) => `<div class="sr-row"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-${p.interruptor.id}><span class="sr-switch-pista" aria-hidden="true"></span>${p.interruptor.texto}</button></div>`;
+// La sección de un producto del plano (productos.mjs): su título (con su número de paso, si va en pasos), un botón por
+// modelo (y "Sin"), su nota y su interruptor, si tiene.
+export const seccionDe = (p, n = null) =>
   `<section class="sr-group" aria-label="${p.grupo}">
-    <p class="sr-tag">${p.titulo}</p>
-    ${opciones(p.id, p.nombre[0].toUpperCase() + p.nombre.slice(1), p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas)}${p.cantidad ? `
-    <div class="sr-system"><span class="sr-lab">${p.cantidad.texto}</span>${stepper(p.cantidad.id, p.cantidad.etiqueta)}</div>` : ""}
+    ${tag(p.titulo, n)}
+    ${opciones(p.id, p.nombre[0].toUpperCase() + p.nombre.slice(1), p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas)}
     <p class="sr-nota" data-nota="${p.id}"></p>${p.interruptor ? `
-    <div class="sr-row"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-${p.interruptor.id}><span class="sr-switch-pista" aria-hidden="true"></span>${p.interruptor.texto}</button></div>` : ""}
+    ${interruptorHtml(p)}` : ""}
   </section>`;
+// La pestaña Anker en pasos, con los productos de rol "respaldo":
+//   1. el tipo de respaldo, si hay más de uno (en la casa, el portátil o el E10), con lo que hacen mientras no hay;
+//   2. el modelo: las familias con su batería de expansión (el portátil) o los kits (el E10), y una línea de lo que es.
+//      Si hay un solo tipo (el apartamento), este es el primer paso y lleva el "Sin";
+//   3. la cantidad (placas o baterías), con hasta cuántas y una línea de lo que da en el día;
+//   `otro`: un paso de la escena, si lo trae (el balcón del apartamento);
+//   4. los extras: su interruptor, si va con el modelo escogido.
+// Lo de cada tipo se ve solo con él escogido (data-de) y live.js numera los pasos que se ven.
+export function respaldoHtml(ps, otro = "") {
+  const varios = ps.length > 1;
+  const tipos = varios
+    ? `<section class="sr-group" aria-label="Tipo de respaldo">
+    ${tag("Tipo de respaldo", 1)}
+    <div class="sr-opciones" role="radiogroup" aria-label="Tipo de respaldo" data-tipos${columnasDe(ps.length + 1)}>${[["sin", "Sin", "Sin respaldo de Anker"], ...ps.map((p) => [p.id, p.tipo, p.titulo])].map(([id, corto, largo]) => radio("tipo", id, corto, largo, id === "sin")).join("")}</div>
+    <p class="sr-nota" data-intro-respaldo></p>
+  </section>`
+    : "";
+  const pasos = ps.map((p) => {
+    const de = varios ? ` data-de="${p.id}"` : "";
+    const c = p.cantidad;
+    const sinAqui = varios ? [] : [["sin", "Sin", `Sin ${p.nombre}`]];
+    const modelos = p.familias
+      ? `<div class="sr-opciones" role="radiogroup" aria-label="${p.pasos.modelo}" data-familias="${p.id}"${columnasDe(p.familias.length + sinAqui.length)}>${[...sinAqui, ...p.familias.map((f) => [f.id, f.corto, p.etiqueta(p.modelos.find((m) => m.familia === f.id && !m.expansion))])].map(([id, corto, largo]) => radio("familia", id, corto, largo, id === "sin")).join("")}</div>
+    <div class="sr-row" data-con-modelo="${p.id}"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-expansion="${p.id}"><span class="sr-switch-pista" aria-hidden="true"></span><span>Con batería de expansión <span data-expansion-nombre="${p.id}"></span></span></button></div>`
+      : opciones(p.id, p.pasos.modelo, p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas, !varios);
+    return `<section class="sr-group"${de} aria-label="${p.pasos.modelo}: ${p.grupo}">
+    ${tag(p.pasos.modelo, varios ? 2 : 1)}
+    ${modelos}
+    <p class="sr-nota" data-resumen="${p.id}"></p>${varios ? "" : `
+    <p class="sr-nota" data-intro-respaldo></p>`}
+  </section>
+  <section class="sr-group" data-de="${p.id}" aria-label="${p.pasos.cantidad}">
+    ${tag(p.pasos.cantidad, varios ? 3 : 2)}
+    <div class="sr-system"><span class="sr-lab" data-cantidad-nombre="${c.id}">${c.texto}</span><span class="sr-inline">${stepper(c.id, c.etiqueta)}<span class="sr-hint" data-tope="${c.id}"></span></span></div>
+    <p class="sr-nota" data-resultado="${p.id}"></p>
+  </section>${otro}${p.interruptor ? `
+  <section class="sr-group" data-de="${p.id}" data-extras="${p.id}" aria-label="Extras: ${p.grupo}">
+    ${tag("Extras", 4)}
+    ${interruptorHtml(p)}
+  </section>` : ""}`;
+  });
+  return tipos + pasos.join("\n  ");
+}
 // El rumbo: ocho botones en el orden de la brújula (en la casa, hacia dónde miran las placas; en el apartamento,
-// hacia dónde mira el balcón).
-export const rumbosHtml = (etiqueta) =>
-  `<span class="sr-lab" id="sr-rumbo-lab">${etiqueta}</span><div class="sr-rumbos" role="radiogroup" aria-labelledby="sr-rumbo-lab" aria-describedby="sr-rumbo-v"><span class="sr-sr" id="sr-rumbo-v" data-rumbo-v></span>${SOL.rumbos.map((r) => `<button type="button" class="sr-btn sr-rumbo" role="radio" aria-checked="${r.az === 180}" tabindex="${r.az === 180 ? 0 : -1}" data-rumbo="${r.az}" aria-label="${r.nombre}, ${r.az} grados" title="${r.nombre}">${r.corto}</button>`).join("")}</div>`;
+// hacia dónde mira el balcón). Si el título de su paso ya lo dice, la etiqueta es solo para el lector de pantalla.
+export const rumbosHtml = (etiqueta, oculta = false) =>
+  `<span class="${oculta ? "sr-sr" : "sr-lab"}" id="sr-rumbo-lab">${etiqueta}</span><div class="sr-rumbos" role="radiogroup" aria-labelledby="sr-rumbo-lab" aria-describedby="sr-rumbo-v"><span class="sr-sr" id="sr-rumbo-v" data-rumbo-v></span>${SOL.rumbos.map((r) => `<button type="button" class="sr-btn sr-rumbo" role="radio" aria-checked="${r.az === 180}" tabindex="${r.az === 180 ? 0 : -1}" data-rumbo="${r.az}" aria-label="${r.nombre}, ${r.az} grados" title="${r.nombre}">${r.corto}</button>`).join("")}</div>`;
 
 // Reproductor del día, como uno de música: play/pausa, la hora y lo que pasa en ese momento,
 // la barra de 24 horas (la franja clara es el sol, de 6:25 a 18:25) y la velocidad.

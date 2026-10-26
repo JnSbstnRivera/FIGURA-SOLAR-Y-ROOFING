@@ -15,7 +15,6 @@ const VB = (() => {
 const readout = doc("[data-readout]");
 const status = doc("[data-status]");
 const themeButton = doc("[data-theme-toggle]");
-const sceneButtons = [...document.querySelectorAll("[data-scene]")];
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const narrow = matchMedia("(max-width: 560px)");
 const $ = (s) => svg.querySelector(s);
@@ -295,9 +294,10 @@ function sombras(s, cuanto) {
 
 
 // ---------- cielo ----------
-// El sol y la luna dan la vuelta por fuera de la maqueta: cada uno va en la dirección de pantalla de su
-// dirección real (de donde viene su luz), justo afuera del contorno, así nunca pasan por detrás de la casa
-// y las sombras caen del lado contrario. Si el reproductor flota sobre ese lugar, suben por encima de él.
+// El sol y la luna pasan por encima de la maqueta, en un arco justo afuera del contorno: salen por el lado del este
+// (a la derecha o a la izquierda de la pantalla, según el rumbo), suben, pasan sobre la casa y se ponen por el otro
+// lado. Nunca pasan por debajo ni por detrás de la casa, y las sombras caen del lado contrario. Si el reproductor
+// flota sobre ese lugar, suben por encima de él.
 const solEl = svg.querySelector("[data-sol]");
 const solHaloEl = svg.querySelector("[data-sol-halo]");
 const haloEl = svg.querySelector("[data-halo]");
@@ -370,13 +370,21 @@ function aContorno(p) {
   }
   return adentro(p) ? -d : d;
 }
-// `radio` es todo lo que ocupa (el sol, con su corona) y `disco`, el disco. Si afuera de la maqueta no hay
-// lugar dentro del dibujo (la esquina de atrás del techo casi toca el borde de arriba), asoma a medias por
-// el borde, como un sol que se sale del cuadro, en vez de montarse sobre la casa.
-function enCielo(pos, rumbo, radio, disco = radio) {
-  const d = pantalla(haciaCasa(pos, rumbo));
-  const L = Math.hypot(d[0], d[1]) || 1;
-  const u = [d[0] / L, d[1] / L];
+// En qué parte de su arco va cada uno: 0 al salir, ½ sobre la casa y 1 al ponerse (fuera de eso está bajo el
+// horizonte y no se ve). El día de la figura es el del equinoccio: el sol sale 6 horas antes del mediodía y se pone 6
+// horas después; la luna llena, al revés.
+const ARCO = {
+  sol: (hora) => (hora - BASE.mediodia + 6) / 12,
+  luna: (hora) => ((((hora - BASE.mediodia - 6) % 24) + 24) % 24) / 12,
+};
+// `f` es la parte del arco (ARCO), `radio` todo lo que ocupa (el sol, con su corona) y `disco`, el disco. Si afuera
+// de la maqueta no hay lugar dentro del dibujo (la esquina de atrás del techo casi toca el borde de arriba), asoma a
+// medias por el borde, como un sol que se sale del cuadro, en vez de montarse sobre la casa.
+function enCielo(f, rumbo, radio, disco = radio) {
+  // sale del lado de la pantalla hacia donde queda el este con este rumbo, y se pone del otro
+  const lado = Math.sign(pantalla(haciaCasa({ alt: 0, az: Math.PI / 2 }, rumbo))[0]) || 1;
+  const a = Math.PI * clamp(f, 0, 1);
+  const u = [lado * Math.cos(a), -Math.sin(a)];
   const t = salida(u) + CIELO.margen + radio;
   const borde = disco * 0.35;
   const enVista = ([x, y]) => [clamp(x, vista.x0 + borde, vista.x1 - borde), clamp(y, vista.y0 + borde, vista.y1 - borde)];
@@ -420,8 +428,8 @@ function cielo(hora, rumboRad, dt = 0) {
   const sol = solDelDia(hora, BASE.mediodia);
   const luna = lunaDelDia(hora, BASE.mediodia);
   // el sol cuenta con su corona para no tocar la maqueta ni salirse del dibujo
-  const [sx, sy] = deslizar("sol", enCielo(sol, rumboRad, CIELO.sol * 1.62, CIELO.sol), dt);
-  const [lx, ly] = deslizar("luna", enCielo(luna, rumboRad, CIELO.luna), dt);
+  const [sx, sy] = deslizar("sol", enCielo(ARCO.sol(hora), rumboRad, CIELO.sol * 1.62, CIELO.sol), dt);
+  const [lx, ly] = deslizar("luna", enCielo(ARCO.luna(hora), rumboRad, CIELO.luna), dt);
   const ts = `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`;
   const tl = `translate(${lx.toFixed(1)} ${ly.toFixed(1)})`;
   solEl.setAttribute("transform", ts);
@@ -563,8 +571,8 @@ function aguaEn(hour) {
 // ---------- Anker ----------
 // El día del Anker (anker.mjs) con el modelo que se escogió y las PS400 que lleva. Sus PS400 miran hacia el rumbo de la
 // escena (en la casa, hacia donde miran las placas del techo; en el apartamento, hacia donde mira el balcón): reciben
-// el sol del plano que dice la escena (D.ps400: en la casa, el de las placas del techo; en el apartamento, el de las
-// mismas PS400) menos lo que les tapan las sombras de lo demás en cada momento.
+// el sol de su propio plano, inclinado 40° (D.ps400, en las dos escenas), menos lo que les tapan las sombras de lo
+// demás en cada momento.
 let anker = null;
 let ankerSol = { key: "", sol: null };
 // El respaldo escogido: el Anker portátil o el E10 (nunca van juntos), con su producto y su modelo. Su batería: la del
@@ -693,35 +701,117 @@ for (const [key, box] of Object.entries(steppers)) {
   });
 }
 // Los productos del plano: botones de una sola escogida; las flechas pasan al de al lado.
-const grupos = Object.fromEntries([...document.querySelectorAll("[data-opciones]")].map((el) => [el.dataset.opciones, [...el.querySelectorAll("[data-opcion]")]]));
-function marcarOpciones(focus = null) {
-  for (const [key, botones] of Object.entries(grupos)) {
-    for (const b of botones) {
-      const on = b.dataset.opcion === S.escogido[key];
-      b.setAttribute("aria-checked", String(on));
-      b.tabIndex = on ? 0 : -1;
-      if (on && focus === key) b.focus();
-    }
+const enPanel = (s) => [...document.querySelectorAll(s)];
+const grupos = Object.fromEntries(enPanel("[data-opciones]").map((el) => [el.dataset.opciones, [...el.querySelectorAll("[data-opcion]")]]));
+// La pestaña Anker en pasos (pagina.mjs): el tipo de respaldo (en la casa, el portátil o el E10), las familias del
+// portátil con su batería de expansión y lo que se ve con cada tipo.
+const RESPALDOS = PRODUCTOS.filter((p) => p.rol === "respaldo");
+const tipoBotones = enPanel("[data-tipo]");
+const familias = enPanel("[data-familias]").map((el) => ({ id: el.dataset.familias, botones: [...el.querySelectorAll("[data-familia]")] }));
+const expansiones = enPanel("[data-expansion]");
+// el último modelo de cada producto: al escoger otra vez su tipo, vuelve a él
+const ultimo = {};
+// el botón que vale `valor` queda escogido (y con el foco, si se pide)
+function marcar(botones, attr, valor, enfocar) {
+  for (const b of botones) {
+    const on = b.dataset[attr] === valor;
+    b.setAttribute("aria-checked", String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && enfocar) b.focus();
   }
 }
-function escoger(key, id, focus = false) {
+// `focus` es el grupo que se movió con las flechas: el botón escogido de ese grupo se lleva el foco
+function marcarOpciones(focus = null) {
+  for (const [key, botones] of Object.entries(grupos)) marcar(botones, "opcion", S.escogido[key], focus === key);
+  marcar(tipoBotones, "tipo", RESPALDOS.find((p) => hay(S.escogido, p.id))?.id ?? "sin", focus === "tipo");
+  for (const f of familias) marcar(f.botones, "familia", modeloDe(S.escogido, f.id)?.familia ?? "sin", focus === `familia:${f.id}`);
+  for (const b of expansiones) {
+    const p = PRODUCTO[b.dataset.expansion];
+    const m = modeloDe(S.escogido, p.id);
+    b.setAttribute("aria-checked", String(Boolean(m?.expansion)));
+    if (m) b.querySelector("[data-expansion-nombre]").textContent = `(${p.familias.find((f) => f.id === m.familia).expansion})`;
+  }
+  mostrarPasos();
+}
+function escoger(key, id, focus = null) {
   S.escogido[key] = id;
+  if (id !== "sin") ultimo[key] = id;
   // lo que no va junto con lo escogido queda en "Sin" (el Anker portátil y el E10)
   if (id !== "sin") for (const otro of PRODUCTO[key]?.excluye ?? []) if (PRODUCTO[otro]) S.escogido[otro] = "sin";
-  marcarOpciones(focus ? key : null);
+  marcarOpciones(focus);
   recompute();
   announce();
 }
-for (const [key, botones] of Object.entries(grupos)) {
+// los botones de un grupo: el clic escoge y las flechas escogen el de al lado, con el foco
+function radios(botones, escoge, grupo) {
   botones.forEach((b, i) => {
-    b.addEventListener("click", () => escoger(key, b.dataset.opcion));
+    b.addEventListener("click", () => escoge(b, null));
     b.addEventListener("keydown", (event) => {
       const d = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
       if (!d) return;
       event.preventDefault();
-      escoger(key, botones[(i + d + botones.length) % botones.length].dataset.opcion, true);
+      escoge(botones[(i + d + botones.length) % botones.length], grupo);
     });
   });
+}
+for (const [key, botones] of Object.entries(grupos)) radios(botones, (b, foco) => escoger(key, b.dataset.opcion, foco), key);
+// el tipo de respaldo: "Sin" los quita a todos; uno vuelve a su último modelo (o al que trae por defecto)
+radios(
+  tipoBotones,
+  (b, foco) => {
+    const id = b.dataset.tipo;
+    if (id !== "sin") {
+      const p = PRODUCTO[id];
+      if (!hay(S.escogido, id)) return escoger(id, ultimo[id] ?? p.porDefecto ?? p.inicial ?? p.modelos[0].id, foco);
+      return marcarOpciones(foco);
+    }
+    for (const p of RESPALDOS) S.escogido[p.id] = "sin";
+    marcarOpciones(foco);
+    recompute();
+    announce();
+  },
+  "tipo",
+);
+// la familia del portátil: con o sin su batería de expansión, como estaba
+for (const f of familias) {
+  const p = PRODUCTO[f.id];
+  radios(
+    f.botones,
+    (b, foco) => {
+      const fam = b.dataset.familia;
+      if (fam === "sin") return escoger(p.id, "sin", foco);
+      const previo = modeloDe(S.escogido, p.id) ?? p.modelos.find((q) => q.id === ultimo[p.id]);
+      const conBateria = Boolean(previo?.expansion);
+      escoger(p.id, (p.modelos.find((q) => q.familia === fam && Boolean(q.expansion) === conBateria) ?? p.modelos.find((q) => q.familia === fam)).id, foco);
+    },
+    `familia:${f.id}`,
+  );
+}
+// la batería de expansión: el mismo modelo con o sin ella
+for (const b of expansiones) {
+  b.addEventListener("click", () => {
+    const p = PRODUCTO[b.dataset.expansion];
+    const m = modeloDe(S.escogido, p.id);
+    const otro = m && p.modelos.find((q) => q.familia === m.familia && Boolean(q.expansion) !== Boolean(m.expansion));
+    if (otro) escoger(p.id, otro.id);
+  });
+}
+// Lo que se ve con lo escogido: los pasos de cada tipo de respaldo, la batería de expansión, lo que hace el respaldo
+// mientras no hay ninguno y los extras, solo con un interruptor que vaya con el modelo. Después se numeran los pasos
+// que se ven en cada pestaña.
+function mostrarPasos() {
+  for (const el of enPanel("[data-de]")) el.hidden = !hay(S.escogido, el.dataset.de);
+  for (const el of enPanel("[data-con-modelo]")) el.hidden = !hay(S.escogido, el.dataset.conModelo);
+  for (const el of enPanel("[data-intro-respaldo]")) el.hidden = RESPALDOS.some((p) => hay(S.escogido, p.id));
+  for (const el of enPanel("[data-extras]")) {
+    const p = PRODUCTO[el.dataset.extras];
+    const m = modeloDe(S.escogido, p.id);
+    el.hidden = !m || Boolean(p.interruptor.si && !p.interruptor.si(m));
+  }
+  for (const panel of enPanel("[data-panel]")) {
+    let n = 0;
+    for (const num of panel.querySelectorAll(".sr-num")) if (!num.closest("section").hidden) num.textContent = String(++n);
+  }
 }
 // Corte de agua de la AAA: la cisterna no se llena y baja con lo que se usa en el día.
 const corteBoton = doc("[data-corte]");
@@ -742,9 +832,15 @@ for (const { p, b } of interruptores) {
     announce();
   });
 }
-// Lo que dice el panel del agua: lo que no cambia con la hora (las notas) y lo de este momento.
-const AQ = Object.fromEntries([...document.querySelectorAll("[data-agua]")].map((el) => [el.dataset.agua, el]));
-const NOTAS = Object.fromEntries([...document.querySelectorAll("[data-nota]")].map((el) => [el.dataset.nota, el]));
+// Lo que dice el panel: lo que no cambia con la hora (las notas, y en el respaldo la línea de lo que es cada modelo, la
+// de lo que da en el día, cuántas admite y qué hace mientras no hay ninguno). Lo de cada momento lo dice el reproductor.
+const AQ = Object.fromEntries(enPanel("[data-agua]").map((el) => [el.dataset.agua, el]));
+const NOTAS = Object.fromEntries(enPanel("[data-nota]").map((el) => [el.dataset.nota, el]));
+const RESUMEN = Object.fromEntries(enPanel("[data-resumen]").map((el) => [el.dataset.resumen, el]));
+const RESULTADO = Object.fromEntries(enPanel("[data-resultado]").map((el) => [el.dataset.resultado, el]));
+const NOMBRE_CANTIDAD = Object.fromEntries(enPanel("[data-cantidad-nombre]").map((el) => [el.dataset.cantidadNombre, el]));
+const TOPE = Object.fromEntries(enPanel("[data-tope]").map((el) => [el.dataset.tope, el]));
+const INTRO = enPanel("[data-intro-respaldo]");
 const galones = (v) => `${fmt(v)} gal`;
 function updateAgua() {
   const a = S.agua;
@@ -760,12 +856,19 @@ function updateAgua() {
     const sugerido = sugeridoPara(p, a.personas);
     const cantidad = cantidadDe(S.escogido, p);
     for (const b of grupos[p.id] ?? []) b.toggleAttribute("data-sugerido", b.dataset.opcion === sugerido?.id);
-    if (NOTAS[p.id] && p.nota) NOTAS[p.id].textContent = p.nota(m, { personas: a.personas, sugerido, agua, anker, fmt, galones, cantidad, generador: Boolean(S.escogido.generador), escogido: S.escogido });
-    if (p.cantidad && steppers[p.cantidad.id]) {
-      out[p.cantidad.id].textContent = m ? String(cantidad) : "—";
-      pasoEn(p.cantidad.id, Boolean(m) && cantidad > p.cantidad.min, Boolean(m) && cantidad < p.cantidad.max(m, p, S.escogido));
+    const x = { personas: a.personas, sugerido, agua, anker, fmt, galones, cantidad, generador: Boolean(S.escogido.generador), escogido: S.escogido };
+    if (NOTAS[p.id] && p.nota) NOTAS[p.id].textContent = p.nota(m, x);
+    if (RESUMEN[p.id]) RESUMEN[p.id].textContent = m ? p.resumen(m, x) : "";
+    if (RESULTADO[p.id]) RESULTADO[p.id].textContent = m && anker ? p.resultado(m, x) : "";
+    const c = p.cantidad;
+    if (c && steppers[c.id]) {
+      out[c.id].textContent = m ? String(cantidad) : "—";
+      pasoEn(c.id, Boolean(m) && cantidad > c.min, Boolean(m) && cantidad < c.max(m, p, S.escogido));
+      if (NOMBRE_CANTIDAD[c.id] && c.nombre && m) NOMBRE_CANTIDAD[c.id].textContent = c.nombre(m, S.escogido);
+      if (TOPE[c.id]) TOPE[c.id].textContent = m && c.tope ? c.tope(m, p, S.escogido) : "";
     }
   }
+  for (const el of INTRO) el.textContent = RESPALDOS[0]?.nota() ?? "";
   if (AQ.ahorro) AQ.ahorro.textContent = calentadorDe(S.escogido) ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
   if (corteBoton) corteBoton.disabled = !cisternaDe(S.escogido);
   for (const { p, b } of interruptores) {
@@ -775,23 +878,7 @@ function updateAgua() {
     b.setAttribute("aria-checked", String(!b.disabled && Boolean(S.escogido[p.interruptor.id])));
   }
 }
-// el agua de este momento, en el panel (lo que tenga la escena) y en el reproductor
-let aguaDicha = "";
-function aguaAhora(w) {
-  const cal = calentadorDe(S.escogido);
-  const cis = cisternaDe(S.escogido);
-  const ro = potableDe(S.escogido);
-  const textos = {
-    temp: cal ? `${Math.round(w.T)} °F${w.elec ? ", con la resistencia" : ""}` : "sin calentador solar",
-    nivel: cis ? `${Math.round(w.nivel * 100)} % (${galones(w.nivel * cis.gal)})` : "sin cisterna",
-    potable: ro ? `${fmt(w.potable, 1)} gal/h de beber y cocinar` : "sin ósmosis",
-  };
-  const firma = Object.values(textos).join("|");
-  if (firma !== aguaDicha) {
-    aguaDicha = firma;
-    for (const [key, texto] of Object.entries(textos)) if (AQ[key]) AQ[key].textContent = texto;
-  }
-}
+// el agua y el Anker de este momento, en el reproductor
 const sayAgua = (w) => {
   const partes = [`usan ${fmt(w.fria, 0)} gal/h`];
   if (calentadorDe(S.escogido)) partes.push(`agua caliente ${Math.round(w.T)} °F`);
@@ -799,23 +886,6 @@ const sayAgua = (w) => {
   if (potableDe(S.escogido)) partes.push(`de beber ${fmt(w.potable, 1)} gal/h`);
   return partes.join(" · ");
 };
-// el Anker de este momento, en el panel y en el reproductor
-const AK = Object.fromEntries([...document.querySelectorAll("[data-anker]")].map((el) => [el.dataset.anker, el]));
-let ankerDicho = "";
-function ankerAhora(a) {
-  const r = respaldoDe();
-  const bateria = r && a ? `${Math.round(a.soc * 100)} % (${fmt(a.soc * kwhDe(r), 1)} kWh)` : "sin Anker";
-  const ps = r && a && placasDe(r) ? `${fmt(a.ps400, 2)} kW` : "sin placas";
-  const de = !a ? "" : a.luma > 0.005 ? ", de LUMA" : a.gen > 0.005 ? ", del generador" : a.ps400 >= a.esencial - 0.005 ? ", de las placas" : ", de la batería";
-  const esencial = r && a ? `${fmt(a.esencial, 2)} kW${de}` : "de LUMA";
-  const firma = `${bateria}|${ps}|${esencial}`;
-  if (firma !== ankerDicho && AK.bateria) {
-    ankerDicho = firma;
-    AK.bateria.textContent = bateria;
-    AK.ps400.textContent = ps;
-    AK.esencial.textContent = esencial;
-  }
-}
 const sayAnker = (a) => {
   const r = respaldoDe();
   if (!a || !r) return "sin Anker";
@@ -959,7 +1029,6 @@ function dibujaAgua(w) {
   const tibio = cal ? (0.6 * clamp((w.T - 95) / (AGUA.maximo - 95), 0, 1)).toFixed(3) : "0";
   for (const el of tanqueCalorEls) if (el.__o !== tibio) el.style.opacity = el.__o = tibio;
   if (bombaLed) bombaLed.style.opacity = (0.12 + 0.88 * smooth(0.5, 3, w.fria)).toFixed(3);
-  aguaAhora(w);
 }
 // Lo que se mueve del Anker: las cinco luces de su carga y el vidrio de las PS400, que se ilumina con el sol.
 const ankerLeds = $$("[data-anker-led]").map((el) => ({ el, i: +el.dataset.ankerLed }));
@@ -971,7 +1040,6 @@ function dibujaAnker(a) {
   const tope = r ? Math.max(1, placasAnker()) * kwPlacaDe(r) * ANKER.rinde : 1;
   const luz = a ? (((document.body.dataset.theme === "dark" ? 0.45 : 0.62) * a.puede) / tope).toFixed(3) : "0";
   for (const el of sunsPs) if (el.__o !== luz) el.style.opacity = el.__o = luz;
-  ankerAhora(a);
 }
 
 // Cada cuadro: los flujos de los tubos, lo que mueve la escena (en la casa, el vidrio de las placas, las luces, el
@@ -1006,7 +1074,6 @@ function draw(dt, calm) {
     scrub.setAttribute("aria-valuetext", time);
   }
   if (!scrubbing) scrub.value = String(((hour % 24) + 24) % 24);
-  for (const button of sceneButtons) button.setAttribute("aria-pressed", String(!playing && Math.abs(target - +button.dataset.scene) < 0.01));
   // la tarjeta de la brújula gira hasta el rumbo; el sol, la luna, la luz y las sombras siguen a la hora
   if (calm) rumboShow = S.rumbo;
   if (Math.abs(rumboShow - rumboDibujado) > 0.01) {
@@ -1277,7 +1344,6 @@ stage.addEventListener("keydown", (event) => {
   steer(to);
 });
 stage.addEventListener("focus", () => (status.textContent = ESCENA_VIVA.explica(target)));
-for (const button of sceneButtons) button.addEventListener("click", () => steer(+button.dataset.scene));
 
 // ---------- tema ----------
 // (antes del primer cálculo del día no hay qué dibujar: `agua` todavía no existe)
@@ -1306,6 +1372,8 @@ function arrancar() {
   } catch {}
   setTheme(saved === "dark" ? "dark" : "light");
   ESCENA_VIVA.arranca();
+  // el panel con lo que se ve de cada paso y sus números, ya desde el principio
+  marcarOpciones();
   medirVista();
   new ResizeObserver(() => {
     medirVista();

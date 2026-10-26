@@ -24,15 +24,29 @@
 //   porEscena                en el producto o en un modelo: lo que cambia en una escena, como el modelo inicial de
 //                            la cisterna o las PS400 que caben en el balcón del apartamento
 //   cantidad                 algo que se cuenta con − y + debajo de sus botones (las PS400 del Anker): su llave en lo
-//                            escogido, su texto, el mínimo, el máximo de cada modelo y cuántas trae al escogerlo
+//                            escogido, su texto (o su `nombre(m, e)`, si cambia), el mínimo, el máximo de cada modelo,
+//                            cuántas trae al escogerlo y lo que dice al lado (`tope`, hasta cuántas)
 //   partes                   piezas que se ven cuando la regla se cumple con el modelo escogido (m) y con lo escogido
 //                            de los demás productos (e); las demás piezas son de un modelo
 //   etiqueta(m)              lo que dice el botón de cada modelo a un lector de pantalla
-//   nota(m, x)               la nota del panel con el modelo escogido (o null) y lo que pasa en la casa (x)
+//   nota(m, x)               la nota del panel, de una o dos líneas, con el modelo escogido (o null) y lo que pasa en
+//                            la casa (x); en los de respaldo, la de "Sin": qué hacen
 //   interruptor              un botón de prender y apagar debajo de la nota; con `escogido` va en lo escogido con su id
-//                            (el generador del E10) y las partes lo pueden mirar
+//                            (el generador del E10) y las partes lo pueden mirar; `si(m)` dice con qué modelos va
 //   excluye                  los productos que no van a la vez con este: al escoger uno, el otro queda en "Sin" (el
 //                            Anker portátil y el E10)
+//
+// Los de respaldo (rol "respaldo": el Anker portátil y el E10) van en la pestaña Anker en pasos (pagina.mjs): el tipo
+// de respaldo, el modelo, la cantidad y los extras (sus interruptores). Para eso dicen además:
+//   tipo                     su botón en el paso "Tipo de respaldo"
+//   pasos                    los títulos de sus pasos del modelo y de la cantidad ("Modelo" y "Placas"; "Kit" y
+//                            "Baterías")
+//   porDefecto               el modelo que se pone al escoger el tipo, si nunca se escogió uno (si no, el inicial)
+//   familias                 los botones del paso "Modelo" cuando cada uno va con o sin su batería de expansión (el
+//                            portátil): cada modelo dice su `familia` y si lleva la batería (`expansion`), que se escoge
+//                            con un interruptor
+//   resumen(m, x)            la línea debajo del modelo: lo que es
+//   resultado(m, x)          la línea debajo de la cantidad: lo que da en el día
 const CATALOGO = [
   {
     id: "calentador",
@@ -66,7 +80,7 @@ const CATALOGO = [
       if (!m) return `Para ${x.personas} ${x.personas === 1 ? "persona" : "personas"} el cotizador sugiere el ${sug.nombre}.`;
       const para = m.personas[1] > 50 ? `${m.personas[0]} o más personas` : `${m.personas[0]} a ${m.personas[1]} personas`;
       const falta = x.agua.resistencia > 0.05 ? ` Con ${x.personas} le hace falta la resistencia: unos ${x.fmt(x.agua.resistencia, 1)} kWh al día.` : "";
-      return `${m.gal} gal con ${m.colectores} ${m.colectores === 1 ? "colector" : "colectores"}, para ${para}${m.id === sug.id ? " (el que sugiere el cotizador)" : `; el cotizador sugiere el ${sug.nombre}`}.${falta}`;
+      return `Para ${para}${m.id === sug.id ? ", el que sugiere el cotizador" : `; el cotizador sugiere el ${sug.nombre}`}. Ahorra unos ${x.fmt(x.agua.ahorroMes)} kWh de luz al mes y ocupa ${m.lugares} lugares de placas.${falta}`;
     },
   },
   {
@@ -104,8 +118,8 @@ const CATALOGO = [
       // menos de un día se dice en horas
       const r = x.agua.reserva;
       const reserva = r >= 1 ? `${x.fmt(r, 1)} ${r === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(r * 24))} horas`;
-      if (!m) return `Una cisterna guarda agua para cuando la AAA corta el servicio. Con ${x.personas} ${x.personas === 1 ? "persona" : "personas"} se usan ${x.galones(x.agua.usoDia)} al día.`;
-      return `${m.nombre}${m.aprox ? " (medidas aproximadas)" : ""}, ${m.techo ? "en el techo" : "adentro, pegada a la pared"}, con bomba de ${m.bomba} y presurizado de ${m.presurizado} gal. Sin servicio de la AAA alcanza para ${reserva}.`;
+      if (!m) return `Guarda agua para cuando la AAA corta el servicio: con ${x.personas} ${x.personas === 1 ? "persona" : "personas"} se usan ${x.galones(x.agua.usoDia)} al día.`;
+      return `${m.nombre}${m.aprox ? " (medidas aproximadas)" : ""}, ${m.techo ? "en el techo" : "adentro, pegada a la pared"}, con bomba de ${m.bomba} y presurizado de ${m.presurizado} gal. Sin la AAA alcanza para ${reserva}.`;
     },
     interruptor: { id: "corte", texto: "Corte de agua de la AAA" },
   },
@@ -135,8 +149,8 @@ const CATALOGO = [
     },
     etiqueta: (m) => `${m.nombre}: tanque de ${m.resina[0]}" × ${m.resina[1]}"`,
     nota(m, x) {
-      if (!m) return "Trata el agua de toda la casa donde entra: protege tuberías y enseres y mejora la calidad del agua.";
-      return `Prefiltro de sedimento, tanque ${m.tanque}, tanque de sal de 18" × 36" y luz UV Viqua VH410. Por él pasan los ${x.galones(x.agua.usoDia)} que usa la casa al día.`;
+      if (!m) return "Trata el agua de toda la casa donde entra: protege tuberías y enseres.";
+      return `Prefiltro, tanque de ${m.resina[0]}" × ${m.resina[1]}", tanque de sal y luz UV. Trata los ${x.galones(x.agua.usoDia)} que usa la casa al día.`;
     },
   },
   {
@@ -147,9 +161,10 @@ const CATALOGO = [
     nombre: "Anker",
     articulo: "el",
     rol: "respaldo",
+    tipo: "Portátil",
+    pasos: { modelo: "Modelo", cantidad: "Placas" },
     excluye: ["e10"],
     inicial: "f3800",
-    columnas: 5,
     fuente: "Sun Bot: cotizador Anker (anker/constants.ts: la F2600, la BP2600, la F3800 Plus, la BP3800, la PS400 y los transfer switch) y las fichas de Anker (kWh, kW, medidas y entrada solar)",
     // Va aparte de las placas del techo: sus propias placas PS400 y su transfer switch al lado del panel. kwh: la batería
     // (con la de expansión); kw: lo que da a la vez; transfer: el automático no va con la F2600 (regla del cotizador);
@@ -169,21 +184,28 @@ const CATALOGO = [
     // cabenPs400 es cuántas caben donde van: 8 en el patio de la casa y 2 en el balcón del apartamento, donde el transfer
     // switch es el de apartamento del cotizador.
     cabenPs400: 8,
-    porEscena: { apartamento: { cabenPs400: 2 } },
+    porEscena: { apartamento: { cabenPs400: 2, pasos: { modelo: "Modelo", cantidad: "Placas en el balcón" } } },
     cantidad: {
       id: "ps400",
       texto: "Placas",
+      nombre: (m, e) => (conPs200(m, e) ? "Placas PS200" : "Placas PS400"),
       etiqueta: "una placa",
       min: 1,
       max: (m, p, e = {}) => Math.min(conPs200(m, e) ? m.maxPs200 : m.maxPs400, p.cabenPs400),
       inicial: (m) => m.ps400,
+      tope: (m, p, e) => `hasta ${p.cantidad.max(m, p, e)}${ESCENA === "apartamento" ? " en el balcón" : ""}`,
     },
     interruptor: { id: "ps200", texto: "Placas PS200 (200 W) en vez de PS400", escogido: true, si: (m) => Boolean(m.maxPs200) },
+    // el paso "Modelo": la F2600 y la F3800 Plus, cada una con o sin su batería de expansión
+    familias: [
+      { id: "f2600", corto: "F2600", expansion: "BP2600" },
+      { id: "f3800", corto: "F3800 Plus", expansion: "BP3800" },
+    ],
     modelos: [
-      { id: "f2600", corto: "F2600", nombre: "SOLIX F2600", kwh: 2.56, kw: 2.4, ps400: 2, maxPs400: 2, maxPs200: 4, transfer: "manual", medidas: [20.7, 15.5, 9.8], techo: false, escenas: ["casa", "apartamento"] },
-      { id: "f2600bp", corto: "F2600 + BP", nombre: "SOLIX F2600 con BP2600", kwh: 5.12, kw: 2.4, ps400: 2, maxPs400: 2, maxPs200: 4, transfer: "manual", medidas: [20.7, 15.5, 9.8], bp2600: true, techo: false, escenas: ["casa", "apartamento"] },
-      { id: "f3800", corto: "F3800 Plus", nombre: "SOLIX F3800 Plus", kwh: 3.84, kw: 6, ps400: 2, maxPs400: 8, transfer: "automático", medidas: [27.6, 15.3, 15.6], techo: false, escenas: ["casa", "apartamento"] },
-      { id: "f3800bp", corto: "F3800 + BP", nombre: "SOLIX F3800 Plus con BP3800", kwh: 7.68, kw: 6, ps400: 3, maxPs400: 8, transfer: "automático", medidas: [27.6, 15.3, 15.6], bp: true, techo: false, escenas: ["casa", "apartamento"], porEscena: { apartamento: { ps400: 2 } } },
+      { id: "f2600", corto: "F2600", nombre: "SOLIX F2600", familia: "f2600", expansion: false, kwh: 2.56, kw: 2.4, ps400: 2, maxPs400: 2, maxPs200: 4, transfer: "manual", medidas: [20.7, 15.5, 9.8], techo: false, escenas: ["casa", "apartamento"] },
+      { id: "f2600bp", corto: "F2600 + BP", nombre: "SOLIX F2600 con BP2600", familia: "f2600", expansion: true, kwh: 5.12, kw: 2.4, ps400: 2, maxPs400: 2, maxPs200: 4, transfer: "manual", medidas: [20.7, 15.5, 9.8], bp2600: true, techo: false, escenas: ["casa", "apartamento"] },
+      { id: "f3800", corto: "F3800 Plus", nombre: "SOLIX F3800 Plus", familia: "f3800", expansion: false, kwh: 3.84, kw: 6, ps400: 2, maxPs400: 8, transfer: "automático", medidas: [27.6, 15.3, 15.6], techo: false, escenas: ["casa", "apartamento"] },
+      { id: "f3800bp", corto: "F3800 + BP", nombre: "SOLIX F3800 Plus con BP3800", familia: "f3800", expansion: true, kwh: 7.68, kw: 6, ps400: 3, maxPs400: 8, transfer: "automático", medidas: [27.6, 15.3, 15.6], bp: true, techo: false, escenas: ["casa", "apartamento"], porEscena: { apartamento: { ps400: 2 } } },
     ],
     // los cables van con cualquier modelo; cada estación con o sin su batería de expansión; las PS400 se ven de una en
     // una, hasta las que lleva; y el transfer switch es el manual o el automático
@@ -199,18 +221,13 @@ const CATALOGO = [
       automatico: (m) => m.transfer === "automático",
     },
     etiqueta: (m) => `${m.nombre}: ${m.kwh} kWh y ${m.kw} kW, admite hasta ${m.maxPs400} placas PS400`,
-    nota(m, x) {
-      const apto = ESCENA === "apartamento";
-      if (!m) return apto ? "Un Anker SOLIX con placas PS400 en el balcón y su transfer switch de apartamento mantiene lo esencial (nevera, internet, luces y abanicos)." : `Un Anker SOLIX con sus placas PS400 y su transfer switch mantiene lo esencial (nevera, internet, luces y abanicos), aparte de las placas del techo.`;
-      const a = x.anker;
-      const n = x.cantidad;
-      const caben = PRODUCTO.anker.cabenPs400;
-      const ps200 = conPs200(m, x.escogido);
-      const tipo = ps200 ? "PS200" : "PS400";
-      const tope = ps200 ? m.maxPs200 : m.maxPs400;
-      const admite = apto && tope > caben ? `admite hasta ${tope}; en el balcón caben ${caben}` : `admite hasta ${tope}`;
-      return `${m.nombre}: ${x.fmt(m.kwh, 2)} kWh y ${x.fmt(m.kw, m.kw % 1 ? 1 : 0)} kW, con ${n} ${n === 1 ? "placa" : "placas"} ${tipo}${apto ? " en el balcón" : ""} (${admite}) y transfer switch ${m.transfer}${apto ? " de apartamento" : ""}. Hoy las ${tipo} le dan ${x.fmt(a.solDia, 1)} de los ${x.fmt(a.esencialDia, 1)} kWh de lo esencial; sin LUMA, la batería sola alcanza para unas ${Math.round(a.horas)} horas.`;
-    },
+    // sin respaldo escogido: lo que hace (en la casa, el portátil o el E10)
+    nota: () =>
+      PRODUCTO.e10
+        ? "Mantiene lo esencial (nevera, internet, luces y abanicos) cuando no hay LUMA: el portátil con sus placas, o el E10 para toda la casa."
+        : "Mantiene lo esencial (nevera, internet, luces y abanicos) cuando no hay LUMA, con sus placas en el balcón.",
+    resumen: (m, x) => `${x.fmt(m.kwh, 2)} kWh y ${x.fmt(m.kw, m.kw % 1 ? 1 : 0)} kW, con transfer switch ${m.transfer}${ESCENA === "apartamento" ? " de apartamento" : ""}.`,
+    resultado: (m, x) => `Hoy el sol le da ${x.fmt(x.anker.solDia, 1)} de los ${x.fmt(x.anker.esencialDia, 1)} kWh de lo esencial; sin LUMA alcanza para unas ${Math.round(x.anker.horas)} horas.`,
   },
   {
     id: "e10",
@@ -220,8 +237,11 @@ const CATALOGO = [
     nombre: "E10",
     articulo: "el",
     rol: "respaldo",
+    tipo: "E10",
+    pasos: { modelo: "Kit", cantidad: "Baterías" },
+    porDefecto: "ats",
     excluye: ["anker"],
-    columnas: 5,
+    columnas: 4,
     fuente: "Sun Bot: cotizador Anker (los kits del SOLIX E10, la B6000, el Generador 5500 y sus reglas: hasta 5 baterías y la montura de pared con 4 o más) y las fichas de Anker del E10, la B6000, la Power Dock, la Smart Inlet Box y el Smart Generator 5500",
     // El sistema de respaldo modular de Anker, para toda la casa. Va en el cuarto de equipos, contra su pared norte: el
     // módulo de poder (7.68 kW seguidos, 26.4" × 11.8" × 10.2") encima de sus baterías B6000 (6.144 kWh cada una,
@@ -242,13 +262,16 @@ const CATALOGO = [
       min: 1,
       max: () => 5,
       inicial: () => 1,
+      tope: () => "hasta 5",
     },
-    interruptor: { id: "generador", texto: "Generador 5500, afuera", escogido: true },
+    interruptor: { id: "generador", texto: "Generador 5500 afuera: la recarga en un apagón", escogido: true },
+    // resumen: lo que es cada kit, en la línea debajo de sus botones. El botón del kit Portátil dice "Carrito", para no
+    // confundirlo con el Anker portátil del paso de antes.
     modelos: [
-      { id: "portatil", corto: "Portátil", nombre: "E10 Kit Portátil", kwhB6000: 6.144, kw: 7.68, conexion: null, placas: 0, carrito: true, techo: false, escenas: ["casa"] },
-      { id: "mts", corto: "MTS", nombre: "E10 Kit MTS (Smart Inlet Box)", kwhB6000: 6.144, kw: 7.68, conexion: "mts", placas: 0, techo: false, escenas: ["casa"] },
-      { id: "ats", corto: "ATS", nombre: "E10 Kit ATS (Power Dock)", kwhB6000: 6.144, kw: 7.68, conexion: "ats", placas: 0, techo: false, escenas: ["casa"] },
-      { id: "solar", corto: "Solar", nombre: "E10 Kit Solar (Power Dock + 1.6 kW)", kwhB6000: 6.144, kw: 7.68, conexion: "ats", placas: 4, techo: false, escenas: ["casa"] },
+      { id: "portatil", corto: "Carrito", nombre: "E10 Kit Portátil", resumen: "El kit Portátil, sobre su carrito: se enchufa en lo que haga falta.", kwhB6000: 6.144, kw: 7.68, conexion: null, placas: 0, carrito: true, techo: false, escenas: ["casa"] },
+      { id: "mts", corto: "MTS", nombre: "E10 Kit MTS (Smart Inlet Box)", resumen: "Con la Smart Inlet Box: los circuitos de la casa se pasan a mano.", kwhB6000: 6.144, kw: 7.68, conexion: "mts", placas: 0, techo: false, escenas: ["casa"] },
+      { id: "ats", corto: "ATS", nombre: "E10 Kit ATS (Power Dock)", resumen: "Con la Power Dock: pasa toda la casa sola, en 20 ms.", kwhB6000: 6.144, kw: 7.68, conexion: "ats", placas: 0, techo: false, escenas: ["casa"] },
+      { id: "solar", corto: "Solar", nombre: "E10 Kit Solar (Power Dock + 1.6 kW)", resumen: "El ATS con 4 placas de 400 W (1.6 kW) en el patio.", kwhB6000: 6.144, kw: 7.68, conexion: "ats", placas: 4, techo: false, escenas: ["casa"] },
     ],
     // los cables van con cualquier kit; las baterías de una en una y el módulo encima de la última; la base según el kit
     // y las baterías; la caja de la pared según el kit; las placas del kit solar; y el generador si se prende
@@ -266,15 +289,14 @@ const CATALOGO = [
       generador: (m, e) => Boolean(e.generador),
     },
     etiqueta: (m) => `${m.nombre}: 7.68 kW, con una batería B6000 de 6.144 kWh y hasta cinco${m.placas ? `, con ${m.placas} placas de 400 W` : ""}`,
-    nota(m, x) {
-      if (!m) return "Módulo de 7.68 kW sobre una a cinco baterías B6000 de 6.144 kWh, en el cuarto de equipos. No va con el portátil.";
-      const a = x.anker;
+    resumen: (m) => m.resumen,
+    // la batería, dónde va (con 4 o más, la montura de pared es obligatoria), lo que le da el sol (o, sin placas, que
+    // LUMA lo mantiene lleno) y para cuánto alcanza sin LUMA
+    resultado(m, x) {
       const n = x.cantidad;
-      const base = n >= 4 ? "en la montura de pared (con 4 o más es obligatoria)" : m.carrito ? "sobre su carrito" : "sobre su base";
-      const conexion = m.conexion === "ats" ? "la Power Dock pasa toda la casa sola" : m.conexion === "mts" ? "la Smart Inlet Box pasa los circuitos a mano" : "se enchufa en lo que haga falta";
-      const placas = m.placas ? ` Las ${m.placas} placas de 400 W le dan hoy ${x.fmt(a.solDia, 1)} de los ${x.fmt(a.esencialDia, 1)} kWh de lo esencial.` : " Sin placas, LUMA lo mantiene lleno y entra en un apagón.";
-      const gen = x.generador ? " Si en un apagón la batería llega a su reserva, el generador, afuera, la vuelve a cargar." : "";
-      return `${m.nombre}: ${n} ${n === 1 ? "batería" : "baterías"} B6000 (${x.fmt(6.144 * n, 1)} kWh) ${base}; ${conexion}.${placas} Sin LUMA, con lo esencial alcanza para unas ${Math.round(a.horas)} horas.${gen}`;
+      const base = n >= 4 ? "en la montura de pared" : m.carrito ? "sobre su carrito" : "sobre su base";
+      const sol = m.placas ? `; hoy el sol le da ${x.fmt(x.anker.solDia, 1)} de los ${x.fmt(x.anker.esencialDia, 1)} kWh de lo esencial` : "; LUMA lo mantiene lleno";
+      return `${x.fmt(6.144 * n, 1)} kWh ${base}${sol}. Sin LUMA alcanza para unas ${Math.round(x.anker.horas)} horas.`;
     },
   },
   {
@@ -295,8 +317,8 @@ const CATALOGO = [
     ],
     etiqueta: (m) => `${m.nombre}: ${m.litros} litros y batería de 299 Wh`,
     nota(m) {
-      if (!m) return "Una nevera portátil con compresor y su propia batería de 299 Wh, sin hielo: para un apagón o para salir.";
-      return `${m.nombre}: ${m.litros} L (${m.latas} latas)${m.doble ? " en dos zonas: enfría y congela a la vez" : ""}. Con su batería de 299 Wh mantiene 4 °C unas ${m.horas} horas; se carga en la pared, en el carro, por USB-C o con una placa de 100 W.`;
+      if (!m) return "Con compresor y su propia batería de 299 Wh, sin hielo: para un apagón o para salir.";
+      return `${m.litros} L (${m.latas} latas)${m.doble ? " en dos zonas: enfría y congela a la vez" : ""}. Con su batería de 299 Wh mantiene 4 °C unas ${m.horas} horas.`;
     },
   },
   {
@@ -326,9 +348,8 @@ const CATALOGO = [
     etiqueta: (m) => `${m.nombre}: ${m.tanque ? `con tanque de ${m.tanque} galones` : "sin tanque, con electricidad"}`,
     nota(m, x) {
       const beber = x.galones(x.agua.potableDia);
-      if (!m) return `Agua pura para beber directamente del grifo, debajo del fregadero. Con ${x.personas} ${x.personas === 1 ? "persona" : "personas"} se beben y se cocinan unos ${beber} al día.`;
-      const etapas = "sedimento, dos de carbón en bloque, membrana de 100 GPD, PFAS y microplásticos, alcalino BioCera y post-carbón";
-      return m.tanque ? `7 etapas (${etapas}) con tanque de ${m.tanque} gal y grifo de largo alcance; no usa electricidad. Da los ${beber} de beber y cocinar al día.` : `Las mismas 7 etapas sin el tanque: produce al momento, con electricidad y al menos 40 psi. Da los ${beber} de beber y cocinar al día.`;
+      if (!m) return `Agua para beber del grifo, debajo del fregadero: con ${x.personas} ${x.personas === 1 ? "persona" : "personas"}, unos ${beber} al día.`;
+      return m.tanque ? `7 etapas con tanque de ${m.tanque} gal y grifo de largo alcance; no usa electricidad. Da ${beber} de beber y cocinar al día.` : `7 etapas sin tanque: produce al momento, con electricidad y al menos 40 psi. Da ${beber} de beber y cocinar al día.`;
     },
   },
 ];

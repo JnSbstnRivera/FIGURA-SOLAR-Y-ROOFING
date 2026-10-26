@@ -15,8 +15,8 @@ import { ANKER as ANKER_MODELO, esencialEn } from "./anker.mjs";
 import { PRODUCTOS, nuncaJuntas } from "./productos.mjs";
 import { LOGO } from "./logo.mjs";
 import { taller } from "./taller.mjs";
-import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, piezas } from "./piezas.mjs";
-import { escribirPagina, stepper, seccionDe, rumbosHtml } from "./pagina.mjs";
+import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, normalPs400, piezas } from "./piezas.mjs";
+import { escribirPagina, stepper, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
 
 const fmtN = (v) => Math.round(v).toLocaleString("en-US");
 const pctN = (f) => `${Math.round(f * 100)} %`;
@@ -100,7 +100,7 @@ const LUGAR_TECHO = { x: 1, y: 14.6, z: TOPZ + 4.8 };
 
 // ---------- el plano: cómo se dibuja cada producto de productos.mjs ----------
 // Cada producto del plano tiene aquí su dibujo, con el mismo id: lienzo(m) da los puntos más altos de cada modelo,
-// para que el lienzo los cuente; cielo(m), su caja, para que el sol y la luna den la vuelta por fuera; y dibujar(p)
+// para que el lienzo los cuente; cielo(m), su caja, para que el sol y la luna pasen por fuera de ella; y dibujar(p)
 // pone sus piezas (más abajo, con las de la casa). Cada pieza lleva `parte(id, parte)`: el `on` de su sombra y el
 // atributo con que la página la prende y la apaga; la parte es un modelo o una de las partes del producto. `mide`
 // le pasa a la página lo que midió el dibujo de un modelo, como la mirilla de cada cisterna.
@@ -259,13 +259,14 @@ gargola("gargola.e", [-29.5, SE[1], 42.2], [-26.5, SE[1] + 4, 44.2], "y");
   cyl("vent.cap", vx, vy, 2.2, TOPZ + 9, TOPZ + 10, { tone: "mid" }, { steps: 28 });
 }
 
-// ventanas tipo Miami (persianas de aluminio) y puerta
+// ventanas tipo Miami (persianas de aluminio) y puerta. En la fachada sur (la cara +x, la más clara) las líneas van en
+// tono "mid": en tema claro el "lo" es casi del color de la cara y no se ve.
 function louverSouth(name, y0, y1, z0, z1) {
   const X = HX1 + 0.7;
   const i = 1.2;
   const lines = [];
   for (let z = z0 + i + 1.6; z < z1 - i - 0.4; z += 1.6) lines.push(k.segment([X, y0 + i, z], [X, y1 - i, z], P));
-  const extra = Ln(path3([[X, y0 + i, z0 + i], [X, y1 - i, z0 + i], [X, y1 - i, z1 - i], [X, y0 + i, z1 - i]], true), { tone: "lo" }) + Ln(lines.join(""), { tone: "lo" });
+  const extra = Ln(path3([[X, y0 + i, z0 + i], [X, y1 - i, z0 + i], [X, y1 - i, z1 - i], [X, y0 + i, z1 - i]], true), { tone: "mid" }) + Ln(lines.join(""), { tone: "mid" });
   box(`${name}.frame`, [HX1, y0, z0], [X, y1, z1], { tone: "mid" }, { r: 0.2, extra });
   box(`${name}.sill`, [HX1, y0 - 1, z0 - 1.2], [HX1 + 1.8, y1 + 1, z0], { tone: "mid" }, { r: 0.2 });
 }
@@ -285,7 +286,7 @@ louverEast("win.e1", 28, 40, 24.4, 33.4);
   const X = HX1 + 0.7;
   const [y0, y1] = [-56, -44];
   const panelOf = (za, zb) => path3([[X, y0 + 1.6, za], [X, y1 - 1.6, za], [X, y1 - 1.6, zb], [X, y0 + 1.6, zb]], true);
-  const extra = Ln(panelOf(5.4, 15), { tone: "lo" }) + Ln(panelOf(16.6, 26), { tone: "lo" }) + Dots([at([X, y1 - 2.4, 15.8])], { size: 0.6, tone: "hi" });
+  const extra = Ln(panelOf(5.4, 15), { tone: "mid" }) + Ln(panelOf(16.6, 26), { tone: "mid" }) + Dots([at([X, y1 - 2.4, 15.8])], { size: 0.6, tone: "hi" });
   box("door", [HX1, y0, WALL_Z[0]], [X, y1, 28], { tone: "mid" }, { r: 0.2, extra });
   box("door.step", [PLINTH.x + PLINTH.w, y0 - 2, 0], [PLINTH.x + PLINTH.w + 5, y1 + 2, WALL_Z[0]], { tone: "mid" }, { r: 0.4 });
 }
@@ -976,7 +977,7 @@ A.settle(R, P, { skip: (a, b) => A.sameRun(a, b) || excluyentes(a, b) });
 R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
-// ---------- cielo: el sol y la luna dan la vuelta por fuera de la maqueta (cieloDe, en taller.mjs) ----------
+// ---------- cielo: el sol y la luna pasan por encima de la maqueta (cieloDe, en taller.mjs) ----------
 // El contorno sale de las puntas de lo que más asoma del dibujo: la base, el techo y sus placas, el aire, lo que se
 // ponga en el techo, el transformador, el poste y el mástil.
 const PUNTAS = [
@@ -995,6 +996,9 @@ const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
 const DATA = { P, start: START, flows: {}, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180 };
 DATA.agua = { personas: 4 };
 DATA.medidas = MEDIDAS;
+// el plano de las placas del Anker (las PS400, las PS200 y las del kit solar del E10), inclinadas 40° hacia donde
+// miran las del techo: con él les llega el sol en el día (live.js), como en el apartamento
+DATA.ps400 = { normal: normalPs400().map((v) => Math.round(v * 1e6) / 1e6) };
 Object.assign(DATA.flows, {
   dc: "pv",
   "dc.dentro": "pv",
@@ -1022,14 +1026,15 @@ Object.assign(DATA.flows, {
 });
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone un Anker SOLIX con su batería en el suelo junto al panel, su transfer switch en la pared y de una a ocho placas PS400 abiertas en el patio, aparte de las placas del techo. Lo que va en el suelo junto a la pared queda bajo un cobertizo de aluminio con el techo transparente. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna dan la vuelta por fuera de la maqueta, del lado de donde viene su luz, la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone el respaldo de Anker SOLIX, aparte de las placas del techo: el portátil con su transfer switch en la pared y de una a ocho placas abiertas en el patio, o el E10 para toda la casa, con sus baterías, su caja en la pared y el generador afuera; y aparte, la nevera EverFrost. Lo que va en el suelo junto a la pared queda en un cuarto de equipos de bloques, con sus paredes y su techo transparentes para ver adentro. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, cielo] });
 
-const about = `<p>Corre el día con el reproductor, o salta de hora con las escenas, y mira a dónde va la energía: a la casa, a la batería o a LUMA. Escribe el consumo de cada mes, suma o quita placas y baterías, y compara con lo que sugiere el cotizador. Cambia hacia dónde miran las placas: la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Anker escoge un Anker SOLIX con sus placas PS400: de día lo cargan, de noche mantiene lo esencial y la ficha dice para cuántas horas alcanza sin LUMA. En la pestaña Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y la ficha dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio.</p>`;
+const about = `<p>Corre el día con el reproductor y mira a dónde va la energía: a la casa, a la batería o a LUMA. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En Energía suma o quita placas y baterías, cambia hacia dónde miran las placas (la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora: TOF, acceso solar y TSRF) y escribe el consumo de cada mes para compararlo con lo que sugiere el cotizador. En Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y el panel dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio. En Anker escoge el respaldo (el portátil con sus placas o el E10 para toda la casa), su modelo y cuántas placas o baterías lleva: de día lo cargan sus placas, de noche mantiene lo esencial y el panel dice para cuántas horas alcanza sin LUMA.</p>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
-// Panel de controles: en pantalla ancha va a la derecha de la figura. Dos pestañas sutiles arriba, en el
-// lugar del título del primer grupo para no sumar alto: Energía (placas y baterías primero) y Agua (las
-// personas de la casa, el calentador solar y la cisterna).
+// Panel de controles: en pantalla ancha va a la derecha de la figura. Arriba, las pestañas Energía, Agua y Anker, y
+// cada una en pasos numerados: en Energía, las placas y las baterías (primero, para sumarlas sin bajar), hacia dónde
+// miran y el consumo del cliente; en Agua, las personas, el calentador solar, la cisterna y el suavizador; en Anker, el
+// respaldo en pasos (pagina.mjs) y aparte la nevera. Solo se ve lo que aplica a lo escogido.
 const controls = `
 <div class="sr-controls">
   <div class="sr-tabs" role="tablist" aria-label="Qué mirar">
@@ -1039,26 +1044,20 @@ const controls = `
   </div>
   <div class="sr-panel" id="sr-panel-energia" role="tabpanel" aria-labelledby="sr-tab-energia" data-panel="energia">
   <section class="sr-group" aria-label="Placas y baterías">
+    ${tag("Placas y baterías", 1)}
     <div class="sr-system">
       <span class="sr-lab">Placas nuevas de ${BASE.vatios} W</span>${stepper("nuevas", "una placa nueva")}
       <span class="sr-lab">Placas que ya tenía</span><span class="sr-inline">${stepper("existentes", "una placa que ya tenía")}<label>de <input class="sr-input sr-w" type="number" data-vatios min="${LIMITES.vatios[0]}" max="${LIMITES.vatios[1]}" step="5" inputmode="numeric" value="${EJEMPLO.existentes.w}" aria-label="Vatios de cada placa que ya tenía"> W</label></span>
       <span class="sr-lab">Powerwall de ${BASE.bateria} kWh</span>${stepper("baterias", "una batería")}
     </div>
-    <div class="sr-row sr-rumbo-row">${rumbosHtml("Miran al")}</div>
     <div class="sr-row"><button type="button" class="sr-btn" data-reset>Volver a lo sugerido</button><p class="sr-warn" data-warn></p></div>
-  </section>${PRODUCTOS.filter((p) => p.pestaña === "energia").map((p) => `\n  ${seccionDe(p)}`).join("")}
-  <section class="sr-group" aria-label="Escenas del día">
-    <p class="sr-tag">Hora del día</p>
-    <div class="sr-row">
-      <button type="button" class="sr-btn" data-scene="5">Madrugada</button>
-      <button type="button" class="sr-btn" data-scene="10">Mañana</button>
-      <button type="button" class="sr-btn" data-scene="15">Tarde</button>
-      <button type="button" class="sr-btn" data-scene="21">Noche</button>
-    </div>
-    <p class="sr-now" data-now></p>
   </section>
+  <section class="sr-group" aria-label="Hacia dónde miran las placas">
+    ${tag("Hacia dónde miran las placas", 2)}
+    <div class="sr-row sr-rumbo-row">${rumbosHtml("Miran al", true)}</div>
+  </section>${PRODUCTOS.filter((p) => p.pestaña === "energia").map((p) => `\n  ${seccionDe(p)}`).join("")}
   <section class="sr-group" aria-label="Consumo del cliente por mes">
-    <p class="sr-tag">Consumo del cliente</p>
+    ${tag("Consumo del cliente", 3)}
     <div class="sr-row">
       <label>Mes <select class="sr-input" data-mes>${monthOptions}</select></label>
       <label><input class="sr-input" type="number" data-mes-kwh min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="${EJEMPLO.meses[EJEMPLO.mes]}" aria-label="Consumo del mes elegido en kWh"> kWh</label>
@@ -1076,30 +1075,15 @@ const controls = `
   </div>
   <div class="sr-panel" id="sr-panel-agua" role="tabpanel" aria-labelledby="sr-tab-agua" data-panel="agua" hidden>
   <section class="sr-group" aria-label="Personas en la casa">
-    <div class="sr-system"><span class="sr-lab">Personas en la casa</span>${stepper("personas", "una persona")}</div>
+    ${tag("Personas", 1)}
+    <div class="sr-system"><span class="sr-lab">Viven en la casa</span>${stepper("personas", "una persona")}</div>
     <p class="sr-nota" data-agua="uso"></p>
   </section>
-  ${PRODUCTOS.filter((p) => p.pestaña === "agua").map(seccionDe).join("\n  ")}
-  <section class="sr-group" aria-label="El agua en este momento">
-    <p class="sr-tag">En este momento</p>
-    <dl class="sr-agua-ficha">
-      <div><dt>Agua caliente</dt><dd data-agua="temp"></dd></div>
-      <div><dt>Cisterna</dt><dd data-agua="nivel"></dd></div>
-      <div><dt>Ahorro de luz</dt><dd data-agua="ahorro"></dd></div>
-      <div><dt>Techo</dt><dd data-agua="techo"></dd></div>
-    </dl>
-  </section>
+  ${PRODUCTOS.filter((p) => p.pestaña === "agua").map((p, i) => seccionDe(p, i + 2)).join("\n  ")}
   </div>
   <div class="sr-panel" id="sr-panel-anker" role="tabpanel" aria-labelledby="sr-tab-anker" data-panel="anker" hidden>
-  ${PRODUCTOS.filter((p) => p.pestaña === "anker").map(seccionDe).join("\n  ")}
-  <section class="sr-group" aria-label="El Anker en este momento">
-    <p class="sr-tag">En este momento</p>
-    <dl class="sr-agua-ficha">
-      <div><dt>Batería</dt><dd data-anker="bateria"></dd></div>
-      <div><dt>Placas</dt><dd data-anker="ps400"></dd></div>
-      <div><dt>Lo esencial</dt><dd data-anker="esencial"></dd></div>
-    </dl>
-  </section>
+  ${respaldoHtml(PRODUCTOS.filter((p) => p.pestaña === "anker" && p.rol === "respaldo"))}
+  ${PRODUCTOS.filter((p) => p.pestaña === "anker" && p.rol !== "respaldo").map((p) => seccionDe(p)).join("\n  ")}
   </div>
 </div>`;
 // Ficha del sistema: una franja de datos arriba de la tarjeta, para que la casa use todo el alto.
@@ -1111,7 +1095,7 @@ const caption =
   `La brújula de la base gira con el rumbo de las placas y su marca fija señala hacia dónde miran. El rumbo cambia lo que dan las placas según PVWatts v8 de NREL para San Juan a ${SOL.inclinacion}° de inclinación: al sur, ${fmtN(rumboDe(180).kwh)} kWh por kW al año; al este, ${pctN(factorRumbo(90))} de eso; al oeste, ${pctN(factorRumbo(270))}; al norte, ${pctN(factorRumbo(0))}. Con el sur, la figura da lo mismo que el cotizador. ` +
   `Las sombras salen del sol de cada momento y de las piezas del dibujo: el aire, el tubo de ventilación, el mástil, el poste, las mismas filas de placas y lo que se ponga de agua en el techo. La Hércules 600 va en la franja oeste del techo, al lado de las placas: con las placas al sur su sombra les cae de tarde a las del extremo oeste, y al norte, de mañana. Como a esas horas el sol ya está bajo, en el año les quita poco: la placa más cercana pierde de 3 a 4 % de su sol y el sistema, unas décimas, que la ficha muestra al lado del TSRF. Como en Aurora, el acceso solar es la parte del sol del año (directo y difuso, del año típico de PVGIS) que les llega a las placas con esas sombras; el TOF es el sol que recibe su plano frente al mejor plano de San Juan (sur a unos 17°, ${pctN(tofDe(180))} para el sur a ${SOL.inclinacion}°), y el TSRF es TOF × acceso solar. La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar, y en el día la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras. ` +
   `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. El calentador solar Soltek va al fondo del techo, en el lugar de las últimas placas (el 80/1 y el 80/2 ocupan dos lugares, el 120/3 tres y el 120/4 cuatro): colectores de 34" × 76" con 7 tubos de cobre inclinados 18°, y el tanque acostado de 82 o 119 galones con su resistencia de 4,500 W de respaldo; el cotizador lo sugiere por personas (1 a 2, 80/1; 3 a 4, 80/2; 5 a 6, 120/3; 7 o más, 120/4). Las cisternas Eco 500 (74" × 32"), Hércules 600 (56" × 61") y Eco 1,000 (sin medidas en el PDF: se dibuja de 64" × 76") van en el techo, con su bomba de ¾ HP y su presurizado de 40 galones junto a la pared; la Torre 150 va adentro, pegada a la pared, y queda para el apartamento. El suavizador POE Water Care va donde el agua entra a la casa: prefiltro de sedimento de 5 micras en carcasa transparente de 10", tanque de 10" × 54" con carbón activado y resina (o el de 13" × 54", de más capacidad) con su válvula electrónica, tanque de sal de 18" × 36" y luz UV Viqua VH410; el agua le llega de la bomba, o de la AAA si no hay cisterna. Las cisternas, el tanque del calentador y el tanque de sal llevan el logo de Windmar. ` +
-  `La pestaña Anker pone un Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual), la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático) o la F3800 Plus con la batería de expansión BP3800 (7.68 kWh). Va aparte de las placas del techo, con sus propias placas PS400 de 400 W abiertas en el patio, y mantiene lo esencial de la casa por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Empieza con dos PS400 (tres con la BP3800) y con − y + se ponen de una hasta las que admite su entrada solar, según las fichas: la F2600 tiene una sola entrada de 1,000 W y le caben dos PS400 en paralelo, y la F3800 Plus tiene dos de 1,600 W y le caben ocho (dos en serie y dos de esas en paralelo por entrada); en el patio caben las ocho. La estación, su batería de expansión y su transfer switch van bajo el cobertizo, con el suavizador, la bomba y el presurizado: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable, así que nada de eso va a la intemperie. Las PS400 sí van afuera: son IP67. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol del plano de las placas del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
+  `La pestaña Anker pone el respaldo de Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker, aparte de las placas del techo y paso a paso: el tipo, el modelo, sus placas o sus baterías y los extras. El portátil es la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800), con sus placas abiertas en el patio: con − y + se ponen de una hasta las que admite su entrada solar, según las fichas (dos PS400 o cuatro PS200 la F2600, que tiene una sola entrada de 1,000 W; ocho PS400 la F3800 Plus, que tiene dos de 1,600 W). El SOLIX E10 es para toda la casa: su módulo de 7.68 kW sobre una a cinco baterías B6000 de 6.144 kWh (con cuatro o más, en la montura de pared), su caja en la pared (la Smart Inlet Box o la Power Dock), las 4 placas de 400 W del kit solar y el Smart Generator 5500 afuera. Aparte va la nevera EverFrost, con su propia batería. Mantiene lo esencial de la casa: de día lo cubren sus placas y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA (o el generador del E10). La estación, el E10 y la nevera van en el cuarto de equipos: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable, así que nada de eso va a la intemperie. Las placas sí van afuera. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las placas entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol de su propio plano, inclinado 40° hacia donde miran las del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
   `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. No muestra dinero.`;
 

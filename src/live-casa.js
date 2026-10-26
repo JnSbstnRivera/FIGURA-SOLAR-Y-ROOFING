@@ -2,7 +2,6 @@
 // techo sobre las placas, el sistema que arma el cotizador de LUMA, la ficha, los controles de la pestaña Energía,
 // la gráfica de 12 meses y lo que dicen la figura y el lector de pantalla. Va después de live.js (lo común), que
 // llama a sus ganchos (ESCENA_VIVA), y termina arrancando la página.
-const nowLine = doc("[data-now]");
 const kw = (watts) => fmt(watts / 1000, 2);
 
 // ---------- partes del dibujo ----------
@@ -131,9 +130,8 @@ const say = (s) =>
   narrow.matches
     ? `${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
     : `placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
-// La frase completa es para el lector de pantalla; la corta va en el panel, porque los números
-// de placas, batería y LUMA ya están en el reproductor.
-function explain(h, brief = false) {
+// Lo que pasa a esa hora, para el lector de pantalla (en pantalla lo dice el reproductor).
+function explain(h) {
   const s = sample(h);
   let what;
   if (!S.baterias) {
@@ -148,7 +146,6 @@ function explain(h, brief = false) {
   else what = "las placas cubren justo lo que usa la casa";
   const day = `${s.net >= -0.005 ? "enviados a" : "tomados de"} LUMA en el día: ${Math.abs(s.net).toFixed(1)} kWh`;
   const bat = S.baterias ? `batería ${Math.round(s.soc * 100)} %` : "sin batería";
-  if (brief) return `${cap(MESES[S.mes])}, ${clock(h)}: ${what}; la casa usa ${s.load.toFixed(1)} kW.`;
   return `${cap(MESES[S.mes])}, ${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${s.load.toFixed(1)} kW, ${bat}; ${day}.`;
 }
 
@@ -344,9 +341,10 @@ const cols = Array.from({ length: 12 }, (_, i) => {
 // En una ventana ancha pero baja la gráfica se achata para que la columna de controles quepa sin bajar.
 const short = matchMedia("(min-width: 1100px) and (max-height: 720px)");
 const shorter = matchMedia("(min-width: 1100px) and (max-height: 680px)");
+const shortest = matchMedia("(min-width: 1100px) and (max-height: 640px)");
 function layoutChart() {
   const width = Math.max(300, Math.round(chartSvg.parentElement.clientWidth));
-  const height = shorter.matches ? 110 : short.matches ? 122 : 166;
+  const height = shortest.matches ? 98 : shorter.matches ? 110 : short.matches ? 122 : 166;
   if (width === CH.W && height === CH.H) return;
   CH.W = width;
   CH.H = height;
@@ -657,17 +655,15 @@ const ESCENA_VIVA = {
       }
     });
   },
-  // la ficha, los controles de Energía, la gráfica y, en la pestaña Agua, lo que ocupa lugares de placas
+  // la ficha, los controles de Energía y la gráfica (lo que ocupa lugares de placas lo dice la nota del calentador)
   actualiza() {
     updateFicha();
     updateControls();
     updateChart();
-    const enLugares = ocupan(S.escogido);
-    AQ.techo.textContent = enLugares.length ? `${enLugares.map(([p, m]) => `${p.articulo} ${p.nombre} ocupa ${m.lugares} lugares de placas`).join(" y ")}; caben ${capacidad()}` : `caben ${D.slots} placas`;
   },
   muestra: (hour) => sample(hour),
   // el vidrio de las placas con el sol, las luces de las baterías y del inversor, el ventilador del aire (más rápido
-  // cuanto más usa la casa), el medidor de LUMA y la frase de este momento en la pestaña Energía
+  // cuanto más usa la casa) y el medidor de LUMA
   dibuja(s, hora, dt, calm) {
     const sun = (((document.body.dataset.theme === "dark" ? 0.45 : 0.62) * s.pv) / pvPeak).toFixed(3);
     for (const el of suns) el.style.opacity = sun;
@@ -677,8 +673,6 @@ const ESCENA_VIVA = {
     fan.setAttribute("transform", `rotate(${spin.toFixed(1)})`);
     const value = (s.net >= -0.005 ? "+" : "−") + Math.abs(s.net).toFixed(1);
     if (lcd.textContent !== value) lcd.textContent = value;
-    const line = explain(hora, true);
-    if (nowLine.textContent !== line) nowLine.textContent = line;
   },
   dice: (s) => say(s),
   explica: (h) => explain(h),
@@ -693,6 +687,7 @@ const ESCENA_VIVA = {
     new ResizeObserver(() => layoutChart()).observe(chartSvg.parentElement);
     short.addEventListener("change", layoutChart);
     shorter.addEventListener("change", layoutChart);
+    shortest.addEventListener("change", layoutChart);
   },
 };
 arrancar();

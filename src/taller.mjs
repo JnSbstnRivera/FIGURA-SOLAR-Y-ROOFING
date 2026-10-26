@@ -271,7 +271,7 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
     return `<path class="sr-logo-sol" d="${trazo(LOGO.sol)}"/><path class="sr-logo-azul" d="${trazo(LOGO.azul)}"/>`;
   }
 
-  // ---------- cielo: el sol y la luna dan la vuelta por fuera de la maqueta ----------
+  // ---------- cielo: el sol y la luna pasan por encima de la maqueta ----------
   // Cada uno va en la dirección de pantalla de su dirección real, la de donde viene su luz, justo afuera del
   // contorno de la maqueta: nunca pasa por detrás de ella y las sombras caen siempre del lado contrario
   // (de mañana sale por el lado de atrás, a mediodía va arriba y de tarde baja por el frente). El contorno es

@@ -199,7 +199,7 @@ body.iso{font-family:var(--sr-font)}
 .it[data-tubo] .iso-shade[data-shade="1"]{fill:color-mix(in oklab,var(--anatomy-shade-1),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
 .it[data-tubo] .iso-shade[data-shade="2"]{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
 .it[data-tubo] .iso-shade[data-shade="3"]{fill:color-mix(in oklab,var(--anatomy-shade-3),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
-/* el cielo: el sol y la luna llena dan la vuelta por fuera de la maqueta, con su textura; los colores no
+/* el cielo: el sol y la luna llena pasan por encima de la maqueta, con su textura; los colores no
    cambian con el tema porque el sol y la luna se ven igual de día y de noche */
 .sr-sol-halo{fill:url(#sr-sol-halo)}
 .sr-halo-0{stop-color:var(--wm-orange-300);stop-opacity:.6}
@@ -350,7 +350,6 @@ input.sr-input.sr-w{width:4.6em}
 .sr-btn:disabled{opacity:.4;cursor:default;box-shadow:0 0 0 1px var(--anatomy-faint)}
 .sr-btn[aria-pressed="true"]{box-shadow:0 0 0 1px var(--anatomy-hi),inset 0 -2px 0 var(--wm-orange)}
 .sr-btn:focus-visible,.sr-input:focus-visible,.sr-col:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
-.sr-now{margin:0;min-height:2.9em;color:var(--anatomy-strong)}
 .sr-row label{display:inline-flex;align-items:center;gap:6px}
 .sr-input{font:500 12.5px/1.2 var(--sr-font);color:var(--anatomy-strong);background:var(--anatomy-card);border:0;border-radius:0;box-shadow:0 0 0 1px var(--anatomy-mid);padding:5px 6px;min-height:32px;font-variant-numeric:tabular-nums}
 input.sr-input{width:5.6em}
@@ -371,30 +370,32 @@ input.sr-input{width:5.6em}
 .sr-switch[aria-checked="true"] .sr-switch-pista::after{transform:translateX(14px);background:var(--wm-white)}
 .sr-switch:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 .sr-warn:empty{display:none}
-/* pestañas Energía y Agua: sutiles, en el lugar del título del primer grupo (texto con línea naranja) */
-/* del mismo alto que el título que reemplaza: la línea naranja es un subrayado y no suma alto, y el margen de
-   abajo quita lo que la columna separa de más (su espacio entre grupos contra el de dentro de un grupo) */
-.sr-tabs{display:flex;gap:20px;margin:0 0 -4px}
-.sr-tab{font:600 10.5px/1.2 var(--sr-font);letter-spacing:.12em;text-transform:uppercase;color:var(--anatomy-text);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline 2px transparent;text-underline-offset:4px;transition:color .15s,text-decoration-color .15s}
+/* pestañas Energía, Agua y Anker: botones del mismo ancho en una franja, como el selector Casa | Apartamento; la
+   escogida con fondo y la línea naranja abajo */
+.sr-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-lo)}
+.sr-tab{min-height:34px;padding:0 10px;font:600 12.5px/1 var(--sr-font);color:var(--anatomy-text);background:none;border:0;cursor:pointer;transition:color .15s,background-color .15s}
+.sr-tab+.sr-tab{border-left:1px solid var(--anatomy-lo)}
 .sr-tab:hover{color:var(--anatomy-strong)}
-.sr-tab[aria-selected="true"]{color:var(--anatomy-strong);text-decoration-color:var(--wm-orange)}
+.sr-tab[aria-selected="true"]{color:var(--anatomy-strong);background:var(--sr-sel);box-shadow:inset 0 -2px 0 var(--wm-orange)}
 .sr-tab:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 .sr-panel{display:grid;gap:inherit}
 .sr-panel[hidden]{display:none}
 .sr-panel>.sr-group:first-child{padding-top:0;border-top:0}
+/* los pasos de cada pestaña: su número en un círculo antes del título; lo que no aplica a lo escogido se esconde */
+.sr-num{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:7px;border-radius:50%;background:var(--anatomy-strong);color:var(--anatomy-card);font:700 10px/1 var(--sr-font);letter-spacing:0;vertical-align:1px}
+.sr-controls [hidden]{display:none!important}
+.sr-hint{color:var(--anatomy-text);font-weight:500}
 /* calentador y cisterna: botones de una escogida, todos del mismo ancho; el sugerido lleva un punto naranja */
 .sr-opciones{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;max-width:340px}
 .sr-opcion{position:relative;padding:6px 0;min-width:0}
 .sr-opcion[aria-checked="true"]{box-shadow:0 0 0 1px var(--anatomy-hi),inset 0 -2px 0 var(--wm-orange)}
 .sr-opcion[data-sugerido]::after{content:"";position:absolute;top:3px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--wm-orange)}
 .sr-nota{margin:0;color:var(--anatomy-text);text-wrap:pretty}
-.sr-agua-ficha{display:grid;gap:3px;margin:0}
-.sr-agua-ficha>div{display:grid;grid-template-columns:7.5em minmax(0,1fr);gap:8px}
-.sr-agua-ficha dt{color:var(--anatomy-text)}
-.sr-agua-ficha dd{margin:0;color:var(--anatomy-strong);font-weight:600;font-variant-numeric:tabular-nums}
-/* lo que baja el TSRF por el tanque, al lado del valor; en una celda angosta queda solo el número y el
-   TOF con el acceso pasan a dos renglones (con un decimal no caben en uno) */
-.sr-kpi-d{margin-left:6px;font:600 11px/1 var(--sr-font);color:var(--anatomy-text);vertical-align:1px}
+/* lo que baja el TSRF por el tanque, al lado del valor; si no cabe al lado (con "por calentador y cisterna"), baja a
+   su renglón en vez de salirse de la celda. En una celda angosta queda solo el número y el TOF con el acceso pasan a
+   dos renglones (con un decimal no caben en uno) */
+.sr-kpi-v:has(> .sr-kpi-d){display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
+.sr-kpi-d{font:600 11px/1 var(--sr-font);color:var(--anatomy-text)}
 @container kpi (max-width:164px){
   .sr-kpi-dl{display:none}
   .sr-kpi-s[data-f="tof"]{white-space:normal}
@@ -485,7 +486,7 @@ input.sr-input{width:5.6em}
   .sr-controls{font-size:12px;gap:10px}
   .sr-group{gap:7px;padding-top:9px}
   .sr-btn,.sr-input,.sr-switch{min-height:28px}
-  .sr-tabs{margin-bottom:-3px}
+  .sr-tab{min-height:30px}
   .sr-btn{padding:4px 8px}
   .sr-pm{min-width:28px}
   .sr-system{gap:6px 16px}
@@ -495,30 +496,14 @@ input.sr-input{width:5.6em}
   .sr-head h1{font-size:17px}
   .sr-controls{gap:8px}
   .sr-group{gap:6px;padding-top:8px}
-  .sr-tabs{margin-bottom:-2px}
   .sr-system{gap:4px 16px}
   .sr-chart{gap:4px}
   .sr-more{margin-top:10px}
 }
-/* Más baja todavía: la gráfica queda solo con su leyenda (el grupo ya dice "Consumo del cliente")
-   y, al final, la frase del momento se quita del panel (los números siguen en el reproductor). */
+/* Más baja todavía: la gráfica queda solo con su leyenda (el paso ya dice "Consumo del cliente"). */
 @media (min-width:1100px) and (min-height:600px) and (max-height:680px){
   .sr-chart-title{display:none}
   .sr-head h1{font-size:16px}
-}
-@media (min-width:1100px) and (min-height:600px) and (max-height:640px){
-  .sr-now{display:none}
-}
-/* Pestaña Agua en ventanas de laptop (hasta 780 de alto): de "En este momento" se quitan la temperatura y el nivel,
-   que ya dice el reproductor, y la nota del uso (las de la cisterna y el suavizador dicen los galones); más baja
-   todavía, la sección entera. */
-@media (min-width:1100px) and (min-height:600px) and (max-height:780px){
-  .sr-agua-ficha div:has(> [data-agua="temp"]),.sr-agua-ficha div:has(> [data-agua="nivel"]),.sr-nota[data-agua="uso"]{display:none}
-  /* en la pestaña Anker, "En este momento" entero: el reproductor ya dice las placas, lo esencial y la batería */
-  .sr-group:has(> .sr-agua-ficha [data-anker]){display:none}
-}
-@media (min-width:1100px) and (min-height:600px) and (max-height:640px){
-  .sr-group:has(> .sr-agua-ficha){display:none}
 }
 
 /* Con el dedo el selector de escena mide 44 px: la franja de arriba de la tarjeta crece para que quepa (va al final

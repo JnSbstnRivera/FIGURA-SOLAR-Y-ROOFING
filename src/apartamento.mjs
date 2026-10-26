@@ -10,7 +10,7 @@ import { AGUA } from "./agua.mjs";
 import { ANKER as ANKER_MODELO, esencialEn } from "./anker.mjs";
 import { taller } from "./taller.mjs";
 import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, normalPs400, piezas } from "./piezas.mjs";
-import { escribirPagina, stepper, seccionDe, rumbosHtml } from "./pagina.mjs";
+import { escribirPagina, stepper, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
 
 globalThis.ESCENA_FIGURA = "apartamento";
 const { PRODUCTOS, nuncaJuntas } = await import("./productos.mjs");
@@ -506,7 +506,7 @@ A.settle(R, P, { skip: (a, b) => A.sameRun(a, b) || excluyentes(a, b) });
 R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
-// ---------- cielo: el sol y la luna dan la vuelta por fuera de la maqueta (cieloDe, en taller.mjs) ----------
+// ---------- cielo: el sol y la luna pasan por encima de la maqueta (cieloDe, en taller.mjs) ----------
 const PUNTAS = [
   ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
   ...k.boxCorners({ x: AP.x0 - MURO, y: AP.y0 - MURO, w: AP.x1 - AP.x0 + 2 * MURO, d: AP.y1 - AP.y0 + 2 * MURO }, PISO, TECHO.z0 + TECHO.grueso),
@@ -517,10 +517,10 @@ const START = 12.5;
 const DATA = { P, start: START, flows: { agua: "agua", potable: "potable", ps400: "ps400", anker: "anker" }, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180, agua: { personas: 3 }, medidas: MEDIDAS, ps400: { normal: normalPs400().map((v) => Math.round(v * 1e6) / 1e6) } };
 
 const LABEL_TEXT =
-  "Maqueta en corte de un apartamento en Puerto Rico con lo de Windmar Home que va adentro: la cocina contra la pared norte, con la nevera y el fregadero, el panel de breakers en la pared este y el balcón al sur, con su baranda de vidrio, y el techo transparente, con dos plafones que de noche quedan prendidos. Con la pestaña Anker se pone un Anker SOLIX en el piso debajo del panel, con su transfer switch de apartamento en la pared y sus placas PS400 abiertas en el balcón. Con la pestaña Agua se ponen la cisterna Torre 150 en la esquina, con su bomba y su presurizado, y la ósmosis inversa debajo del fregadero, con su dispensador en el tope. En la base, una brújula cuya tarjeta gira con el rumbo del balcón. Los trazos corren por los cables y los tubos en el sentido en que va la energía o el agua; el sol y la luna dan la vuelta por fuera de la maqueta y cada pieza echa la sombra de ese momento.";
+  "Maqueta de un apartamento en Puerto Rico con lo de Windmar Home que va adentro, con sus paredes, sus tabiques y su techo transparentes para ver adentro: sala con la cocina contra la pared norte, con la nevera y el fregadero, una alcoba y un baño al oeste, el panel de breakers en la pared este y el balcón al sur, con su puerta corrediza y su baranda de vidrio; de noche sus cuatro plafones quedan prendidos. Con la pestaña Anker se pone un Anker SOLIX en el piso debajo del panel, con su transfer switch de apartamento en la pared y sus placas abiertas en el balcón, y aparte la nevera EverFrost en la cocina. Con la pestaña Agua se ponen la cisterna Torre 150 en la esquina, con su bomba y su presurizado, y la ósmosis inversa debajo del fregadero, con su dispensador en el tope. En la base, una brújula cuya tarjeta gira con el rumbo del balcón. Los trazos corren por los cables y los tubos en el sentido en que va la energía o el agua; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), y cada pieza echa la sombra de ese momento.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, halos, cielo] });
 
-const about = `<p>Corre el día con el reproductor y mira a dónde va la energía del Anker y el agua del apartamento. En la pestaña Anker escoge un Anker SOLIX con sus placas PS400 en el balcón y hacia dónde mira el balcón: la brújula gira, las sombras se mueven y la ficha dice cuánto le dan las PS400 a lo esencial y para cuántas horas alcanza la batería sin LUMA. En la pestaña Agua escoge cuántas personas viven, la cisterna Torre 150 y la ósmosis inversa: el agua corre por los tubos con el uso de cada hora y la ficha dice para cuánto alcanza la cisterna si la AAA corta el servicio y cuánta agua de beber da la ósmosis.</p>`;
+const about = `<p>Corre el día con el reproductor y mira a dónde va la energía del Anker y el agua del apartamento. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En la pestaña Anker escoge el modelo, cuántas placas van en el balcón y hacia dónde mira el balcón: la brújula gira, las sombras se mueven y la ficha dice cuánto les dan las placas a lo esencial y para cuántas horas alcanza la batería sin LUMA. En la pestaña Agua escoge cuántas personas viven, la cisterna Torre 150 y la ósmosis inversa: el agua corre por los tubos con el uso de cada hora y la ficha dice para cuánto alcanza la cisterna si la AAA corta el servicio y cuánta agua de beber da la ósmosis.</p>`;
 const controls = `
 <div class="sr-controls">
   <div class="sr-tabs" role="tablist" aria-label="Qué mirar">
@@ -528,40 +528,31 @@ const controls = `
     <button type="button" class="sr-tab" role="tab" id="sr-tab-agua" aria-controls="sr-panel-agua" aria-selected="false" tabindex="-1" data-tab="agua">Agua</button>
   </div>
   <div class="sr-panel" id="sr-panel-anker" role="tabpanel" aria-labelledby="sr-tab-anker" data-panel="anker">
-  ${PRODUCTOS.filter((p) => p.pestaña === "anker").map(seccionDe).join("\n  ")}
-  <section class="sr-group" aria-label="El balcón">
-    <div class="sr-row sr-rumbo-row">${rumbosHtml("El balcón mira al")}</div>
-  </section>
-  <section class="sr-group" aria-label="El Anker en este momento">
-    <p class="sr-tag">En este momento</p>
-    <dl class="sr-agua-ficha">
-      <div><dt>Batería</dt><dd data-anker="bateria"></dd></div>
-      <div><dt>Placas PS400</dt><dd data-anker="ps400"></dd></div>
-      <div><dt>Lo esencial</dt><dd data-anker="esencial"></dd></div>
-    </dl>
-  </section>
+  ${respaldoHtml(
+    PRODUCTOS.filter((p) => p.pestaña === "anker" && p.rol === "respaldo"),
+    `
+  <section class="sr-group" aria-label="Hacia dónde mira el balcón">
+    ${tag("Hacia dónde mira el balcón", 3)}
+    <div class="sr-row sr-rumbo-row">${rumbosHtml("El balcón mira al", true)}</div>
+  </section>`,
+  )}
+  ${PRODUCTOS.filter((p) => p.pestaña === "anker" && p.rol !== "respaldo").map((p) => seccionDe(p)).join("\n  ")}
   </div>
   <div class="sr-panel" id="sr-panel-agua" role="tabpanel" aria-labelledby="sr-tab-agua" data-panel="agua" hidden>
   <section class="sr-group" aria-label="Personas en el apartamento">
-    <div class="sr-system"><span class="sr-lab">Personas en el apartamento</span>${stepper("personas", "una persona")}</div>
+    ${tag("Personas", 1)}
+    <div class="sr-system"><span class="sr-lab">Viven en el apartamento</span>${stepper("personas", "una persona")}</div>
     <p class="sr-nota" data-agua="uso"></p>
   </section>
-  ${PRODUCTOS.filter((p) => p.pestaña === "agua").map(seccionDe).join("\n  ")}
-  <section class="sr-group" aria-label="El agua en este momento">
-    <p class="sr-tag">En este momento</p>
-    <dl class="sr-agua-ficha">
-      <div><dt>Cisterna</dt><dd data-agua="nivel"></dd></div>
-      <div><dt>Ósmosis</dt><dd data-agua="potable"></dd></div>
-    </dl>
-  </section>
+  ${PRODUCTOS.filter((p) => p.pestaña === "agua").map((p, i) => seccionDe(p, i + 2)).join("\n  ")}
   </div>
 </div>`;
 // Ficha del apartamento: lo del Anker y lo del agua, en una franja de datos arriba de la tarjeta.
 const kpi = (l, v, s) => `<div class="sr-kpi"><span class="sr-kpi-l">${l}</span><span class="sr-kpi-v" data-f="${v}"></span><span class="sr-kpi-s" data-f="${s}"></span></div>`;
 const ficha = `<div class="sr-kpis" role="group" aria-label="Ficha del apartamento">${kpi("Anker", "anker", "ankerKwh")}${kpi("Placas PS400", "ps", "psN")}${kpi("Balcón", "rumbo", "inclin")}${kpi("Del sol", "sol", "solDe")}${kpi("Sin LUMA", "horas", "horasDe")}${kpi("Personas", "personas", "uso")}${kpi("Cisterna", "cisterna", "reserva")}${kpi("Ósmosis", "osmosis", "beber")}</div>`;
 const caption =
-  `Maqueta en corte de un apartamento en Puerto Rico, abierta como una casa de muñecas: las paredes del sur y del oeste van cortadas a ras del piso para ver adentro, y la cocina, el panel de breakers y el balcón quedan a la vista. El techo se dibuja transparente: lo de Windmar va bajo techo, nada a la intemperie (las PS400 sí van afuera, en el balcón: son para el sol y la lluvia), y de noche sus dos plafones quedan prendidos. ` +
-  `La pestaña Anker pone un Anker SOLIX del cotizador Anker de Sun Bot, con los kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual), la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático) o la F3800 Plus con la BP3800 (7.68 kWh). En el apartamento el transfer switch es el de apartamento del cotizador y las placas PS400 van en el balcón, donde caben dos (con − y + se pone una o dos), abiertas sobre sus patas, inclinadas 40° hacia donde mira el balcón, con su cable por el piso hasta la estación. Mantiene lo esencial del apartamento por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol que les llega a su propio plano (40°, hacia donde mira el balcón), directo y difuso del equinoccio (PVGIS), menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. El balcón se dibuja sin el piso de arriba: en un balcón techado, el techo les quita a las PS400 el sol del mediodía. ` +
+  `Maqueta de un apartamento en Puerto Rico de unos 6.9 × 8 m, con sala y cocina, una alcoba y un baño. Sus paredes, sus tabiques y su techo se dibujan transparentes para ver adentro ("Ver adentro" los cierra): lo de Windmar va bajo techo, nada a la intemperie (las placas sí van afuera, en el balcón: son para el sol y la lluvia), y de noche sus cuatro plafones quedan prendidos. ` +
+  `La pestaña Anker pone, paso a paso, un Anker SOLIX del cotizador Anker de Sun Bot, con los kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800). En el apartamento el transfer switch es el de apartamento del cotizador y las placas van en el balcón, donde caben dos (con − y + se pone una o dos; con la F2600 pueden ser PS200), abiertas sobre sus patas, inclinadas 40° hacia donde mira el balcón, con su cable por el piso hasta la estación. Aparte va la nevera EverFrost, en la cocina. Mantiene lo esencial del apartamento por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol que les llega a su propio plano (40°, hacia donde mira el balcón), directo y difuso del equinoccio (PVGIS), menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. El balcón se dibuja sin el piso de arriba: en un balcón techado, el techo les quita a las PS400 el sol del mediodía. ` +
   `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. La cisterna Torre 150 (Ecowater de 150 galones, 25" × 72", "ideal para apartamentos") va adentro, en la esquina, con su bomba de ½ HP y su presurizado de 6 galones: en apartamento el kit de bombeo más grande del cotizador no es obligatorio. La ósmosis inversa de 7 etapas va debajo del fregadero: prefiltro de sedimento de 5 micras, dos de carbón en bloque de 10 micras, la membrana TFC de 100 GPD, el cartucho de PFAS y microplásticos, el alcalino BioCera y el post-filtro de carbón, con su tanque de 4 galones y el dispensador de largo alcance en el tope (y la conexión a la nevera, de ser posible); sin tanque, el Tankless RO del cotizador produce al momento, con electricidad y al menos 40 psi. La ósmosis se dibuja más grande que en la realidad para que se lea. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.beber} de ellos de beber y cocinar (los de la ósmosis), y la AAA que llena la cisterna mientras da servicio. El día es el del equinoccio (sale 6:25, se pone 18:25), con la luna llena de esa noche.`;
 
