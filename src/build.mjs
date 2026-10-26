@@ -454,11 +454,16 @@ ball("tee", [TEE.x, TEE.y, TEE.z], TEE.r, { tone: "mid" });
   pipe("trunk.s", [[ROWBOX[0].x0, TRUNK_Y, ZC], [TEE.x + RIM, TRUNK_Y, ZC]], 1.2, { flowOf: () => "trunk-s" });
 }
 
+// Las rectificaciones del sellado (pestaña Roofing): mientras se sella, el aire y el calentador suben para que el sellado
+// pase por debajo, y bajan cuando la silicona ya pasó (live-casa.js). Sube lo que lleva su marca; los sellos de Roof
+// Patch donde se apoyan se quedan en el techo.
+const SUBE = { aire: ` data-rectifica="aire"`, calentador: ` data-rectifica="calentador"` };
+
 // ---------- unidad de aire acondicionado en el techo ----------
 const FAN = { c: [(AC.x0 + AC.x1) / 2, AC.y1, (AC.z0 + AC.z1) / 2 + 0.4], r: 3.9 };
 for (const [x0, x1] of [[AC.x0 + 1, AC.x0 + 3.4], [AC.x1 - 3.4, AC.x1 - 1]]) {
   box(`ac.pad${x0}`, [x0 - 0.6, AC.y0 - 0.6, TOPZ], [x1 + 0.6, AC.y1 + 0.6, TOPZ + 0.6], { tone: "lo" }, { r: 0.3, sombra: "recibe" });
-  box(`ac.foot${x0}`, [x0, AC.y0, TOPZ + 0.6], [x1, AC.y1, AC.z0], { tone: "mid" }, { r: 0.2, sombra: "recibe" });
+  box(`ac.foot${x0}`, [x0, AC.y0, TOPZ + 0.6], [x1, AC.y1, AC.z0], { tone: "mid" }, { r: 0.2, sombra: "recibe", attrs: SUBE.aire });
 }
 {
   const m = k.sideMatrix([FAN.c[0], AC.y1], FAN.c[2], P, "left");
@@ -481,14 +486,14 @@ for (const [x0, x1] of [[AC.x0 + 1, AC.x0 + 3.4], [AC.x1 - 3.4, AC.x1 - 1]]) {
     const y = AC.y0 + 1 + i * 0.95;
     return path3([[AC.x1, y, AC.z1 - 4.6], [AC.x1, y + 0.45, AC.z1 - 4.6], [AC.x1, y + 0.45, AC.z1 - 1.4], [AC.x1, y, AC.z1 - 1.4]], true);
   }).join("");
-  box("ac", [AC.x0, AC.y0, AC.z0], [AC.x1, AC.y1, AC.z1], { tone: "hi" }, { r: 0.6, steps: 3, bevel: 0.5, extra: fan + Ln(vents, { tone: "lo" }) });
+  box("ac", [AC.x0, AC.y0, AC.z0], [AC.x1, AC.y1, AC.z1], { tone: "hi" }, { r: 0.6, steps: 3, bevel: 0.5, extra: fan + Ln(vents, { tone: "lo" }), attrs: SUBE.aire });
 }
-// tubería del aire: entra al techo por una bota sellada
+// tubería del aire: entra al techo por una bota sellada (al levantar el aire sube con él; el parche se queda)
 const BOOT = { x: -24, y: (AC.y0 + AC.y1) / 2, r: 1.6, z1: TOPZ + 2.2 };
 cyl("lineset.patch", BOOT.x, BOOT.y, 2.6, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 28, sombra: "recibe" });
-cyl("lineset.boot", BOOT.x, BOOT.y, BOOT.r, TOPZ + 0.6, BOOT.z1, { tone: "mid" }, { steps: 24, sombra: "recibe" });
+cyl("lineset.boot", BOOT.x, BOOT.y, BOOT.r, TOPZ + 0.6, BOOT.z1, { tone: "mid" }, { steps: 24, sombra: "recibe", attrs: SUBE.aire });
 for (const dy of [-0.6, 0.6]) {
-  pipe(`lineset${dy > 0 ? "b" : "a"}`, [[AC.x1, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, BOOT.z1]], 0.35, { tone: "mid", bend: 1.9 });
+  pipe(`lineset${dy > 0 ? "b" : "a"}`, [[AC.x1, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, AC.z0 + 3], [BOOT.x, BOOT.y + dy, BOOT.z1]], 0.35, { tone: "mid", bend: 1.9, attrsOf: () => SUBE.aire });
 }
 
 // ---------- cisternas Windmar: en el techo, en la franja oeste ----------
@@ -787,9 +792,9 @@ function dibujarCalentador(p) {
     [0.25, 0.75].map((f) => f * L * Math.cos(beta)).forEach((d, ri) => {
       const xr = xf - d;
       const top = z0 + (d - 1.2) * Math.tan(beta);
-      box(`col${j}.riel${ri}`, [xr - 1.2, y - hw - 0.3, top - 1.8], [xr + 1.2, y + hw + 0.3, top], { tone: "mid" }, { r: 0.2, attrs, sombra: false, owner: "calentador" });
+      box(`col${j}.riel${ri}`, [xr - 1.2, y - hw - 0.3, top - 1.8], [xr + 1.2, y + hw + 0.3, top], { tone: "mid" }, { r: 0.2, attrs: attrs + SUBE.calentador, sombra: false, owner: "calentador" });
       cyl(`col${j}.pad${ri}`, xr, y, 2, TOPZ, TOPZ + PAD_H, { tone: "lo" }, { steps: 20, attrs, sombra: false, owner: "calentador" });
-      box(`col${j}.pata${ri}`, [xr - 0.8, y - 0.8, TOPZ + PAD_H], [xr + 0.8, y + 0.8, top - 1.8], { tone: "mid" }, { r: 0.2, attrs, sombra: false, owner: "calentador" });
+      box(`col${j}.pata${ri}`, [xr - 0.8, y - 0.8, TOPZ + PAD_H], [xr + 0.8, y + 0.8, top - 1.8], { tone: "mid" }, { r: 0.2, attrs: attrs + SUBE.calentador, sombra: false, owner: "calentador" });
     });
     // el colector: vidrio oscuro con sus 7 tubos de cobre a lo largo y los dos cabezales
     const o = [xf - hl * Math.cos(beta), y, z0 + hl * Math.sin(beta)];
@@ -808,7 +813,7 @@ function dibujarCalentador(p) {
     const borde = (s) => [pt(-hw, -hl, s), pt(hw, -hl, s), pt(hw, hl, s), pt(-hw, hl, s)];
     const solidoCol = tapaSol(`col${j}`, borde(0), borde(grueso), on);
     const capa = (fill) => recibeSol(`col${j}`, fill, [cara(nC, borde(grueso))], { on, propios: [solidoCol] });
-    prism(`col${j}`, F, [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]], 0, grueso, { tone: "mid" }, { extra, wrap: "sr-colector", attrs, capa, owner: "calentador" });
+    prism(`col${j}`, F, [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]], 0, grueso, { tone: "mid" }, { extra, wrap: "sr-colector", attrs: attrs + SUBE.calentador, capa, owner: "calentador" });
   }
   // el tanque acostado detrás de los colectores, sobre su banco, con el agua fría que entra y la caliente que sale
   for (const cal of p.modelos) {
@@ -819,7 +824,7 @@ function dibujarCalentador(p) {
     const zt = t.z;
     for (const [i, yp] of [y0 + 1.6, y1 - 1.6].entries()) {
       cyl(`caltanque${cal.id}.pad${i}`, xt, yp, 1.5, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 16, sombra: "recibe", owner: "calentador", on, attrs });
-      box(`caltanque${cal.id}.pata${i}`, [xt - 0.6, yp - 0.6, TOPZ + 0.6], [xt + 0.6, yp + 0.6, zt - t.r], { tone: "mid" }, { r: 0.2, sombra: false, owner: "calentador", on, attrs });
+      box(`caltanque${cal.id}.pata${i}`, [xt - 0.6, yp - 0.6, TOPZ + 0.6], [xt + 0.6, yp + 0.6, zt - t.r], { tone: "mid" }, { r: 0.2, sombra: false, owner: "calentador", on, attrs: attrs + SUBE.calentador });
     }
     const TF = G.frameOf([xt, 0, zt], [0, 1, 0], [0, 0, 1], [1, 0, 0]);
     const anillo = (y) => Array.from({ length: 20 }, (_, i) => [xt + t.r * Math.cos((i / 20) * 2 * Math.PI), y, zt + t.r * Math.sin((i / 20) * 2 * Math.PI)]);
@@ -832,15 +837,15 @@ function dibujarCalentador(p) {
     const vista = G.viewOf(P);
     const frente = G.unit3([vista[0], 0, vista[2]]);
     const logo = p.logo ? logoEnCilindro({ centro: G.add3([xt, yc, zt], G.mul3(frente, t.r + 0.03)), frente, eje: [0, 1, 0], r: t.r + 0.03, ancho: Math.min(0.36 * t.largo, 1.9 * t.r), acostado: true }) : "";
-    turned(`caltanque${cal.id}`, TF, [[y0, t.r - 0.5], [y0 + 0.5, t.r], [y1 - 0.5, t.r], [y1, t.r - 0.5]], { tone: "hi" }, { inner: fajas, extra: logo, owner: "calentador", attrs, capa });
+    turned(`caltanque${cal.id}`, TF, [[y0, t.r - 0.5], [y0 + 0.5, t.r], [y1 - 0.5, t.r], [y1, t.r - 0.5]], { tone: "hi" }, { inner: fajas, extra: logo, owner: "calentador", attrs: attrs + SUBE.calentador, capa });
     // los dos tubos bajan rectos de debajo del tanque y entran al techo por botas selladas: el agua fría
     // entra y la caliente sale a la casa
     const ajenos = (name) => (name.startsWith("caltanque") && !name.startsWith(`caltanque${cal.id}`)) || /^(rack|panel)\.s(28|29|30|31)\b/.test(name);
     for (const [i, tipo] of ["caliente", "fria"].entries()) {
       const yp = yc + (tipo === "caliente" ? 2.2 : -2.2);
       cyl(`caltanque${cal.id}.parche${i}`, xt, yp, 1.5, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 16, sombra: "recibe", owner: "calentador", on, attrs });
-      cyl(`caltanque${cal.id}.bota${i}`, xt, yp, 0.8, TOPZ + 0.6, TOPZ + 1.8, { tone: "mid" }, { steps: 16, sombra: false, owner: "calentador", on, attrs });
-      pipe(`caltanque${cal.id}.${tipo}`, [[xt, yp, zt - t.r], [xt, yp, TOPZ + 1.8]], 0.45, { touch: [ajenos], agua: tipo === "caliente" ? "caliente" : true, flowOf: () => (tipo === "caliente" ? "caliente" : "fria"), attrsOf: () => attrs });
+      cyl(`caltanque${cal.id}.bota${i}`, xt, yp, 0.8, TOPZ + 0.6, TOPZ + 1.8, { tone: "mid" }, { steps: 16, sombra: false, owner: "calentador", on, attrs: attrs + SUBE.calentador });
+      pipe(`caltanque${cal.id}.${tipo}`, [[xt, yp, zt - t.r], [xt, yp, TOPZ + 1.8]], 0.45, { touch: [ajenos], agua: tipo === "caliente" ? "caliente" : true, flowOf: () => (tipo === "caliente" ? "caliente" : "fria"), attrsOf: () => attrs + SUBE.calentador });
     }
   }
 }
@@ -1143,6 +1148,21 @@ DATA.techo = {
   area: 1250,
   minimo: { estandar: 1000, clienteSolar: 750 },
 };
+// Lo que sube en las rectificaciones: cómo se nombra, de dónde a dónde va en x (baja cuando la silicona ya pasó) y las
+// sombras que deja de echar mientras está arriba (la de los colectores y el tanque, la del modelo que esté puesto).
+{
+  const cal = PRODUCTOS.find((p) => p.id === "calentador");
+  const colectores = Math.max(...cal.modelos.map((m) => m.colectores));
+  DATA.techo.rectifica = [
+    { id: "aire", nombre: "el aire", x: [AC.x0 - 0.5, BOOT.x + BOOT.r], sombras: ["ac"] },
+    {
+      id: "calentador",
+      nombre: "el calentador",
+      x: [f2(Math.min(...cal.modelos.map((m) => tanqueCal(m).x - tanqueCal(m).r))), COLECTOR.frente],
+      sombras: [...Array.from({ length: colectores }, (_, j) => `col${j}`), ...cal.modelos.map((m) => `caltanque${m.id}`)],
+    },
+  ];
+}
 
 // El agua que cae, encima de todo: con el sellado, la de las gárgolas, que baja del borde del techo por el canto de la
 // losa, corre por la gárgola y cae de su punta (la del sur, sobre la placa del rótulo; la del oeste, al techo del cuarto,
@@ -1165,10 +1185,10 @@ const AGUA_QUE_CAE = (() => {
 })();
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone el respaldo de Anker SOLIX, aparte de las placas del techo: el portátil con su transfer switch en la pared y de una a ocho placas abiertas en el patio, o el E10 para toda la casa, con sus baterías, su caja en la pared y el generador afuera; y aparte, la nevera EverFrost. Con la pestaña Roofing se escoge el plan de sellado: sin plan, el techo es el concreto como está, con su grieta y el sellado viejo que hay que quitar, y con el aguacero el agua se queda en charcos, se mete por la grieta y mancha la pared; con un plan, el sellado se aplica por partes y el agua corre a las gárgolas. Lo que va en el suelo junto a la pared queda en un cuarto de equipos de bloques, y las baterías en una caseta más baja a su lado, con sus paredes y sus techos transparentes para ver adentro. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone el respaldo de Anker SOLIX, aparte de las placas del techo: el portátil con su transfer switch en la pared y de una a ocho placas abiertas en el patio, o el E10 para toda la casa, con sus baterías, su caja en la pared y el generador afuera; y aparte, la nevera EverFrost. Con la pestaña Roofing se escoge el plan de sellado: sin plan, el techo es el concreto como está, con su grieta y el sellado viejo que hay que quitar, y con el aguacero el agua se queda en charcos, se mete por la grieta y mancha la pared; con un plan, el sellado se aplica por partes, con el aire y el calentador levantados mientras se sella debajo, y el agua corre a las gárgolas. Lo que va en el suelo junto a la pared queda en un cuarto de equipos de bloques, y las baterías en una caseta más baja a su lado, con sus paredes y sus techos transparentes para ver adentro. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, AGUA_QUE_CAE, cielo] });
 
-const about = `<p>Corre el día con el reproductor y mira a dónde va la energía: a la casa, a la batería o a LUMA. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En Energía suma o quita placas y baterías, cambia hacia dónde miran las placas (la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora: TOF, acceso solar y TSRF) y escribe el consumo de cada mes para compararlo con lo que sugiere el cotizador. En Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y el panel dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio. En Anker escoge el respaldo (el portátil con sus placas o el E10 para toda la casa), su modelo y cuántas placas o baterías lleva: de día lo cargan sus placas, de noche mantiene lo esencial y el panel dice para cuántas horas alcanza sin LUMA. En Roofing escoge el plan de sellado (Silver, Gold o Platinum, con sus garantías), cuánto del sellado viejo se quita y el área del techo: "Ver cómo se sella" lo aplica por partes y el aguacero muestra por dónde corre el agua, con el techo sellado o sin sellar.</p>`;
+const about = `<p>Corre el día con el reproductor y mira a dónde va la energía: a la casa, a la batería o a LUMA. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En Energía suma o quita placas y baterías, cambia hacia dónde miran las placas (la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora: TOF, acceso solar y TSRF) y escribe el consumo de cada mes para compararlo con lo que sugiere el cotizador. En Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y el panel dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio. En Anker escoge el respaldo (el portátil con sus placas o el E10 para toda la casa), su modelo y cuántas placas o baterías lleva: de día lo cargan sus placas, de noche mantiene lo esencial y el panel dice para cuántas horas alcanza sin LUMA. En Roofing escoge el plan de sellado (Silver, Gold o Platinum, con sus garantías), cuánto del sellado viejo se quita y el área del techo: "Ver cómo se sella" lo aplica por partes, con el aire y el calentador levantados para sellar debajo, y el aguacero muestra por dónde corre el agua, con el techo sellado o sin sellar.</p>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
 // Panel de controles: en pantalla ancha va a la derecha de la figura. Arriba, las pestañas Energía, Agua, Anker y
 // Roofing, y cada una en pasos numerados: en Energía, las placas y las baterías (primero, para sumarlas sin bajar), hacia
@@ -1270,7 +1290,7 @@ const caption =
   `Las sombras salen del sol de cada momento y de las piezas del dibujo: el aire, el tubo de ventilación, el mástil, el poste, las mismas filas de placas y lo que se ponga de agua en el techo. La Hércules 600 va en la franja oeste del techo, al lado de las placas: con las placas al sur su sombra les cae de tarde a las del extremo oeste, y al norte, de mañana. Como a esas horas el sol ya está bajo, en el año les quita poco: la placa más cercana pierde de 3 a 4 % de su sol y el sistema, unas décimas, que la ficha muestra al lado del TSRF. Como en Aurora, el acceso solar es la parte del sol del año (directo y difuso, del año típico de PVGIS) que les llega a las placas con esas sombras; el TOF es el sol que recibe su plano frente al mejor plano de San Juan (sur a unos 17°, ${pctN(tofDe(180))} para el sur a ${SOL.inclinacion}°), y el TSRF es TOF × acceso solar. La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar, y en el día la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras. ` +
   `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. El calentador solar Soltek va al fondo del techo, en el lugar de las últimas placas (el 80/1 y el 80/2 ocupan dos lugares, el 120/3 tres y el 120/4 cuatro): colectores de 34" × 76" con 7 tubos de cobre inclinados 18°, y el tanque acostado de 82 o 119 galones con su resistencia de 4,500 W de respaldo; el cotizador lo sugiere por personas (1 a 2, 80/1; 3 a 4, 80/2; 5 a 6, 120/3; 7 o más, 120/4). Las cisternas Eco 500 (74" × 32"), Hércules 600 (56" × 61") y Eco 1,000 (sin medidas en el PDF: se dibuja de 64" × 76") van en el techo, con su bomba de ¾ HP y su presurizado de 40 galones junto a la pared; la Torre 150 va adentro, pegada a la pared, y queda para el apartamento. El suavizador POE Water Care va donde el agua entra a la casa: prefiltro de sedimento de 5 micras en carcasa transparente de 10", tanque de 10" × 54" con carbón activado y resina (o el de 13" × 54", de más capacidad) con su válvula electrónica, tanque de sal de 18" × 36" y luz UV Viqua VH410; el agua le llega de la bomba, o de la AAA si no hay cisterna. Las cisternas, el tanque del calentador y el tanque de sal llevan el logo de Windmar. ` +
   `La pestaña Anker pone el respaldo de Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker, aparte de las placas del techo y paso a paso: el tipo, el modelo, sus placas o sus baterías y los extras. El portátil es la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800), con sus placas abiertas en el patio: con − y + se ponen de una hasta las que admite su entrada solar, según las fichas (dos PS400 o cuatro PS200 la F2600, que tiene una sola entrada de 1,000 W; ocho PS400 la F3800 Plus, que tiene dos de 1,600 W). El SOLIX E10 es para toda la casa: su módulo de 7.68 kW sobre una a cinco baterías B6000 de 6.144 kWh (con cuatro o más, en la montura de pared), su caja en la pared (la Smart Inlet Box o la Power Dock), las 4 placas de 400 W del kit solar y el Smart Generator 5500 afuera. Aparte va la nevera EverFrost, con su propia batería. Mantiene lo esencial de la casa: de día lo cubren sus placas y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA (o el generador del E10). La estación, el E10 y la nevera van en el cuarto de equipos: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable, así que nada de eso va a la intemperie. Las placas sí van afuera. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las placas entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol de su propio plano, inclinado 40° hacia donde miran las del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
-  `La pestaña Roofing pone los Planes de Sellado del cotizador de Roofing de Sun Bot y su PDF: la misma silicona Gardner sobre imprimador Elasto Prime en los tres, en una capa continua y sin uniones, con la garantía del fabricante limitada de por vida; la de la mano de obra, que incluye las rectificaciones (el aire, el calentador y lo demás del techo), es de 1 año en Silver y de 10 en Gold y Platinum, y Platinum trae la limpieza del techo y de las placas cada 2 años por 10 años. La remoción del sellado viejo va de 0 a 100 %, de 10 en 10, como en el cotizador, y se cotizan al menos ${fmtN(DATA.techo.minimo.estandar)} pies² (${fmtN(DATA.techo.minimo.clienteSolar)} si ya es cliente solar de Windmar). Sin plan, el techo es el concreto como está: su grieta abierta en la esquina y un parche de sellado viejo por cada 10 % de remoción. "Ver cómo se sella" lo aplica por partes, de norte a sur: limpieza a presión, remoción, grietas con Roof Patch, imprimador y silicona. El aguacero muestra por dónde corre el agua: con el sellado, a las dos gárgolas y de ellas al suelo; sin él, se queda en charcos, se mete por la grieta y mancha la pared de la esquina. La lluvia es para verlo: no cambia la energía del día. ` +
+  `La pestaña Roofing pone los Planes de Sellado del cotizador de Roofing de Sun Bot y su PDF: la misma silicona Gardner sobre imprimador Elasto Prime en los tres, en una capa continua y sin uniones, con la garantía del fabricante limitada de por vida; la de la mano de obra, que incluye las rectificaciones (el aire, el calentador y lo demás del techo), es de 1 año en Silver y de 10 en Gold y Platinum, y Platinum trae la limpieza del techo y de las placas cada 2 años por 10 años. La remoción del sellado viejo va de 0 a 100 %, de 10 en 10, como en el cotizador, y se cotizan al menos ${fmtN(DATA.techo.minimo.estandar)} pies² (${fmtN(DATA.techo.minimo.clienteSolar)} si ya es cliente solar de Windmar). Sin plan, el techo es el concreto como está: su grieta abierta en la esquina y un parche de sellado viejo por cada 10 % de remoción. "Ver cómo se sella" lo aplica por partes, de norte a sur: primero se levantan el aire y el calentador (las rectificaciones; sus sellos de Roof Patch se quedan en el techo), después vienen la limpieza a presión, la remoción, las grietas con Roof Patch, el imprimador y la silicona, y cada uno baja cuando la silicona ya pasó por debajo. El aguacero muestra por dónde corre el agua: con el sellado, a las dos gárgolas y de ellas al suelo; sin él, se queda en charcos, se mete por la grieta y mancha la pared de la esquina. La lluvia es para verlo: no cambia la energía del día. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
   `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. No muestra dinero.`;
 

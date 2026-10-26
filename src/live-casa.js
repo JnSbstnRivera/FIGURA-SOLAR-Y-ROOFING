@@ -598,16 +598,25 @@ const FASES = [
 // lo que tarda en pasar de un techo al otro, y lo que se ve el techo de antes al cambiar la remoción (segundos)
 const CRUCE = 0.45;
 const ANTES = 2.6;
+// Las rectificaciones: lo que lleva su marca en el dibujo (el aire con su tubería y su bota, y el calentador con sus
+// colectores, su tanque y sus tubos) sube LEVANTA al empezar la obra, para que el sellado pase por debajo, y baja cuando
+// la silicona ya pasó. h: cuánto está arriba, de 0 a 1.
+const LEVANTA = 7;
+const levantan = TECHO.rectifica.map((r) => ({ ...r, els: $$(`[data-rectifica="${r.id}"]`), h: 0, hecho: "", arriba: false }));
 // visto: el techo que se ve ("capas" o "sin"); cruce: de 0 a 1, cuánto lleva el paso de uno al otro; obra: el sellado
 // que se está aplicando (su tiempo y sus partes); antes: lo que falta de mostrar el techo de antes; vistos: lo escogido
-// que se ve (para la sombra); lluvia: el techo sobre el que llueve, o "" si no llueve
-const azotea = { plan: S.escogido.sellado, visto: S.escogido.sellado === "sin" ? "sin" : "capas", cruce: 1, obra: null, antes: 0, vistos: S.escogido, lluvia: "" };
+// que se ve (para la sombra); lluvia: el techo sobre el que llueve, o "" si no llueve; enElAire: las sombras que no se
+// echan mientras lo que las echa está levantado
+const azotea = { plan: S.escogido.sellado, visto: S.escogido.sellado === "sin" ? "sin" : "capas", cruce: 1, obra: null, antes: 0, vistos: S.escogido, lluvia: "", enElAire: new Set() };
 const vistosDelTecho = () => (azotea.vistos = azotea.visto === "sin" && hay(S.escogido, "sellado") ? { ...S.escogido, sellado: "sin" } : S.escogido);
 const techoQueToca = () => (!hay(S.escogido, "sellado") || azotea.obra || azotea.antes > 0 ? "sin" : "capas");
 function empezarObra() {
   if (still.matches || !hay(S.escogido, "sellado")) return;
+  // primero se levanta lo que lleva rectificación: el aire y, si lo hay, el calentador
+  const suben = levantan.filter((g) => g.id !== "calentador" || calentadorDe(S.escogido)).map((g) => g.nombre);
+  const rectifica = { id: "rectifica", texto: `se ${suben.length > 1 ? "levantan" : "levanta"} ${suben.join(" y ")}`, dur: 0.9 };
   let t0 = 0;
-  const fases = FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0).map((f) => {
+  const fases = [rectifica, ...FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0)].map((f) => {
     const o = { ...f, t0 };
     t0 += f.dur;
     return o;
@@ -693,6 +702,29 @@ function pintaObra() {
   }
   ponD(piel.frente, borde);
 }
+// Lo que sube en la obra: arriba desde que empieza hasta que la silicona pasó por debajo de su punta sur. Mientras está
+// arriba no echa su sombra (la de abajo ya no es suya).
+function levantaTecho() {
+  const o = azotea.obra;
+  const silicona = o ? frenteEn(avance("silicona")) : 0;
+  let cambio = false;
+  for (const g of levantan) {
+    g.h = o ? Math.min(smooth(0, 1, avance("rectifica")), 1 - smooth(g.x[1] + 2, g.x[1] + 10, silicona)) : 0;
+    const d = LEVANTA * g.h;
+    const t = g.h > 0.001 ? `translate(${(UP[0] * d).toFixed(2)}px,${(UP[1] * d).toFixed(2)}px)` : "";
+    if (t !== g.hecho) {
+      g.hecho = t;
+      for (const el of g.els) el.style.transform = t;
+    }
+    const arriba = g.h > 0.02;
+    if (arriba !== g.arriba) {
+      g.arriba = arriba;
+      for (const n of g.sombras) (arriba ? azotea.enElAire.add(n) : azotea.enElAire.delete(n));
+      cambio = true;
+    }
+  }
+  if (cambio) sombra.version++;
+}
 // cada capa ya aplicada, entera (no cambia con el zoom: el zoom mueve la vista, no el dibujo)
 const PIEL_ENTERA = Object.fromEntries(Object.entries(TECHO.capas).map(([id, contorno]) => [id, entre(contorno, -Infinity, Infinity)]));
 function dibujaTecho(dt, calm) {
@@ -713,6 +745,7 @@ function dibujaTecho(dt, calm) {
   muestraTecho(capasEls, capas);
   muestraTecho(desnudoEls, 1 - capas);
   pintaObra();
+  levantaTecho();
   // el aguacero, solo en su pestaña: la lluvia sobre la figura (CSS) y lo que hace el agua en el techo que se ve
   const lluvia = S.techo.lluvia && modo === "roofing" ? azotea.visto : "";
   if (lluvia !== azotea.lluvia) {
@@ -901,6 +934,8 @@ const ESCENA_VIVA = {
   muestra: (hour) => sample(hour),
   // lo escogido que se ve: mientras se sella, o un momento al cambiar la remoción, el techo de antes
   vistos: () => azotea.vistos,
+  // las sombras que no se echan: las de lo que está levantado mientras se sella
+  enElAire: (n) => azotea.enElAire.has(n),
   // el vidrio de las placas con el sol, las luces de las baterías y del inversor, el ventilador del aire (más rápido
   // cuanto más usa la casa), el medidor de LUMA y el techo (su obra y el aguacero)
   dibuja(s, hora, dt, calm) {

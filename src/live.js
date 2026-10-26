@@ -245,9 +245,10 @@ function sombras(s, cuanto) {
   sombra.hay = true;
   const Ss = pantalla(s);
   // con "Ver adentro", las paredes, los tabiques y los techos que se dibujan transparentes no echan su sombra: adentro
-  // se ve claro, como sin paredes. El día de la energía las cuenta igual.
+  // se ve claro, como sin paredes. Tampoco lo que la escena tiene levantado (en la casa, el aire y el calentador
+  // mientras se sella el techo). El día de la energía las cuenta igual.
   const verAdentro = !mainEl.dataset.paredes;
-  const activos = SOLIDOS.filter((k) => activo(k.on) && !(verAdentro && TRANSPARENTES.has(k.n)));
+  const activos = SOLIDOS.filter((k) => activo(k.on) && !(verAdentro && TRANSPARENTES.has(k.n)) && !ESCENA_VIVA.enElAire?.(k.n));
   for (const r of RECEPTORES) {
     if (!r.el || !activo(r.on)) continue;
     const grupos = new Map();
