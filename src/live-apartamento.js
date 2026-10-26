@@ -1,34 +1,11 @@
 // El apartamento: lo propio de su página. No tiene placas en el techo ni el sistema del cotizador de LUMA: su energía
-// es la del Anker, con sus PS400 en el balcón, y su ficha dice lo del Anker y lo del agua. Va después de live.js (lo
-// común), que llama a sus ganchos (ESCENA_VIVA), y termina arrancando la página.
+// es la del Anker, con sus placas en el balcón. Sus fichas (la del Anker y la del agua) las llena live.js, lo común.
+// Va después de live.js, que llama a sus ganchos (ESCENA_VIVA), y termina arrancando la página.
 
-// ---------- ficha ----------
-const F = Object.fromEntries([...document.querySelectorAll("[data-f]")].map((el) => [el.dataset.f, el]));
+// ---------- rumbo ----------
+// lo que oye el lector de pantalla de los botones del balcón
 function updateFicha() {
-  const m = modeloDe(S.escogido, "anker");
   const r = rumboDe(S.rumbo);
-  const cis = cisternaDe(S.escogido);
-  const ro = potableDe(S.escogido);
-  const n = S.agua.personas;
-  const textos = {
-    anker: m ? m.corto : "Sin Anker",
-    ankerKwh: m ? `${fmt(m.kwh, 2)} kWh · ${fmt(m.kw, m.kw % 1 ? 1 : 0)} kW` : "lo esencial va de LUMA",
-    ps: m ? `${fmt(placasAnker() * kwPlacaDe(respaldoDe()), 1)} kW` : "—",
-    psN: m ? `${placasAnker()} de ${conPs200(m, S.escogido) ? 200 : 400} W en el balcón` : "sin placas PS400",
-    rumbo: `${r.nombre} · ${r.az}°`,
-    inclin: "PS400 a 40°",
-    sol: m && anker ? `${fmt(anker.solDia, 1)} kWh` : "—",
-    solDe: m && anker ? `de los ${fmt(anker.esencialDia, 1)} de lo esencial` : "sin Anker",
-    horas: m && anker ? `${Math.round(anker.horas)} h` : "—",
-    horasDe: m ? "con la batería sola" : "sin Anker",
-    personas: String(n),
-    uso: `${galones(agua.usoDia)} al día`,
-    cisterna: cis ? cis.nombre : "Sin cisterna",
-    reserva: cis ? (agua.reserva >= 1 ? `alcanza para ${fmt(agua.reserva, 1)} ${agua.reserva === 1 ? "día" : "días"}` : `alcanza para unas ${Math.max(1, Math.round(agua.reserva * 24))} horas`) : "sin reserva de agua",
-    osmosis: ro ? ro.corto : "Sin ósmosis",
-    beber: ro ? `${galones(agua.potableDia)} de beber al día` : "agua de la llave",
-  };
-  for (const [key, texto] of Object.entries(textos)) if (F[key] && F[key].textContent !== texto) F[key].textContent = texto;
   if (rumboV) rumboV.textContent = `${r.nombre} · ${r.az}°`;
 }
 

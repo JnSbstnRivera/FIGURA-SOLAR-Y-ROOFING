@@ -36,7 +36,15 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
   // recibe sombra guarda sus caras que se ven (normal, plano y polígono en pantalla) y lleva al final una
   // capa vacía, recortada a su silueta, donde la página pinta la sombra de cada momento: la que le echan
   // las demás piezas y la de las caras que le dan la espalda al sol.
-  const SOMBRA = { solidos: [], receptores: [], tubos: [] };
+  // transparentes: los nombres de lo que se dibuja transparente con "Ver adentro" (paredes, tabiques y techos); con
+  // eso prendido no echan su sombra en el dibujo (live.js), aunque el día de la energía la cuente. Lo que llevan
+  // dibujado en la cara (puertas, ventanas, rejillas) va en una capa `sr-cara`, que se borra con ellos.
+  const SOMBRA = { solidos: [], receptores: [], tubos: [], transparentes: [] };
+  const verAdentro = (name, wrap, extra) => {
+    if (!/\bsr-(pared|tabique|techo)\b/.test(wrap)) return extra;
+    if (!SOMBRA.transparentes.includes(name)) SOMBRA.transparentes.push(name);
+    return extra && `<g class="sr-cara">${extra}</g>`;
+  };
   const CLIPS = [];
   const VISTA = G.viewOf(P);
   const r2 = (v) => Math.round(v * 100) / 100;
@@ -113,7 +121,7 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
     const plan = { x: x0, y: y0, w: x1 - x0, d: y1 - y0, r };
     const shape = record(A.slab(plan, z0, z1 - z0, { name, owner }, steps));
     const paths = k.slabOf(plan, z0, z1 - z0, P, steps, bevel);
-    const body = S(paths, { tone: "mid", ...style, inner }) + extra;
+    const body = S(paths, { tone: "mid", ...style, inner }) + verAdentro(name, wrap, extra);
     const capa = sombraCaja(name, [x0, y0, z0], [x1, y1, z1], paths.fill, { sombra, on });
     put(name, [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], wrapped(body, wrap) + capa, [shape], { bias, attrs });
     return shape;
@@ -150,17 +158,17 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
     const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
     const centre = G.add3(G.add3(G.add3(F.o, G.mul3(F.a, (s0 + s1) / 2)), G.mul3(F.u, cx)), G.mul3(F.v, cy));
     const paths = G.prismOf(F, poly, s0, s1, P);
-    const body = S(paths, { tone: "mid", ...style, inner }) + extra;
+    const body = S(paths, { tone: "mid", ...style, inner }) + verAdentro(name, wrap, extra);
     put(name, centre, wrapped(body, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
     return shape;
   }
-  function layer(name, ring, z0, z1, style = {}, { extra = "", bias = 0, wrap = "", capa = null } = {}) {
-    const shape = record(A.extruded(ring, z0, z1 - z0, { name }));
+  function layer(name, ring, z0, z1, style = {}, { extra = "", bias = 0, wrap = "", capa = null, attrs = "", owner } = {}) {
+    const shape = record(A.extruded(ring, z0, z1 - z0, { name, owner }));
     const cx = ring.reduce((a, p) => a + p[0], 0) / ring.length;
     const cy = ring.reduce((a, p) => a + p[1], 0) / ring.length;
     const paths = k.extrude(ring, z0, z1 - z0, P, { convex: false });
     const body = S(paths, { tone: "mid", ...style }) + extra;
-    put(name, [cx, cy, (z0 + z1) / 2], wrapped(body, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias });
+    put(name, [cx, cy, (z0 + z1) / 2], wrapped(body, wrap) + (capa ? capa(paths.fill) : ""), [shape], { bias, attrs });
     return shape;
   }
   function ball(name, c, r, style = {}, { attrs = "" } = {}) {

@@ -1,4 +1,4 @@
-// Fig 2 · Un apartamento en Puerto Rico con lo de Windmar que va adentro (Windmar Home, PR). Página suelta en
+// Simulador de servicios de Windmar Home (PR), Fig 2: un apartamento con lo de Windmar que va adentro. Página suelta en
 // public/apartamento.html; build.mjs la arma después de la casa.
 //   node src/apartamento.mjs           → public/apartamento.html
 //   node src/apartamento.mjs --audit   → además corre la auditoría de geometría de Anatomy
@@ -10,7 +10,7 @@ import { AGUA } from "./agua.mjs";
 import { ANKER as ANKER_MODELO, esencialEn } from "./anker.mjs";
 import { taller } from "./taller.mjs";
 import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, normalPs400, piezas } from "./piezas.mjs";
-import { escribirPagina, stepper, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
+import { escribirPagina, fichaDe, kpi, stepper, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
 
 globalThis.ESCENA_FIGURA = "apartamento";
 const { PRODUCTOS, nuncaJuntas } = await import("./productos.mjs");
@@ -290,7 +290,7 @@ const halos = `<g class="sr-luz">${LAMPARAS.map(({ x, y }) => {
   const zc = PISO + 5;
   // el bastidor, el colchón con la sábana doblada, dos almohadas y la cabecera
   box("cama", [x0, y0, PISO], [x1, y1, PISO + 2.6], PARED, { r: 0.3 });
-  box("cama.colchon", [x0 + 0.3, y0 + 0.3, PISO + 2.6], [x1 - 0.3, y1 - 0.1, zc], { tone: "mid" }, { r: 0.6, steps: 3, wrap: "sr-tela", extra: Ln(k.lineOnTop([x0 + 0.7, y0 + 7], [x1 - 0.7, y0 + 7], zc, P), { tone: "lo" }) });
+  box("cama.colchon", [x0 + 0.3, y0 + 0.3, PISO + 2.6], [x1 - 0.3, y1 - 0.1, zc], { tone: "mid" }, { r: 0.6, steps: 3, wrap: "sr-tela", extra: Ln(k.lineOnTop([x0 + 0.3, y0 + 7], [x1 - 0.3, y0 + 7], zc, P), { tone: "lo" }) });
   const xm = (x0 + x1) / 2;
   [[x0 + 1, xm - 0.5], [xm + 0.5, x1 - 1]].forEach(([a, b], i) => box(`cama.almohada${i}`, [a, y1 - 4.6, zc], [b, y1 - 0.9, zc + 1.3], { tone: "hi" }, { r: 0.6, steps: 3 }));
   box("cama.cabecera", [x0 - 0.4, y1, PISO], [x1 + 0.4, AP.y1, PISO + 11], PARED, { r: 0.3 });
@@ -547,9 +547,11 @@ const controls = `
   ${PRODUCTOS.filter((p) => p.pestaña === "agua").map((p, i) => seccionDe(p, i + 2)).join("\n  ")}
   </div>
 </div>`;
-// Ficha del apartamento: lo del Anker y lo del agua, en una franja de datos arriba de la tarjeta.
-const kpi = (l, v, s) => `<div class="sr-kpi"><span class="sr-kpi-l">${l}</span><span class="sr-kpi-v" data-f="${v}"></span><span class="sr-kpi-s" data-f="${s}"></span></div>`;
-const ficha = `<div class="sr-kpis" role="group" aria-label="Ficha del apartamento">${kpi("Anker", "anker", "ankerKwh")}${kpi("Placas PS400", "ps", "psN")}${kpi("Balcón", "rumbo", "inclin")}${kpi("Del sol", "sol", "solDe")}${kpi("Sin LUMA", "horas", "horasDe")}${kpi("Personas", "personas", "uso")}${kpi("Cisterna", "cisterna", "reserva")}${kpi("Ósmosis", "osmosis", "beber")}</div>`;
+// La ficha de cada pestaña (pagina.mjs): lo que aporta cada producto del apartamento, o lo que haría si falta, en una
+// franja de datos arriba de la tarjeta.
+const ficha =
+  fichaDe("anker", "Resumen del Anker", [kpi("Anker", "anker", "ankerKwh"), kpi("Placas", "ps", "psN"), kpi("Del sol", "sol", "solDe"), kpi("Sin LUMA", "horas", "horasDe"), kpi("Nevera", "nevera", "neveraDe")], true) +
+  fichaDe("agua", "Resumen del agua", [kpi("Uso de agua", "uso", "usoDe"), kpi("Cisterna", "cisterna", "reserva"), kpi("Ósmosis", "osmosis", "beber")]);
 const caption =
   `Maqueta de un apartamento en Puerto Rico de unos 6.9 × 8 m, con sala y cocina, una alcoba y un baño. Sus paredes, sus tabiques y su techo se dibujan transparentes para ver adentro ("Ver adentro" los cierra): lo de Windmar va bajo techo, nada a la intemperie (las placas sí van afuera, en el balcón: son para el sol y la lluvia), y de noche sus cuatro plafones quedan prendidos. ` +
   `La pestaña Anker pone, paso a paso, un Anker SOLIX del cotizador Anker de Sun Bot, con los kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800). En el apartamento el transfer switch es el de apartamento del cotizador y las placas van en el balcón, donde caben dos (con − y + se pone una o dos; con la F2600 pueden ser PS200), abiertas sobre sus patas, inclinadas 40° hacia donde mira el balcón, con su cable por el piso hasta la estación. Aparte va la nevera EverFrost, en la cocina. Mantiene lo esencial del apartamento por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol que les llega a su propio plano (40°, hacia donde mira el balcón), directo y difuso del equinoccio (PVGIS), menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. El balcón se dibuja sin el piso de arriba: en un balcón techado, el techo les quita a las PS400 el sol del mediodía. ` +
@@ -558,9 +560,9 @@ const caption =
 
 const { page } = escribirPagina({
   escena: "apartamento",
-  titulo: "Anker y agua en un apartamento · Windmar Home",
-  h1: "Anker y agua de Windmar en un apartamento",
-  descripcion: "Figura interactiva: el Anker SOLIX con sus placas PS400 en el balcón, la cisterna y la ósmosis inversa de Windmar en un apartamento de Puerto Rico.",
+  titulo: "Simulador de servicios · Apartamento · Windmar Home",
+  h1: "Simulador de servicios",
+  descripcion: "Simulador de servicios de Windmar Home en Puerto Rico: el Anker SOLIX con sus placas PS400 en el balcón, la cisterna y la ósmosis inversa en un apartamento.",
   fig: "Fig 2",
   about,
   keys: [
@@ -571,7 +573,7 @@ const { page } = escribirPagina({
   svg,
   ficha,
   controls,
-  etiqueta: "Apartamento con el Anker y el agua de Windmar.",
+  etiqueta: "Simulador de servicios: el apartamento con el Anker y el agua de Windmar.",
   DATA,
 });
 console.log("wrote public/apartamento.html", `${(page.length / 1024).toFixed(0)} KB`, `${R.items.length} items`, `${R.solids.length} solids`, `${R.routes.length} routes`, `scale ${KS.toFixed(3)}`);

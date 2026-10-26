@@ -166,13 +166,17 @@ body.iso{font-family:var(--sr-font)}
 .sr-vidrio .iso-fill,.sr-vidrio .iso-top,.sr-vidrio .iso-shade{fill:var(--wm-blue-200);fill-opacity:calc(.12 + .26 * var(--dia))}
 .iso[data-theme="dark"] .sr-vidrio .iso-fill,.iso[data-theme="dark"] .sr-vidrio .iso-top,.iso[data-theme="dark"] .sr-vidrio .iso-shade{fill:var(--wm-blue-400);fill-opacity:calc(.1 + .14 * var(--dia))}
 .sr-vidrio .iso-line{opacity:.55}
-/* las paredes y el techo del cuarto de equipos de la casa y del apartamento: de bloques, como la casa, y transparentes
-   para ver adentro; con "Ver adentro" apagado se cierran */
-.sr-main{--sr-pared:.2;--sr-tabique:.12;--sr-techo:.07}
+/* las paredes y los techos del cuarto de equipos y de la caseta de los Powerwall, y los del apartamento: de bloques,
+   como la casa; con "Ver adentro" son del todo transparentes (quedan sus bordes; lo dibujado en su cara, como puertas,
+   ventanas y rejillas, se borra con ellos) y apagado se cierran */
+.sr-main{--sr-pared:0;--sr-tabique:0;--sr-techo:0}
 .sr-main[data-paredes="cerradas"]{--sr-pared:1;--sr-tabique:1;--sr-techo:1}
 .sr-pared .iso-fill,.sr-pared .iso-top,.sr-pared .iso-shade{fill-opacity:var(--sr-pared);transition:fill-opacity .35s}
 .sr-tabique .iso-fill,.sr-tabique .iso-top,.sr-tabique .iso-shade{fill-opacity:var(--sr-tabique);transition:fill-opacity .35s}
 .sr-techo .iso-fill,.sr-techo .iso-top,.sr-techo .iso-shade{fill-opacity:var(--sr-techo);transition:fill-opacity .35s}
+.sr-pared .sr-cara{opacity:var(--sr-pared);transition:opacity .35s}
+.sr-tabique .sr-cara{opacity:var(--sr-tabique);transition:opacity .35s}
+.sr-techo .sr-cara{opacity:var(--sr-techo);transition:opacity .35s}
 /* la luz del apartamento: de noche el plafón se prende, le sale un halo y su luz cae en el piso */
 .sr-luz{opacity:calc(1 - var(--dia));mix-blend-mode:screen;pointer-events:none}
 .sr-plafon .iso-fill,.sr-plafon .iso-top,.sr-plafon .iso-shade{fill:color-mix(in srgb,var(--wm-orange-300) calc((1 - var(--dia)) * 100%),var(--anatomy-face))}
@@ -188,6 +192,28 @@ body.iso{font-family:var(--sr-font)}
 .sr-ro-tanque .iso-shade[data-shade="1"]{fill:color-mix(in srgb,var(--wm-blue-400) 58%,var(--anatomy-shade-1))}
 .sr-ro-tanque .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-blue-400) 54%,var(--anatomy-shade-2))}
 .sr-ro-tanque .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-blue-400) 50%,var(--anatomy-shade-3))}
+/* el techo de la pestaña Roofing: el concreto de antes (más oscuro que la losa), el sellado viejo que se quita, la grieta
+   abierta y su reparación con Roof Patch, la piel que se pinta mientras se sella (el agua a presión, el imprimador, la
+   silicona y el borde que avanza) y, con el aguacero, los charcos, la grieta mojada, la mancha en la pared y la
+   salpicadura del agua que cae */
+.sr-desnudo .iso-top{fill:color-mix(in srgb,var(--anatomy-shade-0) 55%,var(--anatomy-shade-1))}
+.sr-viejo-g{transition:opacity .3s}
+.sr-viejo{fill:color-mix(in srgb,var(--anatomy-top) 80%,var(--wm-orange-300));stroke:var(--anatomy-mid);stroke-width:.3;stroke-linejoin:round}
+.sr-viejo-raya{fill:none;stroke:var(--anatomy-mid);stroke-width:.3;stroke-linecap:round;stroke-linejoin:round}
+.sr-grieta{fill:none;stroke:color-mix(in srgb,var(--wm-ink) 72%,var(--anatomy-mid));stroke-width:.95;stroke-linecap:round;stroke-linejoin:round}
+.sr-reparo{fill:none;stroke:var(--anatomy-mid);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.sr-piel-lavado{fill:var(--wm-blue-400);fill-opacity:.32;stroke:none}
+.sr-piel-imprimador{fill:var(--anatomy-shade-2);stroke:none}
+.sr-piel-silicona{fill:var(--anatomy-top);stroke:none}
+.sr-piel-frente{fill:none;stroke:var(--wm-orange);stroke-width:1.1;stroke-linecap:round}
+.sr-charco{fill:var(--wm-blue-400);stroke:none;opacity:0;transition:opacity 1.6s}
+.sr-grieta-mojada{fill:none;stroke:var(--wm-blue-400);stroke-width:.9;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity 1s}
+.sr-mancha{fill:color-mix(in srgb,var(--wm-ink) 55%,var(--wm-orange-600));stroke:none;opacity:0;transition:opacity 3s}
+.sr-salpica{fill:none;stroke:var(--wm-blue-400);stroke-width:.45;opacity:0;transition:opacity .6s}
+.sr-main[data-lluvia="sin"] .sr-charco{opacity:.42}
+.sr-main[data-lluvia="sin"] .sr-grieta-mojada{opacity:1}
+.sr-main[data-lluvia="sin"] .sr-mancha{opacity:.5}
+.sr-main[data-lluvia="sin"] .sr-salpica-gotera,.sr-main[data-lluvia="capas"] .sr-salpica-lluvia{opacity:1}
 /* sombras: cada pieza las pinta en su capa, recortada a su silueta; los tubos se oscurecen enteros */
 .sr-sh path{fill:var(--sr-sombra);stroke:none;mix-blend-mode:multiply}
 .it[data-tubo] .tb-body{fill:color-mix(in oklab,var(--anatomy-shade-2),var(--sr-sombra) calc(var(--sh,0)*var(--sr-sombra-a)*100%))}
@@ -232,8 +258,21 @@ body.iso{font-family:var(--sr-font)}
 .sr-rosa-letra{font-family:var(--anatomy-mono);font-weight:600;fill:var(--anatomy-mid)}
 .sr-rosa-n{fill:var(--anatomy-hi);font-weight:700}
 .sr-rosa-eje{fill:var(--anatomy-hi);stroke:none}
-.sr-stage{position:relative;touch-action:pan-y}
+/* el dibujo no se selecciona como texto: si no, al arrastrar con zoom el navegador se lleva la selección como una
+   imagen y cancela el arrastre */
+.sr-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.sr-stage svg{-webkit-user-drag:none}
 .sr-stage:focus-visible{outline:2px solid var(--sr-focus);outline-offset:4px}
+/* el aguacero de la pestaña Roofing: dos capas de gotas que caen en diagonal sobre la figura (cada una baja un mosaico
+   por vuelta, así no se nota el salto), el cielo nublado y el sol y la luna tapados */
+.sr-stage::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background-color:rgba(33,39,78,.05);background-size:90px 90px,150px 150px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%234A70C8' stroke-opacity='.55' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%234A70C8' stroke-opacity='.32' stroke-width='.9' stroke-linecap='round'/%3E%3C/svg%3E")}
+.iso[data-theme="dark"] .sr-stage::after{background-color:rgba(0,0,0,.16);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%23AFC3EE' stroke-opacity='.5' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%23AFC3EE' stroke-opacity='.3' stroke-width='.9' stroke-linecap='round'/%3E%3C/svg%3E")}
+.sr-main[data-lluvia] .sr-stage::after{opacity:1;animation:sr-lluvia .55s linear infinite}
+@keyframes sr-lluvia{to{background-position:-27px 90px,-45px 150px}}
+.sr-cielo,.sr-cielo-fondo{transition:opacity .6s}
+.sr-main[data-lluvia] .sr-cielo,.sr-main[data-lluvia] .sr-cielo-fondo{opacity:.3}
 /* zoom: con zoom el dibujo se arrastra (y con el dedo no mueve la página) */
 .sr-stage.is-zoom{touch-action:none;cursor:grab}
 .sr-stage.is-zoom .iso-svg{overflow:hidden}
@@ -285,6 +324,13 @@ body.iso{font-family:var(--sr-font)}
 .sr-escenas a:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 
 .sr-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;background:var(--anatomy-faint);box-shadow:0 0 0 1px var(--anatomy-faint)}
+.sr-kpis[hidden]{display:none}
+.sr-kpi-ancha{grid-column:span 2}
+/* "Le falta": un botón por producto que no se ha puesto; lleva a su paso */
+.sr-faltan{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.sr-falta{font:600 11px/1.2 var(--sr-font);color:var(--anatomy-strong);background:var(--anatomy-card);border:0;border-radius:0;box-shadow:0 0 0 1px var(--anatomy-lo);padding:4px 7px;cursor:pointer;transition:box-shadow .15s}
+.sr-falta:hover{box-shadow:0 0 0 1px var(--anatomy-hi),inset 0 -2px 0 var(--wm-orange)}
+.sr-falta:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 .sr-kpi{container:kpi/inline-size;display:grid;align-content:start;gap:2px;min-width:0;padding:8px 12px;background:var(--anatomy-card)}
 .sr-kpi-l{font:600 10px/1.3 var(--sr-font);letter-spacing:.1em;text-transform:uppercase;color:var(--anatomy-text)}
 .sr-kpi-v{font:700 15px/1.25 var(--sr-font);color:var(--anatomy-strong);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -314,11 +360,13 @@ body.iso{font-family:var(--sr-font)}
 .sr-speed[aria-pressed="true"]{color:var(--anatomy-strong);background:var(--sr-sel);box-shadow:inset 0 -2px 0 var(--wm-orange)}
 .sr-play:focus-visible,.sr-speed:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
 
+/* en franja, en dos filas (--n2 columnas) o, si cabe, en una (--n): cada ficha dice cuántas celdas tiene */
 @container plate (min-width:560px){
-  .sr-kpis{order:0;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .sr-kpis{order:0;grid-template-columns:repeat(var(--n2),minmax(0,1fr))}
 }
 @container plate (min-width:1280px){
-  .sr-kpis{grid-template-columns:repeat(8,minmax(0,1fr))}
+  .sr-kpis{grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+  .sr-kpi-ancha{grid-column:auto}
 }
 /* En el teléfono la lectura va debajo de la hora, la barra ocupa todo el ancho (es más fácil con el dedo)
    y la velocidad baja a su propia fila, con botones del mismo ancho. */
@@ -355,6 +403,8 @@ input.sr-input.sr-w{width:4.6em}
 input.sr-input{width:5.6em}
 .sr-step{display:inline-flex;align-items:center}
 .sr-step output{min-width:2.4em;text-align:center;color:var(--anatomy-strong);font-weight:700;font-variant-numeric:tabular-nums}
+/* la remoción va en % (de 0 a 100 %): su número no mueve el + al crecer */
+.sr-step[data-stepper="remocion"] output{min-width:3.9em}
 .sr-pm{min-width:32px;padding:4px 0;font-size:15px;line-height:1}
 .sr-warn{margin:0;flex:1 1 14em;color:var(--anatomy-strong)}
 .sr-rumbo-row{flex-wrap:nowrap;gap:10px}
@@ -445,6 +495,7 @@ input.sr-input{width:5.6em}
 /* Con el dedo, cada control mide al menos 44 px. */
 @media (pointer:coarse){
   .sr-btn,.sr-input,.sr-speed,.sr-switch,.sr-tab,.sr-escenas a{min-height:44px}
+  .sr-falta{min-height:36px}
   .sr-pm{min-width:44px}
   .sr-zoom-b{width:44px;height:44px}
   .sr-zoom-v{line-height:44px}
@@ -480,6 +531,9 @@ input.sr-input{width:5.6em}
 @container stage-box (min-aspect-ratio:122/100){
   .sr-main .iso-plate{display:grid;grid-template-columns:minmax(0,1fr) clamp(176px,17%,210px);grid-template-rows:minmax(0,1fr);gap:16px}
   .sr-main .sr-kpis{grid-column:2;grid-row:1;grid-template-columns:1fr;align-self:start}
+  .sr-main .sr-kpi-ancha{grid-column:auto}
+  /* en la columna la línea de abajo baja al renglón siguiente en vez de cortarse */
+  .sr-main .sr-kpi-s{white-space:normal}
   .sr-main .sr-vista{grid-column:1;grid-row:1;min-height:0}
 }
 @media (min-width:1100px) and (min-height:600px) and (max-height:820px){
@@ -517,4 +571,5 @@ input.sr-input{width:5.6em}
   .iso .sr-play,.iso .sr-speeds{display:none}
   .iso .sr-player{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"clock read" "scrub scrub"}
   .sr-play,.sr-speed,.sr-btn,.sr-switch-pista,.sr-switch-pista::after{transition:none}
+  .sr-main[data-lluvia] .sr-stage::after{animation:none}
 }

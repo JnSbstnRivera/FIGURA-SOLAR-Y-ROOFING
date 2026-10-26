@@ -17,6 +17,9 @@
 //   lugares                  cuántos de los últimos lugares de placas del techo puede ocupar
 //   logo                     si lleva el logo de Windmar
 //   inicial                  el modelo que se pone la primera vez que se abre su pestaña ("sugerido": el del cotizador)
+//   puesto                   el modelo que ya viene puesto al abrir la página (el sellado: la casa trae el techo sellado)
+//   capa                     sus partes no bajan a su lugar como las demás: la escena las extiende (el sellado, sobre el
+//                            techo; live-casa.js)
 //   columnas                 en cuántas columnas van sus botones (5 si no lo dice; menos para nombres largos)
 //   modelos                  id, corto (el botón), techo (va en el techo: su sombra cuenta en el acceso solar de las
 //                            placas), lugares (los de placas que ocupa), escenas (dónde va: "casa", que es lo de
@@ -27,7 +30,8 @@
 //                            escogido, su texto (o su `nombre(m, e)`, si cambia), el mínimo, el máximo de cada modelo,
 //                            cuántas trae al escogerlo y lo que dice al lado (`tope`, hasta cuántas)
 //   partes                   piezas que se ven cuando la regla se cumple con el modelo escogido (m) y con lo escogido
-//                            de los demás productos (e); las demás piezas son de un modelo
+//                            de los demás productos (e); las demás piezas son de un modelo, y la parte "sin" es la que
+//                            se ve cuando va "Sin" (el techo sin sellar)
 //   etiqueta(m)              lo que dice el botón de cada modelo a un lector de pantalla
 //   nota(m, x)               la nota del panel, de una o dos líneas, con el modelo escogido (o null) y lo que pasa en
 //                            la casa (x); en los de respaldo, la de "Sin": qué hacen
@@ -352,6 +356,37 @@ const CATALOGO = [
       return m.tanque ? `7 etapas con tanque de ${m.tanque} gal y grifo de largo alcance; no usa electricidad. Da ${beber} de beber y cocinar al día.` : `7 etapas sin tanque: produce al momento, con electricidad y al menos 40 psi. Da ${beber} de beber y cocinar al día.`;
     },
   },
+  {
+    id: "sellado",
+    pestaña: "roofing",
+    grupo: "Plan de sellado",
+    titulo: "Plan de sellado",
+    nombre: "sellado",
+    articulo: "el",
+    columnas: 4,
+    puesto: "gold",
+    capa: true,
+    fuente: "Sun Bot: cotizador de Roofing (roofing/types.ts: PLANS; generateRoofingPDF.ts: los Planes de Sellado y sus notas)",
+    // Los Planes de Sellado: la misma silicona Gardner sobre imprimador Elasto Prime en los tres, en una capa continua y
+    // sin uniones; cambian la garantía de la mano de obra (obra, en años; incluye las rectificaciones: el aire, el
+    // calentador y lo demás del techo) y el mantenimiento: Platinum trae la limpieza del techo y de las placas cada 2 años
+    // por 10 años (limpiezas). La del fabricante es limitada de por vida en los tres. Solo en la casa: el apartamento no
+    // tiene techo propio.
+    modelos: [
+      { id: "silver", corto: "Silver", nombre: "Silver", obra: 1, limpiezas: 0, techo: false },
+      { id: "gold", corto: "Gold", nombre: "Gold", obra: 10, limpiezas: 0, techo: false },
+      { id: "platinum", corto: "Platinum", nombre: "Platinum", obra: 10, limpiezas: 5, techo: false },
+    ],
+    // las capas (el imprimador y la silicona, cortadas en escalones en la esquina) van con cualquier plan; sin plan se
+    // ve el concreto como está
+    partes: { capas: () => true },
+    etiqueta: (m) => `Plan ${m.nombre}: mano de obra de ${m.obra === 1 ? "1 año" : `${m.obra} años`}${m.limpiezas ? ", con limpieza del techo y las placas cada 2 años" : ""}`,
+    nota(m) {
+      if (!m) return "El concreto como está: con la lluvia, el agua se queda en charcos y se mete por las grietas.";
+      const obra = m.obra === 1 ? "1 año" : `${m.obra} años`;
+      return `Silicona Gardner sobre imprimador, sin uniones. Mano de obra ${obra} (con rectificaciones)${m.limpiezas ? " y limpieza del techo y las placas cada 2 años" : ""}; fabricante, de por vida.`;
+    },
+  },
 ];
 
 // La escena de esta figura: la casa, o el apartamento si su build y su página ponen antes ESCENA_FIGURA. Quedan los
@@ -360,16 +395,17 @@ const ESCENA = globalThis.ESCENA_FIGURA ?? "casa";
 const enEscena = (o) => ({ ...o, ...o.porEscena?.[ESCENA] });
 export const PRODUCTOS = CATALOGO.map((p) => enEscena({ ...p, modelos: p.modelos.filter((m) => (m.escenas ?? ["casa"]).includes(ESCENA)).map(enEscena) })).filter((p) => p.modelos.length);
 export const PRODUCTO = Object.fromEntries(PRODUCTOS.map((p) => [p.id, p]));
-// lo escogido cuando no hay nada puesto
+// lo escogido cuando no hay nada puesto, y lo que ya viene puesto al abrir la página
 export const SIN_NADA = Object.fromEntries(PRODUCTOS.map((p) => [p.id, "sin"]));
+export const PUESTOS = Object.fromEntries(PRODUCTOS.filter((p) => p.puesto).map((p) => [p.id, p.puesto]));
 // ¿Hay algo escogido de ese producto?
 export const hay = (escogidos, id) => Boolean(escogidos[id]) && escogidos[id] !== "sin";
 // el modelo escogido de un producto, o null si va "Sin"
 export const modeloDe = (escogidos, id) => PRODUCTO[id]?.modelos.find((m) => m.id === escogidos[id]) ?? null;
-// ¿Se ve esta parte con lo escogido? La parte es el id de un modelo o una de las partes del producto.
+// ¿Se ve esta parte con lo escogido? La parte es el id de un modelo, una de las partes del producto o "sin".
 export function parteSeVe(escogidos, id, parte) {
   const m = modeloDe(escogidos, id);
-  if (!m) return false;
+  if (!m) return parte === "sin";
   const regla = PRODUCTO[id].partes?.[parte];
   return regla ? regla(m, escogidos) : m.id === parte;
 }
@@ -400,11 +436,13 @@ function opcionesDe(p) {
   return out;
 }
 const juntos = (e) => PRODUCTOS.every((p) => !p.excluye || !hay(e, p.id) || p.excluye.every((id) => !hay(e, id)));
-const COMBOS = PRODUCTOS.reduce((lista, p) => lista.flatMap((e) => opcionesDe(p).map((o) => ({ ...e, ...o }))).filter(juntos), [{}]);
+// las combinaciones se arman la primera vez que se piden (solo la auditoría de los builds): la página no las usa
+let COMBOS = null;
+const combos = () => (COMBOS ??= PRODUCTOS.reduce((lista, p) => lista.flatMap((e) => opcionesDe(p).map((o) => ({ ...e, ...o }))).filter(juntos), [{}]));
 const MASCARAS = new Map();
 function mascara(id, parte) {
   const llave = `${id}:${parte}`;
-  if (!MASCARAS.has(llave)) MASCARAS.set(llave, COMBOS.reduce((bits, e, i) => (parteSeVe(e, id, parte) ? bits | (1n << BigInt(i)) : bits), 0n));
+  if (!MASCARAS.has(llave)) MASCARAS.set(llave, combos().reduce((bits, e, i) => (parteSeVe(e, id, parte) ? bits | (1n << BigInt(i)) : bits), 0n));
   return MASCARAS.get(llave);
 }
 export const nuncaJuntas = ([ida, a], [idb, b]) => (mascara(ida, a) & mascara(idb, b)) === 0n;

@@ -36,9 +36,9 @@ export const opciones = (key, label, lista, columnas = 5, sin = true) =>
   `</div>`;
 const interruptorHtml = (p) => `<div class="sr-row"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-${p.interruptor.id}><span class="sr-switch-pista" aria-hidden="true"></span>${p.interruptor.texto}</button></div>`;
 // La sección de un producto del plano (productos.mjs): su título (con su número de paso, si va en pasos), un botón por
-// modelo (y "Sin"), su nota y su interruptor, si tiene.
+// modelo (y "Sin"), su nota y su interruptor, si tiene. `data-producto` es a donde lleva su botón de "Le falta".
 export const seccionDe = (p, n = null) =>
-  `<section class="sr-group" aria-label="${p.grupo}">
+  `<section class="sr-group" aria-label="${p.grupo}" data-producto="${p.id}">
     ${tag(p.titulo, n)}
     ${opciones(p.id, p.nombre[0].toUpperCase() + p.nombre.slice(1), p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas)}
     <p class="sr-nota" data-nota="${p.id}"></p>${p.interruptor ? `
@@ -55,7 +55,7 @@ export const seccionDe = (p, n = null) =>
 export function respaldoHtml(ps, otro = "") {
   const varios = ps.length > 1;
   const tipos = varios
-    ? `<section class="sr-group" aria-label="Tipo de respaldo">
+    ? `<section class="sr-group" aria-label="Tipo de respaldo" data-producto="respaldo">
     ${tag("Tipo de respaldo", 1)}
     <div class="sr-opciones" role="radiogroup" aria-label="Tipo de respaldo" data-tipos${columnasDe(ps.length + 1)}>${[["sin", "Sin", "Sin respaldo de Anker"], ...ps.map((p) => [p.id, p.tipo, p.titulo])].map(([id, corto, largo]) => radio("tipo", id, corto, largo, id === "sin")).join("")}</div>
     <p class="sr-nota" data-intro-respaldo></p>
@@ -69,7 +69,7 @@ export function respaldoHtml(ps, otro = "") {
       ? `<div class="sr-opciones" role="radiogroup" aria-label="${p.pasos.modelo}" data-familias="${p.id}"${columnasDe(p.familias.length + sinAqui.length)}>${[...sinAqui, ...p.familias.map((f) => [f.id, f.corto, p.etiqueta(p.modelos.find((m) => m.familia === f.id && !m.expansion))])].map(([id, corto, largo]) => radio("familia", id, corto, largo, id === "sin")).join("")}</div>
     <div class="sr-row" data-con-modelo="${p.id}"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-expansion="${p.id}"><span class="sr-switch-pista" aria-hidden="true"></span><span>Con batería de expansión <span data-expansion-nombre="${p.id}"></span></span></button></div>`
       : opciones(p.id, p.pasos.modelo, p.modelos.map((m) => [m.id, m.corto, p.etiqueta(m)]), p.columnas, !varios);
-    return `<section class="sr-group"${de} aria-label="${p.pasos.modelo}: ${p.grupo}">
+    return `<section class="sr-group"${de}${varios ? "" : ' data-producto="respaldo"'} aria-label="${p.pasos.modelo}: ${p.grupo}">
     ${tag(p.pasos.modelo, varios ? 2 : 1)}
     ${modelos}
     <p class="sr-nota" data-resumen="${p.id}"></p>${varios ? "" : `
@@ -86,6 +86,15 @@ export function respaldoHtml(ps, otro = "") {
   </section>` : ""}`;
   });
   return tipos + pasos.join("\n  ");
+}
+// La ficha de la tarjeta: una por pestaña, y se ve la de la pestaña escogida. Cada celda lleva su nombre, su valor y
+// una línea debajo (data-f: los llena la página); la última, "Le falta", los productos que no se han puesto, como
+// botones que llevan a su paso (live.js). --n y --n2 son las columnas en una fila o en dos.
+export const kpi = (l, v, s) => `<div class="sr-kpi"><span class="sr-kpi-l">${l}</span><span class="sr-kpi-v" data-f="${v}"></span><span class="sr-kpi-s" data-f="${s}"></span></div>`;
+export function fichaDe(tab, label, celdas, visible = false) {
+  // con un número impar de celdas, "Le falta" ocupa dos columnas para no dejar un hueco en la última fila
+  const todas = [...celdas, `<div class="sr-kpi${celdas.length % 2 ? "" : " sr-kpi-ancha"}"><span class="sr-kpi-l">Le falta</span><span class="sr-faltan" data-faltan></span></div>`];
+  return `<div class="sr-kpis" role="group" aria-label="${label}" data-ficha="${tab}" style="--n:${todas.length};--n2:${Math.ceil(todas.length / 2)}"${visible ? "" : " hidden"}>${todas.join("")}</div>`;
 }
 // El rumbo: ocho botones en el orden de la brújula (en la casa, hacia dónde miran las placas; en el apartamento,
 // hacia dónde mira el balcón). Si el título de su paso ya lo dice, la etiqueta es solo para el lector de pantalla.

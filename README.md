@@ -1,6 +1,6 @@
-# Figura Solar y Roofing
+# Simulador de servicios
 
-Figura interactiva que explica cómo funciona un sistema **Solar y Roofing de Windmar Home** en Puerto Rico: el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol pasa por encima de la maqueta, de un lado al otro, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua se ponen el calentador solar y la cisterna de Windmar Water según las personas de la casa, y se ve el agua correr, calentarse y guardarse. En la pestaña Anker se pone el respaldo de Anker SOLIX: el portátil con sus placas, el E10 para toda la casa y la nevera EverFrost.
+El **Simulador de servicios de Windmar Home** (antes "Figura Solar y Roofing"; el repo y la dirección web siguen con ese nombre) es una figura interactiva que explica cómo funcionan en Puerto Rico los servicios de Windmar: Solar y Roofing, Water y Anker. En la casa se ven el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol pasa por encima de la maqueta, de un lado al otro, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua se ponen el calentador solar y la cisterna de Windmar Water según las personas de la casa, y se ve el agua correr, calentarse y guardarse. En la pestaña Anker se pone el respaldo de Anker SOLIX: el portátil con sus placas, el E10 para toda la casa y la nevera EverFrost. En la pestaña Roofing se escoge el plan de sellado del techo (Silver, Gold o Platinum), se ve cómo se aplica por partes y, con un aguacero, por dónde corre el agua con el techo sellado y sin sellar.
 
 Un selector **Casa | Apartamento**, arriba a la derecha de la tarjeta, pasa a la segunda figura: un apartamento con sala, cocina, alcoba y baño, con lo de Windmar que va adentro. Ahí va el Anker SOLIX con sus placas en el balcón y su transfer switch de apartamento, la nevera EverFrost, la cisterna Torre 150 pegada a la pared y la ósmosis inversa debajo del fregadero. Las dos figuras tienen zoom para verlas de cerca, y paredes y techos que se dibujan transparentes para ver adentro.
 
@@ -12,7 +12,7 @@ Un selector **Casa | Apartamento**, arriba a la derecha de la tarjeta, pasa a la
 
 En pantalla ancha todo cabe en una sola pantalla: la casa a la izquierda, con todo el alto de la ventana, y el título y los controles a la derecha, con placas y baterías arriba. La ficha va al lado de la casa (en columna en una laptop, en una franja arriba en una pantalla más alta) y el reproductor del día flota en la esquina de abajo a la derecha, donde el dibujo no tiene nada. Solo se baja si se abre "Cómo leer la figura y de dónde salen los números" o la tabla de los 12 meses. En el teléfono la casa va primero, luego el reproductor, la ficha y los controles.
 
-Los controles van en pestañas (Energía, Agua y Anker; en el apartamento, Anker y Agua), arriba, como botones. Cada pestaña va en pasos numerados en el orden en que se decide, y solo se ve lo que aplica a lo escogido: lo que no aplica se esconde en vez de quedar apagado, y los pasos que se ven se numeran de nuevo. Lo que pasa en cada momento lo dice el reproductor.
+Los controles van en pestañas (Energía, Agua, Anker y Roofing; en el apartamento, Anker y Agua), arriba, como botones. Cada pestaña va en pasos numerados en el orden en que se decide, y solo se ve lo que aplica a lo escogido: lo que no aplica se esconde en vez de quedar apagado, y los pasos que se ven se numeran de nuevo. Lo que pasa en cada momento lo dice el reproductor.
 
 - **Correr el día como en un reproductor de música:** play y pausa, la barra de 24 horas (la franja clara es el sol, de 6:25 a 18:25) y tres velocidades: Normal (media hora cada 2 segundos), Rápido (una hora por segundo) y Súper rápido (tres horas por segundo). Al lado de la hora se lee lo que pasa en ese momento: kW de las placas, % de batería y kWh enviados a LUMA o tomados de LUMA en el día. También se salta de hora con el teclado sobre la figura: flechas (con Mayús, de 3 en 3 horas) y la barra espaciadora para pausar. Pasar el mouse por encima ya no cambia la hora. Con el movimiento reducido del sistema el día no corre solo y queda la barra.
 - **Escribir el consumo de cada mes**, como en la factura de LUMA: eliges un mes y escribes sus kWh, arrastras su barra en la gráfica o llenas los 12 meses de una vez. Con el promedio y el mes pico, la regla del cotizador de LUMA de Sun Bot sugiere las placas nuevas y las baterías.
@@ -23,10 +23,10 @@ Los controles van en pestañas (Energía, Agua y Anker; en el apartamento, Anker
 
   Las placas caen al techo y se asientan, y las baterías entran deslizándose. Las que el cliente ya tenía se ven con vidrio claro. "Volver a lo sugerido" regresa a lo que dice el cotizador.
 - **Cambiar hacia dónde miran las placas** con los ocho rumbos (N, NE, E, SE, S, SO, O, NO). La tarjeta de la brújula de la base gira y su marca fija, como la línea de fe de un barco, señala el rumbo; el sol, las sombras y la producción cambian con él.
-- **Acercar y ver de cerca:** abajo a la izquierda de la figura, − y + acercan y alejan (de 100 % a 800 %), "Ver todo" vuelve a la figura entera y el último botón la pone en pantalla completa (donde el navegador lo deja; en el iPhone no). También acercan la rueda del mouse (sola si la página no se mueve con ella; si no, con Ctrl), el doble clic (con Mayús aleja), el pellizco en el teléfono y las teclas + y − sobre la figura (el 0 la vuelve a mostrar entera); con zoom, el dibujo se arrastra. El dibujo es de vectores: queda nítido y sus líneas, finas.
-- **Ver adentro:** las paredes y el techo de lo que va adentro (el cuarto de equipos de la casa y el apartamento) se dibujan transparentes. El botón "Ver adentro", al lado del zoom, los cierra y se ven como de verdad.
+- **Acercar y ver de cerca:** abajo a la izquierda de la figura, − y + acercan y alejan (de 100 % a 800 %), "Ver todo" vuelve a la figura entera y el último botón la pone en pantalla completa (donde el navegador lo deja; en el iPhone no). También acercan la rueda del mouse (sola si la página no se mueve con ella; si no, con Ctrl), el doble clic (con Mayús aleja), el pellizco en el teléfono y las teclas + y − sobre la figura (el 0 la vuelve a mostrar entera); con zoom, el dibujo se arrastra con el mouse o el dedo (arrastrar no selecciona texto ni levanta la imagen). El dibujo es de vectores: queda nítido y sus líneas, finas.
+- **Ver adentro:** las paredes y los techos de lo que va adentro (el cuarto de equipos y la caseta de los Powerwall de la casa, y el apartamento) son del todo transparentes: quedan sus bordes, sin las puertas, ventanas y rejillas dibujadas en su cara y sin su sombra, así que adentro se ve claro. El botón "Ver adentro", al lado del zoom, los cierra y se ven como de verdad, con su sombra. La energía del día los cuenta siempre.
 - **Ver las sombras de cada momento:** las de la casa, el poste, el mástil, el aire, el equipo de la fachada y las mismas filas de placas, sobre la base, las paredes, el techo y las placas. Las caras que le dan la espalda al sol se oscurecen poco a poco.
-- **Ver el equipo de tierra adentro:** la bomba y el presurizado, el suavizador, el Anker (el portátil o el E10) y la nevera EverFrost van en un cuarto de equipos de bloques pegado a la fachada oeste, con su puerta y sus persianas de ventilación; adentro quedan también el panel y el inversor. Nada de eso se deja a la intemperie: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable. Los Powerwall (hechos para afuera), el medidor de LUMA, el mástil y el generador del E10 quedan fuera, y lo que cruza una pared (el conducto de las placas, el de las baterías y el de la acometida) llega a ella por los dos lados. El cuarto da sombra como de verdad: de mañana les quita sol a las PS400 más cercanas.
+- **Ver el equipo de tierra adentro:** la bomba y el presurizado, el suavizador, el Anker (el portátil o el E10) y la nevera EverFrost van en un cuarto de equipos de bloques pegado a la fachada oeste, con su puerta y sus persianas de ventilación; adentro quedan también el panel y el inversor. Nada de eso se deja a la intemperie: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable. Los Powerwall están hechos para afuera, pero van en su caseta, más baja, pegada a la pared sur del cuarto: así no les da el sol directo, que los calienta, ni les pega lo que vuela en un huracán. Su techo queda debajo de la ventana del oeste y cada hoja de sus dos puertas dobles (una por cada dos Powerwall) lleva una rejilla abajo y otra arriba, para que el aire entre fresco y salga caliente. La caseta sale con el primer Powerwall. El medidor de LUMA, el mástil y el generador del E10 quedan fuera, y lo que cruza una pared (el conducto de las placas, el de las baterías y el de la acometida) llega a ella por los dos lados. El cuarto da sombra como de verdad: de mañana les quita sol a las PS400 más cercanas.
 - **Poner el agua de Windmar Water** en la pestaña Agua, con los equipos del cotizador Water de Sun Bot:
   - cuántas personas viven en la casa (usan 50 galones al día cada una, 15 de ellos de agua caliente);
   - el calentador solar Soltek (80/1, 80/2, 120/3 o 120/4). Un punto naranja marca el que sugiere el cotizador para esas personas. Va al fondo del techo, en el lugar de las últimas placas, así que el techo admite menos placas;
@@ -41,15 +41,26 @@ Los controles van en pestañas (Energía, Agua y Anker; en el apartamento, Anker
   - la nevera portátil EverFrost 40 (43 L) o 50 (53 L, con dos zonas), con su batería de 299 Wh, en el cuarto de equipos.
 
   El Anker mantiene lo esencial de la casa: de día lo cubren sus placas y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. El E10 sin placas es solo respaldo: LUMA lo mantiene lleno y entra en un apagón. Las luces de la estación dicen su carga, el vidrio de las placas se ilumina con el sol, su sombra, la de la casa y la del cuarto les quitan sol, y el panel dice cuánto de lo esencial le dan las placas en el día y para cuántas horas alcanza sin LUMA.
+- **Sellar el techo** en la pestaña Roofing, con los Planes de Sellado del cotizador de Roofing de Sun Bot. Va en pasos:
+  1. el plan: Sin, Silver, Gold o Platinum. La casa abre con Gold puesto: es un sistema Solar y Roofing. Los tres llevan la misma silicona Gardner sobre imprimador, sin uniones, y la garantía del fabricante de por vida; cambian la mano de obra (1 año en Silver, 10 en Gold y Platinum, con las rectificaciones del aire y el calentador) y el mantenimiento (Platinum limpia el techo y las placas cada 2 años por 10 años). Sin plan, el techo es el concreto como está, con su grieta abierta en la esquina;
+  2. el techo de antes: cuánto del sellado viejo se quita, de 0 a 100 % de 10 en 10, como en el cotizador. Cada 10 % es un parche de sellado viejo pelándose en el techo de antes; con un plan puesto, al cambiarlo se ve un momento cómo estaba;
+  3. el área del techo, que se cotiza con su mínimo: 1,000 pies², o 750 si ya es cliente solar de Windmar (la casa mide los 1,250 del techo promedio de Puerto Rico);
+  4. míralo: "Ver cómo se sella" aplica el sellado por partes, de norte a sur, con el borde naranja que avanza: limpieza a presión, se quita el sellado viejo, las grietas con Roof Patch, el imprimador Elasto Prime y la silicona. También se aplica solo al escoger un plan desde "Sin". El aguacero llueve sobre la figura y nubla el sol: con el sellado, el agua corre por el techo a las dos gárgolas, baja por ellas y cae al suelo (la del oeste, por el techo del cuarto); sin sellar, se queda en charcos, se mete por la grieta, gotea por debajo de la losa y mancha la pared de la esquina. La lluvia es para verlo: no cambia la energía del día.
 - **Ver salir el sol y la luna:** el sol pasa por encima de la maqueta en un arco: sale por el lado del este (con las placas al sur, por la derecha), sube, a mediodía va sobre la casa y se pone por el otro lado, y las sombras caen del lado contrario. Nunca pasa por debajo ni por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
-- **Leer la ficha** al lado de la casa: placas y kW, producción al mes y al año, rumbo e inclinación, el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas), baterías y horas de respaldo de noche, cuánto cubren las placas el mes elegido y el año, y lo que sugiere el cotizador.
+- **Leer la ficha** al lado de la casa: cada pestaña tiene la suya, con lo que aporta cada producto escogido (o lo que haría, si falta):
+  - **Energía:** placas y kW, producción al mes (con el año y el día), cuánto cubren las placas el mes elegido y el año, baterías y horas de respaldo de noche, y el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas). Lo que sugiere el cotizador va al lado de "Volver a lo sugerido".
+  - **Agua:** los galones que usa la casa al día, el calentador con la luz que ahorra al mes, la cisterna con los días que alcanza sin la AAA y el suavizador con los galones que trata.
+  - **Anker:** el respaldo con su batería y su potencia, lo que le da el sol a lo esencial en el día, las horas sin LUMA y la nevera con sus horas.
+  - **Roofing:** el plan con su mano de obra, la garantía del fabricante, el mantenimiento (Platinum: 5 limpiezas del techo y las placas) y el área que se cotiza, con lo que se quita del sellado viejo.
+
+  La última celda de cada ficha, **Le falta**, dice qué productos no se han puesto (calentador, cisterna, suavizador, Anker, nevera y, sin plan, el sellado; en el apartamento, la ósmosis): es lo que se le puede ofrecer al cliente, y cada botón lleva a su paso.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
 - **Pasar a tema oscuro** y volver al claro. Los dos usan la paleta oficial de Windmar Home y la letra Montserrat.
 - **Pasar al apartamento** con el selector Casa | Apartamento. Es otra página, con el mismo reproductor, el mismo cielo y las mismas sombras. El apartamento mide unos 6.9 × 8 m: sala con cocina, una alcoba (cama doble, dos mesitas y una cómoda) y un baño (lavamanos con su espejo, inodoro y ducha con su vidrio), al oeste detrás de un tabique. Tiene todas sus paredes y su techo, que se dibujan transparentes, como los tabiques, para ver adentro sin que nada quede a la intemperie; "Ver adentro" los cierra. De noche los cuatro plafones (sala, equipos, alcoba y baño) quedan prendidos y su luz cae en el piso de cada cuarto. La cocina va contra la pared norte, el panel de breakers contra la este y la sala da al balcón del sur, con su puerta corrediza de vidrio y su baranda de vidrio. Tiene dos pestañas:
   - **Anker:** la F2600 o la F3800 Plus, con o sin su batería de expansión, en el piso debajo del panel, con su transfer switch de apartamento en la pared y una o dos placas en el balcón (con − y +; caben dos; con la F2600 pueden ser PS200), y la nevera EverFrost en la cocina. El E10 es solo de la casa: el cotizador no lo vende para apartamento. El cable de las PS400 entra por la puerta corrediza y corre pegado a la pared. También se escoge hacia dónde mira el balcón: la brújula gira y las PS400 reciben el sol de su propio plano, inclinado 40°, así que un balcón al norte da bastante menos.
   - **Agua:** las personas del apartamento, la cisterna Torre 150 en la pared este, con su bomba de ½ HP y su presurizado de 6 gal (con el corte de agua de la AAA), y la ósmosis inversa de 7 etapas debajo del fregadero, con tanque o sin tanque, y su dispensador en el tope. El gabinete del fregadero va abierto para que se vea.
 
-  La ficha del apartamento dice el Anker, sus placas, el rumbo del balcón, cuánto de lo esencial dan las PS400, las horas sin LUMA, las personas, para cuánto alcanza la cisterna y el agua de beber que da la ósmosis.
+  El apartamento también tiene una ficha por pestaña: en Anker, el Anker, sus placas en el balcón, lo que le da el sol a lo esencial, las horas sin LUMA y la nevera; en Agua, los galones al día, para cuánto alcanza la cisterna sin la AAA y el agua de beber que da la ósmosis. Las dos terminan en "Le falta".
 
 ![De noche, en tema oscuro: la batería alimenta la casa](docs/oscuro.png)
 
@@ -57,13 +68,19 @@ Los controles van en pestañas (Energía, Agua y Anker; en el apartamento, Anker
 
 ![De noche la tarjeta se pone azul oscuro y sale la luna llena](docs/noche-luna.png)
 
-![Pestaña Agua: el calentador solar al fondo del techo, la Hércules 600 en el techo y el suavizador POE en el cuarto de equipos; el agua corre por los tubos y el panel dice la temperatura, el nivel, el ahorro y la reserva](docs/agua.png)
+![Pestaña Agua: el calentador solar al fondo del techo, la Hércules 600 en el techo y el suavizador POE en el cuarto de equipos; el agua corre por los tubos, el reproductor dice la temperatura y el nivel, y la ficha del agua lo que aporta cada uno (el ahorro, los días sin la AAA, los galones tratados) y lo que le falta a la casa](docs/agua.png)
 
 ![Pestaña Anker: la F3800 Plus con cuatro PS400 en el patio, que se suman y se quitan con − y +; la estación y su transfer switch van en el cuarto de equipos de la fachada oeste; a las 12:30 las PS400 cubren lo esencial y cargan la batería](docs/anker.png)
 
 ![El SOLIX E10 de cerca: cinco baterías B6000 con el módulo de poder encima, en su montura de pared dentro del cuarto de equipos, y el Smart Generator 5500 afuera, contra la pared norte del cuarto](docs/e10.png)
 
-![El cuarto de equipos con "Ver adentro" apagado: de bloques, con su puerta y sus persianas; el conducto de las placas y el de los Powerwall entran por su pared sur](docs/cuarto-cerrado.png)
+![El cuarto de equipos y la caseta de los Powerwall con "Ver adentro" apagado: de bloques, el cuarto con su puerta y sus persianas, y la caseta, más baja, con sus dos puertas dobles de rejillas; el conducto de las placas entra al cuarto por su pared sur](docs/cuarto-cerrado.png)
+
+![Pestaña Roofing con el plan Gold y 30 % de remoción: con "Ver cómo se sella", el imprimador avanza de norte a sur sobre el concreto, con su borde naranja; la ficha dice el plan, la garantía del fabricante, el mantenimiento y el área](docs/roofing-sellando.png)
+
+![El aguacero con el techo sellado: el agua corre por la silicona a las dos gárgolas, baja por ellas y cae al suelo; la del oeste cae al techo del cuarto y sigue por su alero](docs/lluvia-sellado.png)
+
+![El aguacero sin sellar, de cerca: el concreto con charcos y el sellado viejo, la grieta mojada en la esquina, la gotera que sale por debajo de la losa y la mancha de humedad en la pared](docs/lluvia-sin-sellar.png)
 
 ![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.2](docs/tanque-manana.png)
 
@@ -107,20 +124,20 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 
 | Ruta | Qué es |
 |---|---|
-| `src/build.mjs` | Arma la casa (Fig 1), con su cuarto de equipos: geometría, orden de pintado y su página; después corre `apartamento.mjs` |
+| `src/build.mjs` | Arma la casa (Fig 1), con su cuarto de equipos y la caseta de los Powerwall (los dos techos salen de `techoDeUnaCaida`): geometría, orden de pintado y su página; después corre `apartamento.mjs` |
 | `src/apartamento.mjs` | Arma el apartamento (Fig 2): la sala con la cocina, la alcoba, el baño, el panel y el balcón, sus productos y su página |
-| `src/taller.mjs` | El taller de dibujo de las dos escenas: la proyección del lienzo, las piezas (cajas, cilindros, tubos con su flujo), las sombras, el logo sobre un cilindro y el cielo |
+| `src/taller.mjs` | El taller de dibujo de las dos escenas: la proyección del lienzo, las piezas (cajas, cilindros, tubos con su flujo), las sombras, el logo sobre un cilindro y el cielo. Anota lo que "Ver adentro" vuelve transparente y pone lo dibujado en su cara en una capa `sr-cara` que se borra con ello |
 | `src/piezas.mjs` | Las piezas de los productos que se dibujan igual en las dos escenas: el cuerpo de la cisterna con su logo y su mirilla, la bomba, el presurizado, la estación Anker con sus baterías de expansión (la BP2600 y la BP3800), la nevera EverFrost, el transfer switch y la PS400 o la PS200 |
-| `src/pagina.mjs` | El armado de la página de cada escena: el selector Casa \| Apartamento, el reproductor, el zoom con "Ver adentro", los pasos de la pestaña Anker (`respaldoHtml`), los botones que se repiten y el script |
+| `src/pagina.mjs` | El armado de la página de cada escena: el selector Casa \| Apartamento, el reproductor, el zoom con "Ver adentro", los pasos de la pestaña Anker (`respaldoHtml`), las fichas de cada pestaña (`fichaDe`), los botones que se repiten y el script |
 | `src/model.mjs` | Regla de dimensionamiento y modelo de energía del día; corre en la construcción y en la página |
 | `src/sol.mjs` | El sol y la luna del día, los rumbos de PVWatts, el año típico de PVGIS y lo que tapa el sol (acceso solar y forma del día); corre en la construcción y en la página |
 | `src/agua.mjs` | El día del agua: el uso por hora, el nivel de la cisterna, la temperatura del calentador solar, la resistencia que hace falta, la luz que ahorra y el agua de beber de la ósmosis; corre en la construcción y en la página |
 | `src/anker.mjs` | El día del Anker: lo esencial por hora, lo que dan sus placas, la carga de la batería, el generador del E10 y las horas sin LUMA; corre en la construcción y en la página |
-| `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (el calentador solar, la cisterna, el suavizador, el Anker portátil, el E10, la nevera EverFrost y la ósmosis), con sus modelos, sus partes, su nota y en qué escena va cada uno; corre en la construcción y en la página |
+| `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (el calentador solar, la cisterna, el suavizador, el Anker portátil, el E10, la nevera EverFrost, la ósmosis y el plan de sellado), con sus modelos, sus partes, su nota y en qué escena va cada uno; corre en la construcción y en la página |
 | `src/logo.mjs` | El logo de Windmar en mínimo (el sol, el molino y "windmar"), calcado del de Windmar Water de Sun Bot |
-| `src/live.js` | Lo común de lo que se mueve: el reproductor del día, los flujos, los productos que bajan y suben, la brújula, el cielo, las sombras, el agua, el Anker, el zoom, "Ver adentro", las pestañas con sus pasos (lo que se ve y su número) y el tema |
-| `src/live-casa.js` | Lo de la casa: placas y baterías que entran y salen, la sombra del techo, el sistema del cotizador, la ficha, los controles de Energía y la gráfica |
-| `src/live-apartamento.js` | Lo del apartamento: su ficha y lo que dicen la figura y el lector de pantalla |
+| `src/live.js` | Lo común de lo que se mueve: el reproductor del día, los flujos, los productos que bajan y suben, la brújula, el cielo, las sombras, el agua, el Anker, el zoom, "Ver adentro", las pestañas con sus pasos (lo que se ve y su número), las fichas de Agua y de Anker con "Le falta", y el tema |
+| `src/live-casa.js` | Lo de la casa: placas y baterías que entran y salen, la sombra del techo, el sistema del cotizador, la ficha de Energía, los controles de Energía y la gráfica, y la pestaña Roofing: el techo sellado o el de antes, la obra del sellado por partes, el aguacero y su ficha |
+| `src/live-apartamento.js` | Lo del apartamento: lo que dicen la figura y el lector de pantalla (sus fichas las llena `live.js`) |
 | `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
 | `public/index.html`, `public/apartamento.html` | Las páginas construidas, las que publica Vercel |
 | `vendor/anatomy/` | Kit de figuras isométricas Anatomy, con su licencia MIT |
@@ -128,7 +145,7 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 
 ## El plano: agregar o quitar un producto
 
-Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) están en `src/productos.mjs`. En la casa van el calentador solar, la cisterna y el suavizador en la pestaña Agua, y en la pestaña Anker el Anker portátil, el E10 y la nevera EverFrost. En el apartamento van el Anker portátil, la nevera, la Torre 150 y la ósmosis. Para agregar uno:
+Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) están en `src/productos.mjs`. En la casa van el calentador solar, la cisterna y el suavizador en la pestaña Agua, en la pestaña Anker el Anker portátil, el E10 y la nevera EverFrost, y en la pestaña Roofing el plan de sellado. En el apartamento van el Anker portátil, la nevera, la Torre 150 y la ósmosis. Para agregar uno:
 
 1. **Una entrada en `CATALOGO`**, con:
    - en qué pestaña va y sus títulos;
@@ -142,7 +159,7 @@ Los productos que se escogen por modelo (con un botón "Sin" y uno por modelo) e
    - lo que cambia en una escena (`porEscena`, en el producto o en un modelo): en el apartamento, la cisterna empieza en la Torre 150 y la F3800 Plus con la BP3800 lleva dos PS400, las que caben en el balcón;
    - la nota que dice el panel.
 
-   Si ocupa lugares de placas del techo, va en `lugares`. Si lleva el logo de Windmar, va `logo: true`.
+   Si ocupa lugares de placas del techo, va en `lugares`. Si lleva el logo de Windmar, va `logo: true`. Si ya viene puesto al abrir la página, va en `puesto` (el sellado: la casa abre con Gold). Si sus piezas no bajan a su lugar sino que la escena las extiende, va `capa: true` (el sellado, que se aplica sobre el techo). La parte `sin` es la que se ve cuando va "Sin": el techo de antes.
 2. **Su dibujo en `DIBUJOS`**, con el mismo id, en el build de cada escena donde va (`src/build.mjs` para la casa y `src/apartamento.mjs` para el apartamento):
    - `lienzo(m)`: los puntos más altos de cada modelo, si sobresale de la escena;
    - `cielo(m)`: su caja, para que el sol y la luna le den la vuelta;
@@ -175,6 +192,19 @@ Del cotizador de LUMA de Sun Bot (Windmar Home):
 - Powerwall de 13.5 kWh, que cubren la mitad del consumo diario, al menos uno. Con batería, el cotizador pide al menos 8 placas. Se pueden poner de 0 a 4.
 - Las horas de respaldo son las de la herramienta Enseres: baterías × 13.5 ÷ consumo diario × 24, hasta 24 h.
 - Techo con el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, y Roof Patch en anclajes y penetraciones.
+
+Del cotizador de Roofing de Sun Bot (`roofing/types.ts`, `RoofingCotizador.tsx` y el PDF de los Planes de Sellado, `generateRoofingPDF.ts`), para la pestaña Roofing:
+
+| Plan | Mano de obra | Fabricante | Mantenimiento |
+|---|---|---|---|
+| Silver | 1 año | limitada de por vida | se paga por visita |
+| Gold | 10 años | limitada de por vida | se paga por visita |
+| Platinum | 10 años | limitada de por vida | limpieza del techo y las placas cada 2 años, por 10 años |
+
+- La mano de obra incluye las rectificaciones (aires, calentadores y lo demás del techo).
+- La remoción del sellado viejo va de 0 a 100 %, de 10 en 10.
+- Se cotizan al menos 1,000 pies², o 750 si ya es cliente solar de Windmar. El techo promedio de Puerto Rico, el que usa el cotizador si no encuentra el edificio, mide 1,250 pies²: es el de la casa.
+- La figura no muestra dinero: ni el precio por pie² de cada plan, ni la remoción, ni lo que cuesta una visita.
 
 Con la factura de ejemplo (promedio de 600 kWh al mes y pico de 700 en agosto) salen 16 placas nuevas (6.56 kW) y un Powerwall, que producen 726 kWh al mes.
 

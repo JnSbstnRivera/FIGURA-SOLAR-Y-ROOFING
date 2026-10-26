@@ -57,7 +57,8 @@ function bajan(els, quiere) {
 }
 // lo que el build midió de cada modelo (la mirilla de cada cisterna) va con su modelo
 for (const [id, porModelo] of Object.entries(D.medidas)) for (const m of PRODUCTO[id].modelos) Object.assign(m, porModelo[m.id]);
-const partesGroups = PRODUCTOS.flatMap((p) => [...p.modelos.map((m) => m.id), ...Object.keys(p.partes ?? {})].map((parte) => bajan($$(`[data-p="${p.id}:${parte}"]`), (e) => parteSeVe(e, p.id, parte)))).filter((g) => g.els.length);
+// (las capas, como el sellado del techo, no bajan: las extiende la escena)
+const partesGroups = PRODUCTOS.filter((p) => !p.capa).flatMap((p) => [...p.modelos.map((m) => m.id), ...Object.keys(p.partes ?? {})].map((parte) => bajan($$(`[data-p="${p.id}:${parte}"]`), (e) => parteSeVe(e, p.id, parte)))).filter((g) => g.els.length);
 // los productos que hacen un papel en el día del agua
 const calentadorDe = (e) => conRol(e, "calentador");
 const cisternaDe = (e) => conRol(e, "cisterna");
@@ -182,7 +183,9 @@ function activoPara(on, total, baterias, escogidos) {
   if (tipo === "p") return parteSeVe(escogidos, n, parte);
   return true;
 }
-const activo = (on) => activoPara(on, ...ESCENA_VIVA.puestas(), S.escogido);
+// lo escogido que se ve en el dibujo: la escena puede mostrar otra cosa mientras cambia (la casa, el techo de antes
+// mientras se sella), y la sombra sigue a lo que se ve
+const activo = (on) => activoPara(on, ...ESCENA_VIVA.puestas(), ESCENA_VIVA.vistos?.() ?? S.escogido);
 const pathDe = (poly) => `M${poly.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join("L")}Z`;
 // Cada pieza pinta su sombra con pocos trazos: las partes con la misma fuerza van juntas en uno, así
 // dos caras a la sombra que se tocan no muestran una línea clara entre ellas.
@@ -214,6 +217,8 @@ function pintaSombra(r, grupos, fuerza) {
   }
 }
 const sombra = { firma: "", fuerza: 0.4, version: 0, hay: false };
+// lo que se dibuja transparente con "Ver adentro" (taller.mjs lo anota por su capa: paredes, tabiques y techos)
+const TRANSPARENTES = new Set(D.sombra.transparentes ?? []);
 const leerFuerza = () => {
   sombra.fuerza = parseFloat(getComputedStyle(svg).getPropertyValue("--sr-sombra-a")) || 0.4;
   sombra.firma = "";
@@ -239,7 +244,10 @@ function sombras(s, cuanto) {
   }
   sombra.hay = true;
   const Ss = pantalla(s);
-  const activos = SOLIDOS.filter((k) => activo(k.on));
+  // con "Ver adentro", las paredes, los tabiques y los techos que se dibujan transparentes no echan su sombra: adentro
+  // se ve claro, como sin paredes. El día de la energía las cuenta igual.
+  const verAdentro = !mainEl.dataset.paredes;
+  const activos = SOLIDOS.filter((k) => activo(k.on) && !(verAdentro && TRANSPARENTES.has(k.n)));
   for (const r of RECEPTORES) {
     if (!r.el || !activo(r.on)) continue;
     const grupos = new Map();
@@ -532,9 +540,10 @@ function dibujaRosa(rumbo) {
 }
 
 // ---------- sistema ----------
-// Lo escogido de la escena: el rumbo, las personas y el agua, y los productos del plano. Cada escena le suma lo suyo
-// (la casa, el consumo de cada mes, las placas y las baterías).
-const S = { rumbo: D.rumbo, agua: { personas: D.agua.personas, cortado: false }, escogido: { ...SIN_NADA } };
+// Lo escogido de la escena: el rumbo, las personas y el agua, y los productos del plano (con lo que ya viene puesto, como
+// el sellado del techo de la casa). Cada escena le suma lo suyo (la casa, el consumo de cada mes, las placas, las
+// baterías y lo del techo).
+const S = { rumbo: D.rumbo, agua: { personas: D.agua.personas, cortado: false }, escogido: { ...SIN_NADA, ...PUESTOS } };
 
 // Cada cambio rehace el día: primero lo de la escena (en la casa, el sistema del cotizador y la sombra del techo),
 // después el agua y el Anker, las piezas que entran y salen y los textos.
@@ -841,6 +850,73 @@ const RESULTADO = Object.fromEntries(enPanel("[data-resultado]").map((el) => [el
 const NOMBRE_CANTIDAD = Object.fromEntries(enPanel("[data-cantidad-nombre]").map((el) => [el.dataset.cantidadNombre, el]));
 const TOPE = Object.fromEntries(enPanel("[data-tope]").map((el) => [el.dataset.tope, el]));
 const INTRO = enPanel("[data-intro-respaldo]");
+// Las fichas de Agua y de Anker (pagina.mjs): lo que aporta cada producto escogido, o lo que haría si falta. La de
+// Energía la llena la casa. Cada escena trae las celdas que le tocan.
+const FC = Object.fromEntries(enPanel("[data-f]").map((el) => [el.dataset.f, el]));
+const pon = (key, texto) => {
+  if (FC[key] && FC[key].textContent !== texto) FC[key].textContent = texto;
+};
+function fichasProductos() {
+  const n = S.agua.personas;
+  const cal = calentadorDe(S.escogido);
+  const cis = cisternaDe(S.escogido);
+  const ro = potableDe(S.escogido);
+  const poe = modeloDe(S.escogido, "poe");
+  const nev = modeloDe(S.escogido, "nevera");
+  const r = respaldoDe();
+  pon("uso", `${galones(agua.usoDia)} al día`);
+  pon("usoDe", `${n} ${n === 1 ? "persona" : "personas"} · ${tieneRol("calentador") ? `${galones(agua.calienteDia)} calientes` : `${galones(agua.potableDia)} de beber`}`);
+  pon("cal", cal ? `Soltek ${cal.nombre}` : "Sin calentador");
+  pon("calDe", cal ? `ahorra ${fmt(agua.ahorroMes)} kWh al mes` : "el agua caliente va con luz");
+  pon("cisterna", cis ? cis.nombre : "Sin cisterna");
+  const dias = agua.reserva >= 1 ? `${fmt(agua.reserva, 1)} ${agua.reserva === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(agua.reserva * 24))} horas`;
+  pon("reserva", cis ? `${dias} sin la AAA` : "sin agua si corta la AAA");
+  pon("poe", poe ? `Water Care ${poe.corto}` : "Sin suavizador");
+  pon("poeDe", poe ? `trata ${galones(agua.usoDia)} al día` : "el agua entra sin tratar");
+  pon("osmosis", ro ? ro.corto : "Sin ósmosis");
+  pon("beber", ro ? `${galones(agua.potableDia)} de beber al día` : "el agua de beber, de la llave");
+  const e10 = Boolean(r?.m.kwhB6000);
+  const placas = r ? placasDe(r) : 0;
+  pon("anker", r ? (e10 ? `E10 ${r.m.id === "portatil" ? "Portátil" : r.m.corto}` : r.m.corto) : "Sin respaldo");
+  pon("ankerKwh", r ? `${fmt(kwhDe(r), e10 ? 1 : 2)} kWh · ${fmt(r.m.kw, (String(r.m.kw).split(".")[1] ?? "").length)} kW` : "lo esencial va de LUMA");
+  pon("ps", placas ? `${fmt(placas * kwPlacaDe(r), 1)} kW` : "—");
+  pon("psN", r ? `${placas} de ${conPs200(r.m, S.escogido) ? 200 : 400} W en el balcón` : "sin placas");
+  pon("sol", r && anker && placas ? `${fmt(anker.solDia, 1)} kWh al día` : "—");
+  pon("solDe", !r ? "sin respaldo" : placas && anker ? `de los ${fmt(anker.esencialDia, 1)} de lo esencial` : "sin placas: LUMA lo mantiene lleno");
+  pon("horas", r && anker ? `${Math.round(anker.horas)} horas` : "—");
+  pon("horasDe", !r ? "sin respaldo" : e10 && S.escogido.generador ? "y el generador la recarga" : "con la batería sola");
+  pon("nevera", nev ? `EverFrost ${nev.id}` : "Sin nevera");
+  pon("neveraDe", nev ? `${fmt(nev.horas, nev.horas % 1 ? 1 : 0)} h con su batería` : "para un apagón o para salir");
+}
+// "Le falta": todo lo que no se ha puesto (el Anker portátil y el E10 cuentan como uno, el respaldo), como botones que
+// llevan a su paso; es lo que se le puede ofrecer al cliente
+const FALTA = PRODUCTOS.reduce((grupos, p) => {
+  const id = p.rol === "respaldo" ? "respaldo" : p.id;
+  if (!grupos.some((g) => g.id === id)) {
+    const ps = p.rol === "respaldo" ? RESPALDOS : [p];
+    const nombre = p.rol === "respaldo" ? "Anker" : p.nombre[0].toUpperCase() + p.nombre.slice(1);
+    grupos.push({ id, pestaña: p.pestaña, nombre, titulo: p.rol === "respaldo" ? "Anker SOLIX" : p.grupo, hay: () => ps.some((q) => hay(S.escogido, q.id)) });
+  }
+  return grupos;
+}, []);
+function pintaFaltan() {
+  const faltan = FALTA.filter((g) => !g.hay());
+  for (const el of enPanel("[data-faltan]")) {
+    const firma = faltan.map((g) => g.id).join(" ") || "nada";
+    if (el.dataset.firma === firma) continue;
+    el.dataset.firma = firma;
+    el.innerHTML = faltan.length ? faltan.map((g) => `<button type="button" class="sr-falta" data-ir="${g.id}" title="Ir a ${g.titulo}" aria-label="Le falta: ${g.titulo}. Ir a su paso">${g.nombre}</button>`).join("") : `<span class="sr-kpi-s">nada: tiene todo</span>`;
+  }
+}
+document.addEventListener("click", (event) => {
+  const b = event.target.closest("[data-ir]");
+  const g = b && FALTA.find((q) => q.id === b.dataset.ir);
+  if (!g) return;
+  setTab(g.pestaña);
+  const seccion = document.querySelector(`[data-panel="${g.pestaña}"] [data-producto="${g.id}"]`);
+  seccion?.scrollIntoView({ block: "nearest" });
+  seccion?.querySelector('[role="radio"][tabindex="0"]')?.focus({ preventScroll: true });
+});
 const galones = (v) => `${fmt(v)} gal`;
 function updateAgua() {
   const a = S.agua;
@@ -869,6 +945,8 @@ function updateAgua() {
     }
   }
   for (const el of INTRO) el.textContent = RESPALDOS[0]?.nota() ?? "";
+  fichasProductos();
+  pintaFaltan();
   if (AQ.ahorro) AQ.ahorro.textContent = calentadorDe(S.escogido) ? `unos ${fmt(agua.ahorroMes)} kWh al mes, frente a calentar con resistencia` : "sin calentador solar";
   if (corteBoton) corteBoton.disabled = !cisternaDe(S.escogido);
   for (const { p, b } of interruptores) {
@@ -892,9 +970,9 @@ const sayAnker = (a) => {
   const e10 = Boolean(r.m.kwhB6000);
   return `${e10 ? "placas" : conPs200(r.m, S.escogido) ? "PS200" : "PS400"} ${fmt(a.ps400, 1)} kW · lo esencial ${fmt(a.esencial, 1)} kW · ${e10 ? "E10" : "Anker"} ${Math.round(a.soc * 100)} %${a.gen > 0.005 ? " · generador" : ""}`;
 };
-// ---------- pestañas: Energía, Agua y Anker ----------
-// La pestaña cambia los controles de la columna y lo que corre por los tubos: la energía, el agua o lo del Anker. La
-// página abre en la que viene escogida (en la casa, Energía; en el apartamento, Anker).
+// ---------- pestañas: Energía, Agua, Anker y Roofing ----------
+// La pestaña cambia los controles de la columna y lo que corre por los tubos: la energía, el agua, lo del Anker o el
+// agua de la lluvia en el techo. La página abre en la que viene escogida (en la casa, Energía; en el apartamento, Anker).
 const tabs = [...document.querySelectorAll("[data-tab]")];
 const paneles = Object.fromEntries([...document.querySelectorAll("[data-panel]")].map((el) => [el.dataset.panel, el]));
 let modo = tabs.find((t) => t.getAttribute("aria-selected") === "true")?.dataset.tab ?? "energia";
@@ -908,6 +986,8 @@ function setTab(nombre, focus = false) {
     if (on && focus) t.focus();
   }
   for (const [key, el] of Object.entries(paneles)) el.hidden = key !== nombre;
+  // la ficha de la tarjeta es la de la pestaña
+  for (const el of enPanel("[data-ficha]")) el.hidden = el.dataset.ficha !== nombre;
   mainEl.dataset.modo = nombre;
   // la primera vez que se abre una pestaña sin nada escogido en ella, bajan los productos que tienen modelo
   // inicial (en la del agua, el calentador que sugiere el cotizador y la Hércules 600); después se cambian o se
@@ -1247,12 +1327,16 @@ stage.addEventListener(
 );
 stage.addEventListener("dblclick", (event) => {
   event.preventDefault();
+  // el doble clic no deja nada seleccionado (una selección se arrastra como imagen y no deja mover el dibujo)
+  getSelection()?.removeAllRanges();
   cancelAnimationFrame(animZoom);
   zoomA(vistaZoom.z * (event.shiftKey ? 0.5 : 2), enElDibujo(event.clientX, event.clientY));
 });
-// arrastrar (con zoom) y pellizcar: los punteros que están abajo
+// arrastrar (con zoom) y pellizcar: los punteros que están abajo. El navegador no arrastra nada por su cuenta (ni una
+// selección ni el dibujo como imagen), que si no cancela el arrastre.
 const dedos = new Map();
 let gesto = null;
+stage.addEventListener("dragstart", (event) => event.preventDefault());
 stage.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   dedos.set(event.pointerId, [event.clientX, event.clientY]);
@@ -1318,6 +1402,9 @@ paredesBtn.addEventListener("click", () => {
   paredesBtn.setAttribute("aria-pressed", String(ver));
   if (ver) delete mainEl.dataset.paredes;
   else mainEl.dataset.paredes = "cerradas";
+  // la sombra del techo vuelve (o se va) con las paredes
+  sombra.version++;
+  if (!frame) draw(0, true);
 });
 
 stage.addEventListener("keydown", (event) => {
