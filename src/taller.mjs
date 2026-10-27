@@ -232,6 +232,12 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
     });
     return route;
   }
+  // Un tubo suelto, que no es pieza del dibujo (no se audita ni se ordena): lo que la página muestra solo un momento,
+  // como el tramo que se estira del conducto de las placas mientras se levantan para sellar el techo.
+  function tuboSuelto(points, r, { tone = "mid" } = {}) {
+    const route = G.fillet(points, Math.max(r * 2.6, 1.2), 10, { P, tube: r });
+    return tubePieces(route, r, P, { maxLength: 1000, spacing: Math.max(0.5, Math.min(1.4, r)) }).map((piece) => tubeSvg(piece, { tone })).join("");
+  }
   // Abrazadera: un anillo alrededor del tubo (que queda cortado debajo) y un taco hasta la pared.
   function strap(name, route, s, pipeName, r, block) {
     const centre = G.pointAlong(route, s);
@@ -398,6 +404,6 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
   return {
     H, P, KS, at, S, Ln, Dots, path3, f2, R, record, put,
     SOMBRA, VISTA, r2, p3, tapaSol, cara, recibeSol, anillosCaja, carasCaja, carasAnillo, anilloEn, anilloRedondo, faceY, faceX, rect, sombraCaja, sombraCilindro,
-    box, cyl, turned, ringOn, prism, layer, ball, arcWhere, pipe, strap, logoEnCilindro, cieloDe,
+    box, cyl, turned, ringOn, prism, layer, ball, arcWhere, pipe, tuboSuelto, strap, logoEnCilindro, cieloDe,
   };
 }

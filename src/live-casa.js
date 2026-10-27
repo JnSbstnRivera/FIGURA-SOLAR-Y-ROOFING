@@ -598,11 +598,14 @@ const FASES = [
 // lo que tarda en pasar de un techo al otro, y lo que se ve el techo de antes al cambiar la remoción (segundos)
 const CRUCE = 0.45;
 const ANTES = 2.6;
-// Las rectificaciones: lo que lleva su marca en el dibujo (el aire con su tubería y su bota, y el calentador con sus
-// colectores, su tanque y sus tubos) sube LEVANTA al empezar la obra, para que el sellado pase por debajo, y baja cuando
-// la silicona ya pasó. h: cuánto está arriba, de 0 a 1.
-const LEVANTA = 7;
+// Las rectificaciones: todo lo del techo que lleva su marca en el dibujo (las placas con sus rieles, sus cajas y sus
+// conductos, el aire, el calentador y la cisterna) sube al empezar la obra, para que el sellado pase por debajo, y cada
+// cosa baja cuando la silicona ya pasó su punta sur. h: cuánto está arriba, de 0 a 1. Mientras las placas están arriba,
+// su conducto se estira desde la abrazadera del borde de la losa (el recorte del tubo que se estira).
+const LEVANTA = TECHO.levanta;
 const levantan = TECHO.rectifica.map((r) => ({ ...r, els: $$(`[data-rectifica="${r.id}"]`), h: 0, hecho: "", arriba: false }));
+const estira = $("[data-estira]");
+const ESTIRA = iso(TECHO.estira, P);
 // visto: el techo que se ve ("capas" o "sin"); cruce: de 0 a 1, cuánto lleva el paso de uno al otro; obra: el sellado
 // que se está aplicando (su tiempo y sus partes); antes: lo que falta de mostrar el techo de antes; vistos: lo escogido
 // que se ve (para la sombra); lluvia: el techo sobre el que llueve, o "" si no llueve; enElAire: las sombras que no se
@@ -612,11 +615,9 @@ const vistosDelTecho = () => (azotea.vistos = azotea.visto === "sin" && hay(S.es
 const techoQueToca = () => (!hay(S.escogido, "sellado") || azotea.obra || azotea.antes > 0 ? "sin" : "capas");
 function empezarObra() {
   if (still.matches || !hay(S.escogido, "sellado")) return;
-  // primero se levanta lo que lleva rectificación: el aire y, si lo hay, el calentador
-  const suben = levantan.filter((g) => g.id !== "calentador" || calentadorDe(S.escogido)).map((g) => g.nombre);
-  const rectifica = { id: "rectifica", texto: `se ${suben.length > 1 ? "levantan" : "levanta"} ${suben.join(" y ")}`, dur: 0.9 };
+  // primero se levanta todo lo del techo (las rectificaciones)
   let t0 = 0;
-  const fases = [rectifica, ...FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0)].map((f) => {
+  const fases = [{ id: "rectifica", texto: "se levanta todo lo del techo", dur: 0.9 }, ...FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0)].map((f) => {
     const o = { ...f, t0 };
     t0 += f.dur;
     return o;
@@ -702,19 +703,29 @@ function pintaObra() {
   }
   ponD(piel.frente, borde);
 }
-// Lo que sube en la obra: arriba desde que empieza hasta que la silicona pasó por debajo de su punta sur. Mientras está
-// arriba no echa su sombra (la de abajo ya no es suya).
+// Lo que sube en la obra: arriba desde que empieza hasta que la silicona pasó por debajo de su punta sur (lo que llega
+// hasta el borde sur baja con el final de la silicona). Mientras está arriba no echa su sombra (la de abajo ya no es
+// suya).
 function levantaTecho() {
   const o = azotea.obra;
   const silicona = o ? frenteEn(avance("silicona")) : 0;
   let cambio = false;
   for (const g of levantan) {
-    g.h = o ? Math.min(smooth(0, 1, avance("rectifica")), 1 - smooth(g.x[1] + 2, g.x[1] + 10, silicona)) : 0;
+    const pasa = Math.min(g.x[1] + 10, TECHO.x[1]);
+    g.h = o ? Math.min(smooth(0, 1, avance("rectifica")), 1 - smooth(pasa - 8, pasa, silicona)) : 0;
     const d = LEVANTA * g.h;
     const t = g.h > 0.001 ? `translate(${(UP[0] * d).toFixed(2)}px,${(UP[1] * d).toFixed(2)}px)` : "";
     if (t !== g.hecho) {
       g.hecho = t;
       for (const el of g.els) el.style.transform = t;
+      // el conducto de las placas se estira lo que suben, desde la abrazadera del borde de la losa
+      if (g.id === "placas") {
+        const alto = -UP[1] * d;
+        estira.setAttribute("x", (ESTIRA[0] - 8).toFixed(2));
+        estira.setAttribute("y", (ESTIRA[1] - alto).toFixed(2));
+        estira.setAttribute("width", "16");
+        estira.setAttribute("height", alto.toFixed(2));
+      }
     }
     const arriba = g.h > 0.02;
     if (arriba !== g.arriba) {
