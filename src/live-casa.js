@@ -589,12 +589,14 @@ const piel = Object.fromEntries($$("[data-piel]").map((el) => [el.dataset.piel, 
 const ENTERO = [[TECHO.x[0], TECHO.y[0]], [TECHO.x[1], TECHO.y[0]], [TECHO.x[1], TECHO.y[1]], [TECHO.x[0], TECHO.y[1]]];
 // las partes del sellado, en orden, con lo que dice el reproductor y cuánto duran (en segundos)
 const FASES = [
-  { id: "lavado", texto: "limpieza a presión", dur: 1.3 },
-  { id: "remocion", texto: "se quita el sellado viejo", dur: 1.3 },
-  { id: "grietas", texto: "grietas con Roof Patch", dur: 1.1 },
-  { id: "imprimador", texto: "imprimador Elasto Prime", dur: 1.6 },
-  { id: "silicona", texto: "silicona Gardner", dur: 2 },
+  { id: "lavado", texto: "limpieza a presión", dur: 2.4 },
+  { id: "remocion", texto: "se quita el sellado viejo", dur: 2.4 },
+  { id: "grietas", texto: "grietas con Roof Patch", dur: 2 },
+  { id: "imprimador", texto: "imprimador Elasto Prime", dur: 3.2 },
+  { id: "silicona", texto: "silicona Gardner", dur: 4 },
 ];
+// lo que tarda en secarse el techo después de la limpieza a presión (segundos)
+const SECA = 3;
 // lo que tarda en pasar de un techo al otro, y lo que se ve el techo de antes al cambiar la remoción (segundos)
 const CRUCE = 0.45;
 const ANTES = 2.6;
@@ -617,7 +619,7 @@ function empezarObra() {
   if (still.matches || !hay(S.escogido, "sellado")) return;
   // primero se levanta todo lo del techo (las rectificaciones)
   let t0 = 0;
-  const fases = [{ id: "rectifica", texto: "se levanta todo lo del techo", dur: 0.9 }, ...FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0)].map((f) => {
+  const fases = [{ id: "rectifica", texto: "se levanta todo lo del techo", dur: 1.6 }, ...FASES.filter((f) => f.id !== "remocion" || S.techo.remocion > 0)].map((f) => {
     const o = { ...f, t0 };
     t0 += f.dur;
     return o;
@@ -632,6 +634,13 @@ const avance = (id) => {
   const f = azotea.obra.fases.find((q) => q.id === id);
   return f ? clamp((azotea.obra.t - f.t0) / f.dur, 0, 1) : 1;
 };
+// los segundos desde que terminó una parte (negativo mientras no termina)
+const desde = (id) => {
+  const f = azotea.obra.fases.find((q) => q.id === id);
+  return f ? azotea.obra.t - f.t0 - f.dur : Infinity;
+};
+// sube pasándose un poco y se asienta arriba, como con el gato
+const subeCon = (u) => 1 + 2.3 * (u - 1) ** 3 + 1.3 * (u - 1) ** 2;
 const frenteEn = (u, pasa = 0) => TECHO.x[0] + (TECHO.x[1] - TECHO.x[0] + pasa) * smooth(0, 1, u);
 // lo de un contorno (x, y) que queda entre dos x, en la cara de arriba del techo, como camino de pantalla
 function entre(contorno, desde, hasta) {
@@ -670,18 +679,32 @@ const muestraTecho = (els, a) => {
     el.style.opacity = o;
   }
 };
-// La obra de cada cuadro: el agua a presión que pasa, el sellado viejo que se va, la grieta que se cubre con Roof Patch,
-// el imprimador y la silicona que avanzan con su borde. Sin obra, el techo de antes muestra su sellado viejo y su grieta
-// abierta.
+// La obra de cada cuadro: el agua a presión que pasa y deja el techo mojado hasta que se seca, el sellado viejo que se
+// despega, la grieta que se cubre con Roof Patch, el imprimador y la silicona que avanzan con su borde encendido y una
+// franja fresca detrás. Sin obra, el techo de antes muestra su sellado viejo y su grieta abierta.
 reparo.style.strokeDasharray = `${REPARO} ${REPARO}`;
+// el ancho de las franjas (el agua a presión y lo fresco), y su degradado, de transparente atrás a lleno en el borde
+const FRANJA = 16;
+const fresca = Object.fromEntries($$("[data-fresca]").map((el) => [el.dataset.fresca, el]));
+function franja(id, atras, borde) {
+  const g = fresca[id];
+  const k = `${atras.toFixed(1)} ${borde.toFixed(1)}`;
+  if (g.__k === k) return;
+  g.__k = k;
+  const [a, b] = [iso([atras, 0, TECHO.z], P), iso([borde, 0, TECHO.z], P)];
+  for (const [n, v] of [["x1", a[0]], ["y1", a[1]], ["x2", b[0]], ["y2", b[1]]]) g.setAttribute(n, v.toFixed(1));
+}
 function pintaObra() {
   const o = azotea.obra;
   const n = S.techo.remocion / 10;
   const quitado = o ? frenteEn(avance("remocion"), 6) : -Infinity;
   for (const v of viejos) {
-    const a = (o || azotea.visto === "sin") && v.i < n ? 1 - smooth(v.x - 6, v.x, quitado) : 0;
-    const t = a.toFixed(2);
-    if (v.el.__o !== t) v.el.style.opacity = v.el.__o = t;
+    // lo que lleva despegado el parche, de 0 a 1: sube, se agranda y se va
+    const q = o && v.i < n ? smooth(v.x - 6, v.x, quitado) : 0;
+    const a = ((o || azotea.visto === "sin") && v.i < n ? 1 - q : 0).toFixed(2);
+    if (v.el.__o !== a) v.el.style.opacity = v.el.__o = a;
+    const t = q > 0 && q < 1 ? `translate(0px,${(-6 * q).toFixed(2)}px) scale(${(1 + 0.35 * q).toFixed(3)})` : "";
+    if (v.el.__t !== t) v.el.style.transform = v.el.__t = t;
   }
   const grietas = o ? avance("grietas") : azotea.visto === "capas" ? 1 : 0;
   const tapa = grietas > 0 ? (REPARO * (1 - grietas)).toFixed(1) : "";
@@ -691,28 +714,40 @@ function pintaObra() {
     reparo.style.strokeDashoffset = tapa || String(REPARO);
   }
   const lavado = o ? avance("lavado") : 1;
-  const c = frenteEn(lavado, 12);
-  ponD(piel.lavado, lavado > 0 && lavado < 1 ? entre(ENTERO, c - 12, c) : "");
+  const c = frenteEn(lavado, FRANJA);
+  const lava = lavado > 0 && lavado < 1;
+  ponD(piel.lavado, lava ? entre(ENTERO, c - FRANJA, c) : "");
+  if (lava) franja("lavado", c - FRANJA, c);
+  const seca = o ? smooth(0, SECA, desde("lavado")) : 1;
+  ponD(piel.mojado, lavado > 0 && seca < 1 ? entre(ENTERO, -Infinity, c) : "");
+  const moja = (1 - seca).toFixed(2);
+  if (piel.mojado.__o !== moja) piel.mojado.style.opacity = piel.mojado.__o = moja;
   let borde = "";
   for (const id of ["imprimador", "silicona"]) {
     const contorno = TECHO.capas[id];
     const u = o ? avance(id) : azotea.visto === "capas" ? 1 : 0;
     const cu = frenteEn(u);
     ponD(piel[id], u <= 0 ? "" : u >= 1 ? PIEL_ENTERA[id] : entre(contorno, -Infinity, cu));
-    if (u > 0 && u < 1) borde = bordeEn(contorno, cu);
+    const va = u > 0 && u < 1;
+    ponD(piel[`fresca-${id}`], va ? entre(contorno, cu - FRANJA, cu) : "");
+    if (va) {
+      franja(id, cu - FRANJA, cu);
+      borde = bordeEn(contorno, cu);
+    }
   }
   ponD(piel.frente, borde);
+  ponD(piel.brillo, borde);
 }
-// Lo que sube en la obra: arriba desde que empieza hasta que la silicona pasó por debajo de su punta sur (lo que llega
-// hasta el borde sur baja con el final de la silicona). Mientras está arriba no echa su sombra (la de abajo ya no es
-// suya).
+// Lo que sube en la obra: arriba desde que empieza (se pasa un poco y se asienta) hasta que la silicona pasó por debajo
+// de su punta sur (lo que llega hasta el borde sur baja con el final de la silicona). Mientras está arriba no echa su
+// sombra (la de abajo ya no es suya).
 function levantaTecho() {
   const o = azotea.obra;
   const silicona = o ? frenteEn(avance("silicona")) : 0;
   let cambio = false;
   for (const g of levantan) {
     const pasa = Math.min(g.x[1] + 10, TECHO.x[1]);
-    g.h = o ? Math.min(smooth(0, 1, avance("rectifica")), 1 - smooth(pasa - 8, pasa, silicona)) : 0;
+    g.h = o ? subeCon(avance("rectifica")) * (1 - smooth(pasa - 12, pasa, silicona)) : 0;
     const d = LEVANTA * g.h;
     const t = g.h > 0.001 ? `translate(${(UP[0] * d).toFixed(2)}px,${(UP[1] * d).toFixed(2)}px)` : "";
     if (t !== g.hecho) {
@@ -804,31 +839,43 @@ aguaceroBoton.addEventListener("click", () => {
 });
 const pies = (v) => `${fmt(v)} ft²`;
 const años = (n) => (n === 1 ? "1 año" : `${n} años`);
-// lo que se cotiza: el área, o el mínimo del cotizador (menos si ya es cliente solar de Windmar), y lo que se quita
+const dinero = (v) => `$${fmt(v, 2)}`;
+// lo que se cotiza: el área, o el mínimo del cotizador (menos si ya es cliente solar de Windmar), y lo que se quita; con
+// un plan, su precio como en la pantalla del cotizador: el área por el precio del plan, más la remoción, y de ahí el
+// cash (10 % menos, con IVU), lo financiado (con IVU) y su mensualidad a 10 años
+const PRECIO = PRODUCTO.sellado.precio;
+const PLAZO = 120;
 function cotizaTecho() {
   const t = S.techo;
   const minimo = t.clienteSolar ? TECHO.minimo.clienteSolar : TECHO.minimo.estandar;
   const area = Math.max(t.area, minimo);
-  return { minimo, area, quita: Math.round((area * t.remocion) / 100) };
+  const m = modeloDe(S.escogido, "sellado");
+  const base = m ? area * m.pie + area * PRECIO.remocion * (t.remocion / 100) : 0;
+  const financia = base * (1 + PRECIO.ivu);
+  const r = PRECIO.tasas[PLAZO] / 12;
+  const mes = (financia * r * (1 + r) ** PLAZO) / ((1 + r) ** PLAZO - 1);
+  return { minimo, area, quita: Math.round((area * t.remocion) / 100), cash: base * (1 - PRECIO.cash) * (1 + PRECIO.ivu), financia, mes };
 }
-// las notas de la pestaña y su ficha: el plan con sus garantías, el mantenimiento y el área
+// las notas de la pestaña y su ficha: el plan con su garantía, el cash, lo financiado, el mantenimiento y el área
 function updateTecho() {
   const t = S.techo;
   const m = modeloDe(S.escogido, "sellado");
-  const { minimo, area, quita } = cotizaTecho();
+  const { minimo, area, quita, cash, financia, mes } = cotizaTecho();
   out.remocion.textContent = `${t.remocion} %`;
   pasoEn("remocion", t.remocion > 0, t.remocion < 100);
   TQ.remocion.textContent = t.remocion ? `Se quita el de ${pies(quita)} de los ${pies(area)} antes de sellar.` : "Sin sellado viejo que quitar: el techo se limpia y se sella.";
   TQ.area.textContent = t.area < minimo ? `El mínimo es ${pies(minimo)}: se cotiza eso (mide ${pies(t.area)}).` : `Se cotizan ${pies(area)}; el mínimo es ${pies(minimo)}${t.clienteSolar ? " por ser cliente solar" : ""}.`;
-  TQ.lluvia.textContent = !t.lluvia ? "El aguacero muestra por dónde corre el agua del techo." : m ? "Con el sellado, el agua corre a las gárgolas y cae lejos de la casa." : "Sin sellar, el agua se queda en charcos, se mete por la grieta y mancha la pared.";
+  TQ.lluvia.textContent = !t.lluvia ? "El aguacero muestra por dónde corre el agua del techo." : m ? "Con el sellado, el agua corre a las gárgolas y cae lejos de la casa." : "Sin sellar, el agua se queda en charcos, se mete por la grieta, gotea por debajo del techo y mancha las paredes.";
   clienteBoton.setAttribute("aria-checked", String(t.clienteSolar));
   aguaceroBoton.setAttribute("aria-checked", String(t.lluvia));
   // con el movimiento reducido no hay obra que ver: el sellado se pone de una vez
   sellarBoton.disabled = !m || still.matches;
   pon("plan", m ? m.nombre : "Sin sellado");
   pon("planDe", m ? `mano de obra ${años(m.obra)}` : "concreto con grietas");
-  pon("fabrica", m ? "De por vida" : "—");
-  pon("fabricaDe", m ? "garantía limitada" : "sin garantía");
+  pon("cash", m ? dinero(cash) : "—");
+  pon("cashDe", m ? "10 % menos, con IVU" : "sin plan");
+  pon("financia", m ? dinero(financia) : "—");
+  pon("financiaDe", m ? `${dinero(mes)}/mes a ${PLAZO / 12} años` : "sin plan");
   pon("limpia", m ? (m.limpiezas ? `${m.limpiezas} limpiezas` : "No incluido") : "—");
   pon("limpiaDe", m ? (m.limpiezas ? "techo y placas, cada 2 años" : "se paga por visita") : "sin plan");
   pon("area", pies(area));
@@ -849,8 +896,8 @@ function sayTecho() {
 function delTecho() {
   const m = modeloDe(S.escogido, "sellado");
   if (!m) return " Techo sin sellar.";
-  const { area } = cotizaTecho();
-  return ` Techo: plan ${m.nombre}, mano de obra de ${años(m.obra)}${m.limpiezas ? " y limpieza cada 2 años" : ""}, sobre ${fmt(area)} pies cuadrados${S.techo.remocion ? `, quitando el ${S.techo.remocion} % del sellado viejo` : ""}.`;
+  const { area, cash, financia, mes } = cotizaTecho();
+  return ` Techo: plan ${m.nombre}, mano de obra de ${años(m.obra)}${m.limpiezas ? " y limpieza cada 2 años" : ""}, sobre ${fmt(area)} pies cuadrados${S.techo.remocion ? `, quitando el ${S.techo.remocion} % del sellado viejo` : ""}: ${dinero(cash)} en cash, o ${dinero(financia)} financiado, ${dinero(mes)} al mes a ${PLAZO / 12} años.`;
 }
 
 // ---------- lo de la casa que llama live.js ----------

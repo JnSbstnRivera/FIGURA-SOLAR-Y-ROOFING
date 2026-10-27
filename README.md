@@ -45,13 +45,13 @@ Los controles van en pestañas (Energía, Agua, Anker y Roofing; en el apartamen
   1. el plan: Sin, Silver, Gold o Platinum. La casa abre con Gold puesto: es un sistema Solar y Roofing. Los tres llevan la misma silicona Gardner sobre imprimador, sin uniones, y la garantía del fabricante de por vida; cambian la mano de obra (1 año en Silver, 10 en Gold y Platinum, con las rectificaciones del aire y el calentador) y el mantenimiento (Platinum limpia el techo y las placas cada 2 años por 10 años). Sin plan, el techo es el concreto como está, con su grieta abierta en la esquina;
   2. el techo de antes: cuánto del sellado viejo se quita, de 0 a 100 % de 10 en 10, como en el cotizador. Cada 10 % es un parche de sellado viejo pelándose en el techo de antes; con un plan puesto, al cambiarlo se ve un momento cómo estaba;
   3. el área del techo, que se cotiza con su mínimo: 1,000 pies², o 750 si ya es cliente solar de Windmar (la casa mide los 1,250 del techo promedio de Puerto Rico);
-  4. míralo: "Ver cómo se sella" aplica el sellado por partes, de norte a sur, con el borde naranja que avanza. Primero vienen las rectificaciones que incluye el plan: se levanta todo lo del techo, es decir las placas con sus rieles, sus postes, sus cajas de fila y sus conductos; el aire con su tubería y su bota; el calentador solar, si lo hay, y la cisterna, si la hay. Sus sellos de Roof Patch se quedan en el techo, el conducto de las placas se estira desde su abrazadera del borde de la losa y, mientras están arriba, no echan sombra. El tubo de ventilación atraviesa la losa: no se levanta. Después vienen la limpieza a presión, la remoción del sellado viejo, las grietas con Roof Patch, el imprimador Elasto Prime y la silicona, y cada cosa baja a su lugar cuando la silicona ya pasó por debajo; las placas, que llegan casi al borde sur, bajan al final. También se aplica solo al escoger un plan desde "Sin". El aguacero llueve sobre la figura y nubla el sol: con el sellado, el agua corre por el techo a las dos gárgolas, baja por ellas y cae al suelo (la del oeste, por el techo del cuarto); sin sellar, se queda en charcos, se mete por la grieta, gotea por debajo de la losa y mancha la pared de la esquina. La lluvia es para verlo: no cambia la energía del día.
+  4. míralo: "Ver cómo se sella" aplica el sellado por partes, de norte a sur, en unos 15 segundos, con el borde naranja encendido que avanza. Primero vienen las rectificaciones que incluye el plan: se levanta todo lo del techo (unos 85 cm, pasándose un poco y asentándose arriba), es decir las placas con sus rieles, sus postes, sus cajas de fila y sus conductos; el aire con su tubería y su bota; el calentador solar, si lo hay, y la cisterna, si la hay. Sus sellos de Roof Patch se quedan en el techo, el conducto de las placas se estira desde su abrazadera del borde de la losa y, mientras están arriba, no echan sombra. El tubo de ventilación atraviesa la losa: no se levanta. Después vienen la limpieza a presión, que deja el concreto mojado hasta que se seca; la remoción, con los parches de sellado viejo que se despegan y se van; las grietas con Roof Patch; el imprimador Elasto Prime, con una franja oscura de lo recién puesto detrás del borde, y la silicona, con una franja azulada de lo fresco. Cada cosa baja a su lugar cuando la silicona ya pasó por debajo; las placas, que llegan casi al borde sur, bajan al final. También se aplica solo al escoger un plan desde "Sin". El aguacero llueve sobre la figura y nubla el sol: con el sellado, el agua corre por el techo a las dos gárgolas, baja por ellas y cae al suelo (la del oeste, por el techo del cuarto); sin sellar, el concreto se moja, los charcos crecen uno tras otro con las ondas de la lluvia, el agua corre hacia la grieta, gotea por debajo de la losa (tres goteras al pie de la fachada sur, donde hace un charco, y una en el alféizar de la ventana del oeste), escurre por la pared y las manchas de humedad se extienden en las dos fachadas de la esquina. La lluvia es para verlo: no cambia la energía del día.
 - **Ver salir el sol y la luna:** el sol pasa por encima de la maqueta en un arco: sale por el lado del este (con las placas al sur, por la derecha), sube, a mediodía va sobre la casa y se pone por el otro lado, y las sombras caen del lado contrario. Nunca pasa por debajo ni por detrás de la casa. Al ponerse, la tarjeta pasa del día a la noche y sale la luna llena, que hace el mismo camino. El sol tiene su granulado, dos manchas, el borde más oscuro y una corona que gira despacio; la luna, sus mares, los cráteres claros y los rayos de Tycho. En tema claro la noche es azul oscuro; en tema oscuro, más azul todavía.
 - **Leer la ficha** al lado de la casa: cada pestaña tiene la suya, con lo que aporta cada producto escogido (o lo que haría, si falta):
   - **Energía:** placas y kW, producción al mes (con el año y el día), cuánto cubren las placas el mes elegido y el año, baterías y horas de respaldo de noche, y el TSRF con su TOF y su acceso solar (como en Aurora, con un decimal para que se vean las sombras chicas). Lo que sugiere el cotizador va al lado de "Volver a lo sugerido".
   - **Agua:** los galones que usa la casa al día, el calentador con la luz que ahorra al mes, la cisterna con los días que alcanza sin la AAA y el suavizador con los galones que trata.
   - **Anker:** el respaldo con su batería y su potencia, lo que le da el sol a lo esencial en el día, las horas sin LUMA y la nevera con sus horas.
-  - **Roofing:** el plan con su mano de obra, la garantía del fabricante, el mantenimiento (Platinum: 5 limpiezas del techo y las placas) y el área que se cotiza, con lo que se quita del sellado viejo.
+  - **Roofing:** el plan con su mano de obra; el precio en cash y financiado, como en la pantalla del cotizador de Roofing (con la mensualidad a 10 años); el mantenimiento (Platinum: 5 limpiezas del techo y las placas) y el área que se cotiza, con lo que se quita del sellado viejo.
 
   La última celda de cada ficha, **Le falta**, dice qué productos no se han puesto (calentador, cisterna, suavizador, Anker, nevera y, sin plan, el sellado; en el apartamento, la ósmosis): es lo que se le puede ofrecer al cliente, y cada botón lleva a su paso.
 - **Comparar los 12 meses** en la gráfica: cada barra es el consumo del mes, en naranja lo que cubren las placas y en azul lo que viene de LUMA; la línea es la producción al mes.
@@ -76,11 +76,11 @@ Los controles van en pestañas (Energía, Agua, Anker y Roofing; en el apartamen
 
 ![El cuarto de equipos y la caseta de los Powerwall con "Ver adentro" apagado: de bloques, el cuarto con su puerta y sus persianas, y la caseta, más baja, con sus dos puertas dobles de rejillas; el conducto de las placas entra al cuarto por su pared sur](docs/cuarto-cerrado.png)
 
-![Pestaña Roofing con el plan Gold y 30 % de remoción: con "Ver cómo se sella", todo lo del techo está levantado (placas, aire, calentador y cisterna, sobre sus sellos) y el imprimador avanza de norte a sur sobre el concreto, con su borde naranja; la ficha dice el plan, la garantía del fabricante, el mantenimiento y el área](docs/roofing-sellando.png)
+![Pestaña Roofing con el plan Gold y 30 % de remoción: con "Ver cómo se sella", todo lo del techo está levantado (placas, aire, calentador y cisterna, sobre sus sellos) y la silicona avanza de norte a sur sobre el imprimador, con su borde naranja encendido y la franja fresca detrás; la ficha dice el plan, el precio en cash y financiado, el mantenimiento y el área](docs/roofing-sellando.png)
 
 ![El aguacero con el techo sellado: el agua corre por la silicona a las dos gárgolas, baja por ellas y cae al suelo; la del oeste cae al techo del cuarto y sigue por su alero](docs/lluvia-sellado.png)
 
-![El aguacero sin sellar, de cerca: el concreto con charcos y el sellado viejo, la grieta mojada en la esquina, la gotera que sale por debajo de la losa y la mancha de humedad en la pared](docs/lluvia-sin-sellar.png)
+![El aguacero sin sellar, de cerca: el concreto mojado con charcos y el sellado viejo, el agua que corre a la grieta de la esquina, las goteras que salen por debajo de la losa, el agua que escurre por la pared, el charco al pie y las manchas de humedad en las dos fachadas](docs/lluvia-sin-sellar.png)
 
 ![Con la Hércules 600 en el techo y las placas al norte, a las 7:15 su sombra larga cruza las placas del extremo oeste; el TSRF baja 0.2](docs/tanque-manana.png)
 
@@ -195,16 +195,17 @@ Del cotizador de LUMA de Sun Bot (Windmar Home):
 
 Del cotizador de Roofing de Sun Bot (`roofing/types.ts`, `RoofingCotizador.tsx` y el PDF de los Planes de Sellado, `generateRoofingPDF.ts`), para la pestaña Roofing:
 
-| Plan | Mano de obra | Fabricante | Mantenimiento |
-|---|---|---|---|
-| Silver | 1 año | limitada de por vida | se paga por visita |
-| Gold | 10 años | limitada de por vida | se paga por visita |
-| Platinum | 10 años | limitada de por vida | limpieza del techo y las placas cada 2 años, por 10 años |
+| Plan | Precio por pie² | Mano de obra | Fabricante | Mantenimiento |
+|---|---|---|---|---|
+| Silver | $7.25 | 1 año | limitada de por vida | se paga por visita |
+| Gold | $8.00 | 10 años | limitada de por vida | se paga por visita |
+| Platinum | $9.50 | 10 años | limitada de por vida | limpieza del techo y las placas cada 2 años, por 10 años |
 
 - La mano de obra incluye las rectificaciones (aires, calentadores y lo demás del techo).
 - La remoción del sellado viejo va de 0 a 100 %, de 10 en 10.
 - Se cotizan al menos 1,000 pies², o 750 si ya es cliente solar de Windmar. El techo promedio de Puerto Rico, el que usa el cotizador si no encuentra el edificio, mide 1,250 pies²: es el de la casa.
-- La figura no muestra dinero: ni el precio por pie² de cada plan, ni la remoción, ni lo que cuesta una visita.
+- El precio de la ficha es el de la pantalla del cotizador, sin pronto, sin descuentos de cliente VIP o de empleado y sin WindMar Protect: el área cotizada por el precio por pie² del plan, más $2.50 por cada pie² de sellado viejo que se quita (la parte del área cotizada que dice la remoción). En cash, 10 % menos, con el IVU de 11.5 %; financiado, con el IVU, y su mensualidad a 10 años al 10.99 % (la fórmula del cotizador: el pago fijo de un préstamo). Con Gold, 1,250 pies² y sin remoción: $10,035.00 en cash, o $11,150.00 financiado, $153.53 al mes. Las promociones que el cotizador pone en su PDF no van: cada plan sale a su precio de lista.
+- Lo que cuesta una visita de mantenimiento no se muestra.
 
 Con la factura de ejemplo (promedio de 600 kWh al mes y pico de 700 en agosto) salen 16 placas nuevas (6.56 kW) y un Powerwall, que producen 726 kWh al mes.
 
@@ -362,7 +363,7 @@ Con las placas al sur y dos PS400, la F3800 Plus le da a lo esencial unos 3.0 de
 - Las placas que ya tenía se dibujan del mismo tamaño que las nuevas, y en el techo caben 32.
 - El inversor se dibuja más grande que en la realidad para que se lea. El Powerwall 3 trae el inversor integrado; aquí se dibuja aparte para que se vea.
 
-La figura no muestra dinero.
+Fuera de la ficha de Roofing, la figura no muestra dinero.
 
 ## Créditos
 

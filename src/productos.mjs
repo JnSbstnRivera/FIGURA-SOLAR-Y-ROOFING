@@ -39,6 +39,8 @@
 //                            (el generador del E10) y las partes lo pueden mirar; `si(m)` dice con qué modelos va
 //   excluye                  los productos que no van a la vez con este: al escoger uno, el otro queda en "Sin" (el
 //                            Anker portátil y el E10)
+//   precio                   cómo sale su precio del cotizador, con el de cada modelo (el sellado: el de lista por pie²
+//                            en cada plan; su ficha da el cash y el financiado)
 //
 // Los de respaldo (rol "respaldo": el Anker portátil y el E10) van en la pestaña Anker en pasos (pagina.mjs): el tipo
 // de respaldo, el modelo, la cantidad y los extras (sus interruptores). Para eso dicen además:
@@ -366,17 +368,22 @@ const CATALOGO = [
     columnas: 4,
     puesto: "gold",
     capa: true,
-    fuente: "Sun Bot: cotizador de Roofing (roofing/types.ts: PLANS; generateRoofingPDF.ts: los Planes de Sellado y sus notas)",
+    fuente: "Sun Bot: cotizador de Roofing (roofing/types.ts: PLANS, REMOVAL_RATE, IVU y TASAS_ANUALES; RoofingCotizador.tsx: el cash y el financiado; generateRoofingPDF.ts: los Planes de Sellado y sus notas)",
     // Los Planes de Sellado: la misma silicona Gardner sobre imprimador Elasto Prime en los tres, en una capa continua y
     // sin uniones; cambian la garantía de la mano de obra (obra, en años; incluye las rectificaciones: el aire, el
     // calentador y lo demás del techo) y el mantenimiento: Platinum trae la limpieza del techo y de las placas cada 2 años
     // por 10 años (limpiezas). La del fabricante es limitada de por vida en los tres. Solo en la casa: el apartamento no
-    // tiene techo propio.
+    // tiene techo propio. pie: el precio de lista por pie² cotizado (types.ts: PLANS).
     modelos: [
-      { id: "silver", corto: "Silver", nombre: "Silver", obra: 1, limpiezas: 0, techo: false },
-      { id: "gold", corto: "Gold", nombre: "Gold", obra: 10, limpiezas: 0, techo: false },
-      { id: "platinum", corto: "Platinum", nombre: "Platinum", obra: 10, limpiezas: 5, techo: false },
+      { id: "silver", corto: "Silver", nombre: "Silver", obra: 1, limpiezas: 0, pie: 7.25, techo: false },
+      { id: "gold", corto: "Gold", nombre: "Gold", obra: 10, limpiezas: 0, pie: 8, techo: false },
+      { id: "platinum", corto: "Platinum", nombre: "Platinum", obra: 10, limpiezas: 5, pie: 9.5, techo: false },
     ],
+    // el precio como en la pantalla del cotizador (RoofingCotizador.tsx: calcPlan y cashConIvu; types.ts: REMOVAL_RATE,
+    // IVU y TASAS_ANUALES), sin pronto, sin descuentos de cliente VIP o de empleado y sin WindMar Protect: la remoción
+    // por pie² cotizado y por la parte que se quita; cash, 10 % menos; el IVU sobre todo, y la tasa anual de cada plazo,
+    // en meses
+    precio: { remocion: 2.5, ivu: 0.115, cash: 0.1, tasas: { 60: 0.0699, 84: 0.0899, 120: 0.1099 } },
     // las capas (el imprimador y la silicona, cortadas en escalones en la esquina) van con cualquier plan; sin plan se
     // ve el concreto como está
     partes: { capas: () => true },

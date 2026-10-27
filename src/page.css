@@ -193,26 +193,44 @@ body.iso{font-family:var(--sr-font)}
 .sr-ro-tanque .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-blue-400) 54%,var(--anatomy-shade-2))}
 .sr-ro-tanque .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-blue-400) 50%,var(--anatomy-shade-3))}
 /* el techo de la pestaña Roofing: el concreto de antes (más oscuro que la losa), el sellado viejo que se quita, la grieta
-   abierta y su reparación con Roof Patch, la piel que se pinta mientras se sella (el agua a presión, el imprimador, la
-   silicona y el borde que avanza) y, con el aguacero, los charcos, la grieta mojada, la mancha en la pared y la
-   salpicadura del agua que cae */
+   abierta y su reparación con Roof Patch, la piel que se pinta mientras se sella (el techo mojado por la limpieza, el
+   agua a presión, el imprimador y la silicona con su franja fresca, y el borde que avanza con su brillo) y, con el
+   aguacero, los charcos, la grieta mojada, la mancha en la pared y la salpicadura del agua que cae */
 .sr-desnudo .iso-top{fill:color-mix(in srgb,var(--anatomy-shade-0) 55%,var(--anatomy-shade-1))}
-.sr-viejo-g{transition:opacity .3s}
+.sr-viejo-g{transition:opacity .3s;transform-box:fill-box;transform-origin:center}
 .sr-viejo{fill:color-mix(in srgb,var(--anatomy-top) 80%,var(--wm-orange-300));stroke:var(--anatomy-mid);stroke-width:.3;stroke-linejoin:round}
 .sr-viejo-raya{fill:none;stroke:var(--anatomy-mid);stroke-width:.3;stroke-linecap:round;stroke-linejoin:round}
 .sr-grieta{fill:none;stroke:color-mix(in srgb,var(--wm-ink) 72%,var(--anatomy-mid));stroke-width:.95;stroke-linecap:round;stroke-linejoin:round}
-.sr-reparo{fill:none;stroke:var(--anatomy-mid);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:0}
-.sr-piel-lavado{fill:var(--wm-blue-400);fill-opacity:.32;stroke:none}
+.sr-reparo{fill:none;stroke:var(--anatomy-mid);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.sr-piel-mojado{fill:var(--wm-ink);fill-opacity:.2;stroke:none}
+.sr-piel-lavado{fill:url(#sr-fresca-lavado);stroke:none}
+.sr-fresca-lavado stop{stop-color:var(--wm-blue-400);stop-opacity:.12}
+.sr-fresca-lavado stop+stop{stop-opacity:.62}
 .sr-piel-imprimador{fill:var(--anatomy-shade-2);stroke:none}
 .sr-piel-silicona{fill:var(--anatomy-top);stroke:none}
-.sr-piel-frente{fill:none;stroke:var(--wm-orange);stroke-width:1.1;stroke-linecap:round}
-.sr-charco{fill:var(--wm-blue-400);stroke:none;opacity:0;transition:opacity 1.6s}
+.sr-piel-fresca-imprimador{fill:url(#sr-fresca-imprimador);stroke:none}
+.sr-fresca-imprimador stop{stop-color:var(--wm-ink);stop-opacity:0}
+.sr-fresca-imprimador stop+stop{stop-opacity:.34}
+.sr-piel-fresca-silicona{fill:url(#sr-fresca-silicona);stroke:none}
+.sr-fresca-silicona stop{stop-color:var(--wm-blue-400);stop-opacity:0}
+.sr-fresca-silicona stop+stop{stop-opacity:.4}
+.sr-piel-brillo{fill:none;stroke:var(--wm-orange);stroke-width:4;stroke-linecap:round;opacity:.3}
+.sr-piel-frente{fill:none;stroke:var(--wm-orange);stroke-width:1.6;stroke-linecap:round}
+.sr-techo-mojado{fill:var(--wm-ink);stroke:none;opacity:0;transition:opacity 2.5s}
+.sr-charco{fill:var(--wm-blue-400);stroke:var(--wm-blue-400);stroke-width:1.2;stroke-linejoin:round;opacity:0;transform:scale(.2);transform-box:fill-box;transform-origin:center;transition:opacity 1.2s,transform 4.5s cubic-bezier(.2,.7,.3,1)}
+.sr-onda{fill:none;stroke:color-mix(in srgb,var(--wm-blue-400) 35%,#fff);stroke-width:.5;opacity:0;transform-box:fill-box;transform-origin:center}
 .sr-grieta-mojada{fill:none;stroke:var(--wm-blue-400);stroke-width:.9;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity 1s}
-.sr-mancha{fill:color-mix(in srgb,var(--wm-ink) 55%,var(--wm-orange-600));stroke:none;opacity:0;transition:opacity 3s}
+.sr-mancha{fill:color-mix(in srgb,var(--wm-ink) 55%,var(--wm-orange-600));stroke:none;opacity:0;transition:opacity 2.5s}
+.iso[data-theme="dark"] .sr-mancha{fill:color-mix(in srgb,var(--wm-orange-600) 55%,var(--wm-gray-500))}
 .sr-salpica{fill:none;stroke:var(--wm-blue-400);stroke-width:.45;opacity:0;transition:opacity .6s}
-.sr-main[data-lluvia="sin"] .sr-charco{opacity:.42}
+.sr-main[data-lluvia="sin"] .sr-techo-mojado{opacity:.18}
+.sr-main[data-lluvia="sin"] .sr-charco{opacity:.5;transform:none;transition-delay:var(--d)}
+.sr-main[data-lluvia="sin"] .sr-onda{animation:sr-onda 1.3s ease-out var(--d) infinite}
+@keyframes sr-onda{from{opacity:.9;transform:scale(.25)}to{opacity:0;transform:scale(1.7)}}
 .sr-main[data-lluvia="sin"] .sr-grieta-mojada{opacity:1}
-.sr-main[data-lluvia="sin"] .sr-mancha{opacity:.5}
+.sr-main[data-lluvia="sin"] .sr-mancha-0{opacity:.45;transition-delay:.6s}
+.sr-main[data-lluvia="sin"] .sr-mancha-1{opacity:.3;transition-delay:2.6s}
+.sr-main[data-lluvia="sin"] .sr-mancha-2{opacity:.18;transition-delay:4.6s}
 .sr-main[data-lluvia="sin"] .sr-salpica-gotera,.sr-main[data-lluvia="capas"] .sr-salpica-lluvia{opacity:1}
 /* sombras: cada pieza las pinta en su capa, recortada a su silueta; los tubos se oscurecen enteros */
 .sr-sh path{fill:var(--sr-sombra);stroke:none;mix-blend-mode:multiply}
@@ -263,14 +281,15 @@ body.iso{font-family:var(--sr-font)}
 .sr-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .sr-stage svg{-webkit-user-drag:none}
 .sr-stage:focus-visible{outline:2px solid var(--sr-focus);outline-offset:4px}
-/* el aguacero de la pestaña Roofing: dos capas de gotas que caen en diagonal sobre la figura (cada una baja un mosaico
-   por vuelta, así no se nota el salto), el cielo nublado y el sol y la luna tapados */
-.sr-stage::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background-color:rgba(33,39,78,.05);background-size:90px 90px,150px 150px;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%234A70C8' stroke-opacity='.55' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%234A70C8' stroke-opacity='.32' stroke-width='.9' stroke-linecap='round'/%3E%3C/svg%3E")}
-.iso[data-theme="dark"] .sr-stage::after{background-color:rgba(0,0,0,.16);
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%23AFC3EE' stroke-opacity='.5' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%23AFC3EE' stroke-opacity='.3' stroke-width='.9' stroke-linecap='round'/%3E%3C/svg%3E")}
+/* el aguacero de la pestaña Roofing: tres capas de gotas que caen en diagonal sobre la figura (cada una baja un mosaico
+   por vuelta, así no se nota el salto; la de gotas chicas, más lenta, queda atrás), el cielo nublado y el sol y la luna
+   tapados */
+.sr-stage::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background-color:rgba(33,39,78,.08);background-size:90px 90px,150px 150px,60px 60px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%234A70C8' stroke-opacity='.7' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%234A70C8' stroke-opacity='.45' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M8 6l-1.8 6M34 14l-1.8 6M52 30l-1.8 6M20 38l-1.8 6M44 48l-1.8 6M6 52l-1.8 6' stroke='%234A70C8' stroke-opacity='.38' stroke-width='.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+.iso[data-theme="dark"] .sr-stage::after{background-color:rgba(0,0,0,.22);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M12 4l-3 10M47 22l-3 10M78 8l-3 10M30 46l-3 10M66 56l-3 10M86 38l-3 10M18 72l-3 10M55 76l-3 10' stroke='%23AFC3EE' stroke-opacity='.62' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cpath d='M22 10l-4.2 14M72 42l-4.2 14M124 20l-4.2 14M46 96l-4.2 14M102 112l-4.2 14M140 70l-4.2 14' stroke='%23AFC3EE' stroke-opacity='.4' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M8 6l-1.8 6M34 14l-1.8 6M52 30l-1.8 6M20 38l-1.8 6M44 48l-1.8 6M6 52l-1.8 6' stroke='%23AFC3EE' stroke-opacity='.32' stroke-width='.8' stroke-linecap='round'/%3E%3C/svg%3E")}
 .sr-main[data-lluvia] .sr-stage::after{opacity:1;animation:sr-lluvia .55s linear infinite}
-@keyframes sr-lluvia{to{background-position:-27px 90px,-45px 150px}}
+@keyframes sr-lluvia{to{background-position:-27px 90px,-45px 150px,-18px 60px}}
 .sr-cielo,.sr-cielo-fondo{transition:opacity .6s}
 .sr-main[data-lluvia] .sr-cielo,.sr-main[data-lluvia] .sr-cielo-fondo{opacity:.3}
 /* zoom: con zoom el dibujo se arrastra (y con el dedo no mueve la página) */
@@ -572,4 +591,7 @@ input.sr-input{width:5.6em}
   .iso .sr-player{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"clock read" "scrub scrub"}
   .sr-play,.sr-speed,.sr-btn,.sr-switch-pista,.sr-switch-pista::after{transition:none}
   .sr-main[data-lluvia] .sr-stage::after{animation:none}
+  /* con el aguacero, los charcos y las manchas están de una vez y sin ondas */
+  .sr-charco,.sr-mancha,.sr-techo-mojado{transition:none!important}
+  .sr-main[data-lluvia="sin"] .sr-onda{animation:none}
 }
