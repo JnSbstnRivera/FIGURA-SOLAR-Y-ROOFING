@@ -1,10 +1,12 @@
+<img src="public/favicon.svg" alt="El ícono del simulador: una casita en 3D con placas en el techo azul, la puerta naranja y el sol" width="96">
+
 # Simulador de servicios
 
-El **Simulador de servicios de Windmar Home** (antes "Figura Solar y Roofing"; el repo y la dirección web siguen con ese nombre) es una figura interactiva que explica cómo funcionan en Puerto Rico los servicios de Windmar: Solar y Roofing, Water y Anker. En la casa se ven el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol pasa por encima de la maqueta, de un lado al otro, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua se ponen el calentador solar y la cisterna de Windmar Water según las personas de la casa, y se ve el agua correr, calentarse y guardarse. En la pestaña Anker se pone el respaldo de Anker SOLIX: el portátil con sus placas, el E10 para toda la casa y la nevera EverFrost. En la pestaña Roofing se escoge el plan de sellado del techo (Silver, Gold o Platinum), se ve cómo se aplica por partes y, con un aguacero, por dónde corre el agua con el techo sellado y sin sellar.
+El **Simulador de servicios de Windmar Home** (antes "Figura Solar y Roofing"; el repo de GitHub sigue con ese nombre) es una figura interactiva que explica cómo funcionan en Puerto Rico los servicios de Windmar: Solar y Roofing, Water y Anker. En la casa se ven el techo sellado, las placas, el inversor, las baterías y el medidor de LUMA. Mueves la hora del día y la energía corre por los conductos hacia la casa, la batería o LUMA; el sol pasa por encima de la maqueta, de un lado al otro, cada pieza echa su sombra y de noche sale la luna. Con el consumo de cada mes del cliente puedes sumar o quitar placas y baterías y ver cuánto cubren, y con la brújula de la base, cambiar hacia dónde miran las placas y ver cuánto sol les llega, con las mismas medidas que Aurora (TOF, acceso solar y TSRF). En la pestaña Agua se ponen el calentador solar y la cisterna de Windmar Water según las personas de la casa, y se ve el agua correr, calentarse y guardarse. En la pestaña Anker se pone el respaldo de Anker SOLIX: el portátil con sus placas, el E10 para toda la casa y la nevera EverFrost. En la pestaña Roofing se escoge el plan de sellado del techo (Silver, Gold o Platinum), se ve cómo se aplica por partes y, con un aguacero, por dónde corre el agua con el techo sellado y sin sellar.
 
 Un selector **Casa | Apartamento**, arriba a la derecha de la tarjeta, pasa a la segunda figura: un apartamento con sala, cocina, alcoba y baño, con lo de Windmar que va adentro. Ahí va el Anker SOLIX con sus placas en el balcón y su transfer switch de apartamento, la nevera EverFrost, la cisterna Torre 150 pegada a la pared y la ósmosis inversa debajo del fregadero. Las dos figuras tienen zoom para verlas de cerca, y paredes y techos que se dibujan transparentes para ver adentro.
 
-**En línea:** https://figura-solar-y-roofing.vercel.app (la casa) y https://figura-solar-y-roofing.vercel.app/apartamento.html (el apartamento)
+**En línea:** https://simulador-hogar-windmar.vercel.app (la casa) y https://simulador-hogar-windmar.vercel.app/apartamento.html (el apartamento). La dirección vieja, figura-solar-y-roofing.vercel.app, lleva a la nueva con la misma ruta.
 
 ![Cliente con 10 placas de 330 W, 8 nuevas y 4 Powerwall, con agosto en 950 kWh](docs/ejemplo-cliente.png)
 
@@ -118,7 +120,13 @@ Construye y además audita la geometría de las dos figuras: que ningún conduct
 
 `npm run capture` y `npm run lines` sacan capturas y revisan que cada línea termine sobre algo; usan Google Chrome.
 
-Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre `node src/build.mjs` y sirve `public/`.
+```bash
+npm run iconos
+```
+
+Vuelve a dibujar el ícono (la casita en 3D de la pestaña del navegador, de Vercel y de este README) desde `src/iconos.mjs`: escribe `public/favicon.svg` y, con Google Chrome, `public/favicon.ico` (16, 32 y 48 px) y `public/apple-touch-icon.png` (180 px, con fondo blanco, para el iPhone). El build no lo corre: se corre solo cuando se cambia el ícono, y los tres archivos se suben con lo demás.
+
+Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects, proyecto simulador-hogar-windmar), que corre `node src/build.mjs` y sirve `public/`.
 
 ## Estructura
 
@@ -135,11 +143,13 @@ Cada subida a `main` se publica sola en Vercel (team jnsbstnprojects), que corre
 | `src/anker.mjs` | El día del Anker: lo esencial por hora, lo que dan sus placas, la carga de la batería, el generador del E10 y las horas sin LUMA; corre en la construcción y en la página |
 | `src/productos.mjs` | El plano: los productos que se ponen y se quitan desde el panel (el calentador solar, la cisterna, el suavizador, el Anker portátil, el E10, la nevera EverFrost, la ósmosis y el plan de sellado), con sus modelos, sus partes, su nota y en qué escena va cada uno; corre en la construcción y en la página |
 | `src/logo.mjs` | El logo de Windmar en mínimo (el sol, el molino y "windmar"), calcado del de Windmar Water de Sun Bot |
+| `src/iconos.mjs` | El ícono del simulador: la casita en 3D en isométrico, con los colores de la marca (techo azul, placas, puerta naranja y sol), y su paso a `.ico` y `.png` con Chrome (`npm run iconos`) |
 | `src/live.js` | Lo común de lo que se mueve: el reproductor del día, los flujos, los productos que bajan y suben, la brújula, el cielo, las sombras, el agua, el Anker, el zoom, "Ver adentro", las pestañas con sus pasos (lo que se ve y su número), las fichas de Agua y de Anker con "Le falta", y el tema |
 | `src/live-casa.js` | Lo de la casa: placas y baterías que entran y salen, la sombra del techo, el sistema del cotizador, la ficha de Energía, los controles de Energía y la gráfica, y la pestaña Roofing: el techo sellado o el de antes, la obra del sellado por partes, el aguacero y su ficha |
 | `src/live-apartamento.js` | Lo del apartamento: lo que dicen la figura y el lector de pantalla (sus fichas las llena `live.js`) |
 | `src/page.css` | Estilos de la página, con la paleta y la letra de la marca Windmar |
 | `public/index.html`, `public/apartamento.html` | Las páginas construidas, las que publica Vercel |
+| `public/favicon.svg`, `public/favicon.ico`, `public/apple-touch-icon.png` | El ícono, que enlazan las dos páginas; lo escribe `npm run iconos` |
 | `vendor/anatomy/` | Kit de figuras isométricas Anatomy, con su licencia MIT |
 | `docs/` | Capturas |
 

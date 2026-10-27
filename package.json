@@ -1,13 +1,14 @@
 {
-  "name": "figura-solar-y-roofing",
+  "name": "simulador-hogar-windmar",
   "version": "1.0.0",
   "private": true,
-  "description": "Figura interactiva: cómo funciona un sistema Solar y Roofing de Windmar Home en Puerto Rico.",
+  "description": "Simulador de servicios de Windmar Home en Puerto Rico: Solar y Roofing, Water y Anker en una casa que se mueve con el día.",
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
     "build": "node src/build.mjs",
     "audit": "node src/build.mjs --audit",
+    "iconos": "node src/iconos.mjs",
     "capture": "node vendor/anatomy/scripts/capture.mjs public/index.html --out docs/desk.png",
     "lines": "node vendor/anatomy/scripts/lines.mjs public/index.html --out docs/lines.png"
   }
