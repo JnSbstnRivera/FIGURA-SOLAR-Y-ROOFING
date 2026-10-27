@@ -225,7 +225,11 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
       if (key) {
         const span = G.cut(route, piece.from, piece.to);
         const s0 = piece.from > 0 ? screenLength(G.cut(route, 0, piece.from)) : 0;
-        flow = `<path class="sr-flow${agua ? ` sr-agua${agua === "caliente" ? " sr-caliente" : ""}` : ""}" data-flow="${key}" data-s0="${s0.toFixed(2)}" d="${path3(span)}"/>`;
+        const d = path3(span);
+        // la energía lleva debajo un brillo a lo largo del conducto, un poco más ancho que el tubo, para que se vea
+        // también de día (data-brillo: la página solo le cambia la opacidad)
+        const brillo = agua ? "" : `<path class="sr-flow sr-brillo" data-flow="${key}" data-s0="0" data-brillo style="--w:${(2 * r + 2.2).toFixed(2)}" d="${d}"/>`;
+        flow = `${brillo}<path class="sr-flow${agua ? ` sr-agua${agua === "caliente" ? " sr-caliente" : ""}` : ""}" data-flow="${key}" data-s0="${s0.toFixed(2)}" d="${d}"/>`;
       }
       const attrs = (attrsOf ? attrsOf(piece) : "") + sombraTubo(piece, r, propio);
       put(`${name}:${index}`, piece.mid, tubeSvg(piece, { tone }) + flow, [A.tube(piece.points, piece.radii)], { bias, route: name, chunk: index, attrs });

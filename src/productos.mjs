@@ -40,7 +40,7 @@
 //   excluye                  los productos que no van a la vez con este: al escoger uno, el otro queda en "Sin" (el
 //                            Anker portátil y el E10)
 //   precio                   cómo sale su precio del cotizador, con el de cada modelo (el sellado: el de lista por pie²
-//                            en cada plan; su ficha da el cash y el financiado)
+//                            en cada plan; su ficha da el cash y la mensualidad financiada)
 //
 // Los de respaldo (rol "respaldo": el Anker portátil y el E10) van en la pestaña Anker en pasos (pagina.mjs): el tipo
 // de respaldo, el modelo, la cantidad y los extras (sus interruptores). Para eso dicen además:

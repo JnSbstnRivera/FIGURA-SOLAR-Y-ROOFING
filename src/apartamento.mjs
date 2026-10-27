@@ -419,7 +419,7 @@ function dibujarAnker(p) {
       ? [[PS400.frente - 0.4, yCable, zb], [PS400.bus, yCable, zb], [PS400.bus, yPuerta, zb], [AP.x1 + MURO, yPuerta, zb], [AP.x1 + MURO, yPuerta, zp], [AP.x1 - 2, yPuerta, zp], [AP.x1 - 2, ANKER.y + 2, zp], [ANKER.x - 2, ANKER.y + 2, zp]]
       : [[PS400.frente - 0.4, yCable, zb], [PS400.bus, yCable, zb], [PS400.bus, PS400.centros[0] - largo / 2 + 0.8, zb]];
     const d = path3(camino);
-    back.push(`<g${en.attrs}><path class="sr-cable" d="${d}"/><path class="sr-flow" data-flow="ps400" data-s0="0" d="${d}"/></g>`);
+    back.push(`<g${en.attrs}><path class="sr-cable" d="${d}"/><path class="sr-flow sr-brillo" data-flow="ps400" data-s0="0" data-brillo style="--w:2.6" d="${d}"/><path class="sr-flow" data-flow="ps400" data-s0="0" d="${d}"/></g>`);
   };
   PS400.centros.forEach((yc, j) => {
     const ps = parte(p.id, `ps${j}`);

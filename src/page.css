@@ -109,6 +109,12 @@ body.iso{font-family:var(--sr-font)}
 
 /* ---------- dibujo ---------- */
 .sr-flow{fill:none;stroke:var(--wm-orange);stroke-width:1.15;stroke-linecap:butt;stroke-dasharray:2.4 3.6;vector-effect:none!important;opacity:0}
+/* la energía, para que se vea también de día: trazos redondos y más gruesos, en un naranja más hondo (en tema oscuro, el
+   de la marca), sobre un brillo naranja a lo largo del conducto mientras pasa (el agua y la lluvia siguen con el suyo).
+   El periodo del trazo es el de live.js (PERIOD, 6) */
+.sr-flow:not(.sr-agua){stroke:var(--wm-orange-600);stroke-width:2;stroke-linecap:round;stroke-dasharray:1.8 4.2}
+.iso[data-theme="dark"] .sr-flow:not(.sr-agua){stroke:var(--wm-orange)}
+.sr-flow.sr-brillo{stroke:var(--wm-orange);stroke-width:var(--w,2.6);stroke-opacity:.4;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none}
 .sr-sun{fill:var(--wm-orange-300);stroke:none;mix-blend-mode:multiply;opacity:0}
 .iso[data-theme="dark"] .sr-sun{fill:var(--wm-orange);mix-blend-mode:screen}
 .sr-panel .iso-top{fill:var(--anatomy-shade-1)}
@@ -123,7 +129,7 @@ body.iso{font-family:var(--sr-font)}
 .sr-lcd-unit{font:600 .9px var(--anatomy-mono);fill:var(--anatomy-mid)}
 .sr-fan-bg{fill:var(--anatomy-shade-0);stroke:none}
 .sr-blade{fill:var(--anatomy-mid);opacity:.55;stroke:none}
-.iso-swatch[data-energy] path{stroke:var(--wm-orange);stroke-dasharray:2.4 2.4}
+.iso-swatch[data-energy] path{stroke:var(--wm-orange-600);stroke-linecap:round;stroke-dasharray:1.8 3}
 /* agua: el agua fría corre en azul y la caliente en un naranja rojizo; los colectores del calentador son de
    vidrio oscuro con sus tubos de cobre y brillan con el sol; el tanque toma color con la temperatura; la
    mirilla de la cisterna deja ver el nivel */

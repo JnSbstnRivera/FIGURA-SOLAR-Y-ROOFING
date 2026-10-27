@@ -28,8 +28,9 @@ const smooth = (a, b, x) => {
 };
 
 // ---------- partes del dibujo ----------
+// cada trazo que corre por un conducto, con su brillo (que no corre: solo se prende y se apaga con él)
 const flows = {};
-for (const el of $$("[data-flow]")) (flows[el.dataset.flow] ??= []).push({ el, s0: +el.dataset.s0 });
+for (const el of $$("[data-flow]")) (flows[el.dataset.flow] ??= []).push({ el, s0: +el.dataset.s0, brillo: el.hasAttribute("data-brillo") });
 const UP = axisVector(P, [0, 0, 1]);
 
 // Cada pieza que entra o sale lleva su resorte: p va de 0 (fuera) a 1 (en su sitio).
@@ -1139,8 +1140,8 @@ function draw(dt, calm) {
     if (!calm) phase[key] = (phase[key] ?? 0) + Math.sign(v) * (5 + 7 * Math.abs(v)) * dt;
     const ph = phase[key] ?? 0;
     const opacity = shown[key].toFixed(3);
-    for (const { el, s0 } of list) {
-      el.style.strokeDashoffset = ((((s0 - ph) % PERIOD) + PERIOD) % PERIOD).toFixed(2);
+    for (const { el, s0, brillo } of list) {
+      if (!brillo) el.style.strokeDashoffset = ((((s0 - ph) % PERIOD) + PERIOD) % PERIOD).toFixed(2);
       el.style.opacity = opacity;
     }
   }

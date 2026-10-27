@@ -842,7 +842,7 @@ const años = (n) => (n === 1 ? "1 año" : `${n} años`);
 const dinero = (v) => `$${fmt(v, 2)}`;
 // lo que se cotiza: el área, o el mínimo del cotizador (menos si ya es cliente solar de Windmar), y lo que se quita; con
 // un plan, su precio como en la pantalla del cotizador: el área por el precio del plan, más la remoción, y de ahí el
-// cash (10 % menos, con IVU), lo financiado (con IVU) y su mensualidad a 10 años
+// cash (10 % menos, con IVU) y la mensualidad a 10 años de lo financiado (con IVU)
 const PRECIO = PRODUCTO.sellado.precio;
 const PLAZO = 120;
 function cotizaTecho() {
@@ -854,13 +854,14 @@ function cotizaTecho() {
   const financia = base * (1 + PRECIO.ivu);
   const r = PRECIO.tasas[PLAZO] / 12;
   const mes = (financia * r * (1 + r) ** PLAZO) / ((1 + r) ** PLAZO - 1);
-  return { minimo, area, quita: Math.round((area * t.remocion) / 100), cash: base * (1 - PRECIO.cash) * (1 + PRECIO.ivu), financia, mes };
+  return { minimo, area, quita: Math.round((area * t.remocion) / 100), cash: base * (1 - PRECIO.cash) * (1 + PRECIO.ivu), mes };
 }
-// las notas de la pestaña y su ficha: el plan con su garantía, el cash, lo financiado, el mantenimiento y el área
+// las notas de la pestaña y su ficha: el plan con su garantía, el cash, la mensualidad financiada, el mantenimiento y
+// el área
 function updateTecho() {
   const t = S.techo;
   const m = modeloDe(S.escogido, "sellado");
-  const { minimo, area, quita, cash, financia, mes } = cotizaTecho();
+  const { minimo, area, quita, cash, mes } = cotizaTecho();
   out.remocion.textContent = `${t.remocion} %`;
   pasoEn("remocion", t.remocion > 0, t.remocion < 100);
   TQ.remocion.textContent = t.remocion ? `Se quita el de ${pies(quita)} de los ${pies(area)} antes de sellar.` : "Sin sellado viejo que quitar: el techo se limpia y se sella.";
@@ -874,8 +875,8 @@ function updateTecho() {
   pon("planDe", m ? `mano de obra ${años(m.obra)}` : "concreto con grietas");
   pon("cash", m ? dinero(cash) : "—");
   pon("cashDe", m ? "10 % menos, con IVU" : "sin plan");
-  pon("financia", m ? dinero(financia) : "—");
-  pon("financiaDe", m ? `${dinero(mes)}/mes a ${PLAZO / 12} años` : "sin plan");
+  pon("financia", m ? `${dinero(mes)}/mes` : "—");
+  pon("financiaDe", m ? `a ${PLAZO / 12} años, al ${fmt(PRECIO.tasas[PLAZO] * 100, 2)} %` : "sin plan");
   pon("limpia", m ? (m.limpiezas ? `${m.limpiezas} limpiezas` : "No incluido") : "—");
   pon("limpiaDe", m ? (m.limpiezas ? "techo y placas, cada 2 años" : "se paga por visita") : "sin plan");
   pon("area", pies(area));
@@ -896,8 +897,8 @@ function sayTecho() {
 function delTecho() {
   const m = modeloDe(S.escogido, "sellado");
   if (!m) return " Techo sin sellar.";
-  const { area, cash, financia, mes } = cotizaTecho();
-  return ` Techo: plan ${m.nombre}, mano de obra de ${años(m.obra)}${m.limpiezas ? " y limpieza cada 2 años" : ""}, sobre ${fmt(area)} pies cuadrados${S.techo.remocion ? `, quitando el ${S.techo.remocion} % del sellado viejo` : ""}: ${dinero(cash)} en cash, o ${dinero(financia)} financiado, ${dinero(mes)} al mes a ${PLAZO / 12} años.`;
+  const { area, cash, mes } = cotizaTecho();
+  return ` Techo: plan ${m.nombre}, mano de obra de ${años(m.obra)}${m.limpiezas ? " y limpieza cada 2 años" : ""}, sobre ${fmt(area)} pies cuadrados${S.techo.remocion ? `, quitando el ${S.techo.remocion} % del sellado viejo` : ""}: ${dinero(cash)} en cash, o financiado, ${dinero(mes)} al mes a ${PLAZO / 12} años.`;
 }
 
 // ---------- lo de la casa que llama live.js ----------
