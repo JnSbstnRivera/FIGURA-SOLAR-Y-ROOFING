@@ -315,7 +315,7 @@ body.iso{font-family:var(--sr-font)}
 /* pantalla completa: la tarjeta sola, con su fondo */
 .sr-main:fullscreen{width:100%;height:100%;padding:12px;background:var(--anatomy-paper);container:stage-box/size}
 .sr-main:fullscreen .iso-figure,.sr-main:fullscreen .iso-plate{height:100%}
-.sr-main:fullscreen .iso-plate{padding:40px 16px 16px}
+.sr-main:fullscreen .iso-plate{padding:var(--sr-franja) 16px 16px}
 .sr-main:fullscreen .sr-vista{flex:1 1 auto;min-height:0}
 .sr-main:fullscreen .sr-vista>.iso-stage{height:100%}
 .sr-main:fullscreen .iso-svg{width:100%;height:100%}
@@ -335,18 +335,27 @@ body.iso{font-family:var(--sr-font)}
 
 /* ---------- tarjeta: franja de datos, casa y reproductor ---------- */
 .sr-main .iso-figure{margin:0}
-.sr-main .iso-plate{container:plate/inline-size;display:flex;flex-direction:column;gap:12px;padding:40px 12px 12px}
+/* la franja de arriba de la tarjeta lleva el logo de Windmar Home a la izquierda y el selector de escena a la derecha;
+   con 64 px caben el logo de 48 y, con el dedo, el selector de 44 */
+.sr-main .iso-plate{--sr-franja:64px;container:plate/inline-size;display:flex;flex-direction:column;gap:12px;padding:var(--sr-franja) 12px 12px}
 .sr-vista{order:1;position:relative;min-width:0}
 .sr-player{order:2}
 .sr-kpis{order:3}
 /* el selector Casa | Apartamento: arriba a la derecha de la tarjeta, donde iba su título, como los botones de la
    velocidad; cada escena es su propia página y la que se ve lleva la línea naranja */
-.sr-escenas{position:absolute;top:7px;right:16px;z-index:1;display:inline-flex;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-lo)}
+.sr-escenas{position:absolute;top:calc(var(--sr-franja) / 2);right:16px;z-index:1;transform:translateY(-50%);display:inline-flex;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-lo)}
 .sr-escenas a{display:inline-flex;align-items:center;min-height:26px;padding:0 12px;font:600 11px/1 var(--sr-font);color:var(--anatomy-text);text-decoration:none;white-space:nowrap;transition:color .15s,background-color .15s}
 .sr-escenas a+a{border-left:1px solid var(--anatomy-lo)}
 .sr-escenas a:hover{color:var(--anatomy-strong)}
 .sr-escenas a[aria-current="page"]{color:var(--anatomy-strong);background:var(--sr-sel);box-shadow:inset 0 -2px 0 var(--wm-orange)}
 .sr-escenas a:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
+/* el logo, centrado en la misma franja que el selector, ocupa el rincón del "Fig N" del kit; en el tema oscuro va el de
+   letras blancas */
+.sr-marca{position:absolute;top:calc(var(--sr-franja) / 2);left:16px;z-index:1;transform:translateY(-50%);line-height:0}
+.sr-marca img{display:block;width:auto;height:48px}
+.sr-marca .sr-marca-oscuro,.iso[data-theme="dark"] .sr-marca .sr-marca-claro{display:none}
+.iso[data-theme="dark"] .sr-marca .sr-marca-oscuro{display:block}
+.sr-main .iso-plate-corner[data-corner="fig"]{display:none}
 
 .sr-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;background:var(--anatomy-faint);box-shadow:0 0 0 1px var(--anatomy-faint)}
 .sr-kpis[hidden]{display:none}
@@ -543,7 +552,7 @@ input.sr-input{width:5.6em}
   .sr-layout{height:calc(100vh - 24px);height:calc(100dvh - 24px);grid-template-rows:auto minmax(0,1fr);align-items:stretch}
   .sr-main{container:stage-box/size;min-height:0}
   .sr-main .iso-figure,.sr-main .iso-plate{height:100%}
-  .sr-main .iso-plate{padding:40px 16px 16px}
+  .sr-main .iso-plate{padding:var(--sr-franja) 16px 16px}
   .sr-main .sr-vista{flex:1 1 auto;min-height:0}
   .sr-main .sr-vista>.iso-stage{height:100%}
   .sr-main .iso-svg{width:100%;height:100%}
@@ -585,11 +594,6 @@ input.sr-input{width:5.6em}
   .sr-head h1{font-size:16px}
 }
 
-/* Con el dedo el selector de escena mide 44 px: la franja de arriba de la tarjeta crece para que quepa (va al final
-   para ganarle a las otras medidas de la tarjeta). */
-@media (pointer:coarse){
-  .sr-main .iso-plate{padding-top:58px}
-}
 
 /* Movimiento reducido: el día no corre solo; queda la barra para elegir la hora. */
 @media (prefers-reduced-motion:reduce){

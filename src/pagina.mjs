@@ -20,6 +20,11 @@ export const ESCENAS = [
   { id: "apartamento", nombre: "Apartamento", archivo: "apartamento.html", href: "apartamento.html" },
 ];
 const selector = (escena) => `<nav class="sr-escenas" aria-label="Escena">${ESCENAS.map((e) => `<a href="${e.href}"${e.id === escena ? ' aria-current="page"' : ""}>${e.nombre}</a>`).join("")}</nav>`;
+// el logo oficial de Windmar Home en la esquina de arriba a la izquierda de la tarjeta, frente al selector: el azul
+// para el tema claro y el de letras blancas para el oscuro (page.css muestra uno u otro)
+const MARCA =
+  `<div class="sr-marca"><img class="sr-marca-claro" src="marca/windmar-home.png" width="75" height="48" alt="Windmar Home">` +
+  `<img class="sr-marca-oscuro" src="marca/windmar-home-oscuro.png" width="75" height="48" alt="Windmar Home"></div>`;
 
 export const stepper = (key, label) =>
   `<span class="sr-step" data-stepper="${key}"><button type="button" class="sr-btn sr-pm" data-d="-1" aria-label="Quitar ${label}">−</button><output data-v="${key}">0</output><button type="button" class="sr-btn sr-pm" data-d="1" aria-label="Sumar ${label}">+</button></span>`;
@@ -150,7 +155,7 @@ export function escribirPagina({ escena, titulo, h1, descripcion, fig, about, ke
     .replace('data-mark="dashed"', 'data-mark="dashed" data-energy')
     // la lectura en vivo va dentro del reproductor, no en la esquina
     .replace('<span class="iso-plate-corner" data-corner="readout" data-readout></span>', "")
-    .replace('<div class="iso-plate">', `<div class="iso-plate">${selector(escena)}`)
+    .replace('<div class="iso-plate">', `<div class="iso-plate">${MARCA}${selector(escena)}`)
     .replace('<div class="sr-vista">', `${ficha}<div class="sr-vista">`);
   if (plate.includes('data-corner="readout"')) throw new Error("readout corner still in the plate");
   // La leyenda y el pie van plegados debajo de las dos columnas: solo ocupan lugar si se abren.
