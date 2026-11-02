@@ -33,6 +33,13 @@ for (const r of rowGroups) {
     for (const el of r.els) el.style.opacity = smooth(0, 1, Math.min(1, r.p)).toFixed(3);
   };
 }
+// el inversor y su salida al panel: se ven si hay placas o baterías
+const sistemaGroup = { els: $$("[data-sistema]"), p: 0, v: 0, target: -1, wait: 0 };
+sistemaGroup.apply = () => {
+  const out = sistemaGroup.p <= 0.002 && sistemaGroup.target <= 0;
+  showAll(sistemaGroup.els, !out);
+  for (const el of sistemaGroup.els) el.style.opacity = smooth(0, 1, Math.min(1, sistemaGroup.p)).toFixed(3);
+};
 const batGroups = [1, 2, 3, 4].map((n) => ({ box: $$(`[data-bat="${n}"][data-batbox]`), lines: $$(`[data-bat="${n}"]:not([data-batbox])`), p: 0, v: 0, target: -1, wait: 0 }));
 for (const b of batGroups) {
   b.apply = () => {
@@ -86,7 +93,10 @@ const capacidad = () => D.slots - lugaresOcupados(S.escogido);
 
 // ---------- sistema ----------
 // la factura de ejemplo, las placas y las baterías (las que sugiere el cotizador, salvo que se cambien a mano)
-Object.assign(S, { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes });
+Object.assign(S, { meses: [...D.ejemplo.meses], existentes: { ...D.ejemplo.existentes }, nuevas: 0, baterias: 0, manual: false, mes: D.ejemplo.mes, carro: { km: CARRO.km, carga: "sol" } });
+// el carro eléctrico se suma a la factura de cada mes (model.mjs): el consumo de un mes es la factura más el carro
+const carroMes = () => kwhCarroMes(S.carro.km);
+const consumoDe = (i) => S.meses[i] + carroMes();
 let factor = 1;
 let sug = null;
 let samples = null;
@@ -94,7 +104,7 @@ let pvPeak = 1;
 let shares = { row0: 1, row3: 0, row23: 0, row123: 0 };
 let diaPV = 0;
 let roofFull = false;
-const KEYS = ["pv", "load", "batt", "grid", "soc", "net"];
+const KEYS = ["pv", "load", "carro", "batt", "grid", "soc", "net"];
 
 function sample(hour) {
   const n = samples.pv.length - 1;
@@ -118,35 +128,44 @@ Object.assign(CHANNEL, {
   batl2: (s) => s.batt * linkShare(2),
   batl3: (s) => s.batt * linkShare(3),
   ac: (s) => s.pv - s.batt,
-  casa: (s) => s.load,
+  // lo que entra a la casa y lo que va al carro por su conducto, hasta el cargador junto al portón del garaje
+  casa: (s) => s.load - s.carro,
+  carro: (s) => s.carro,
   red: (s) => s.grid,
 });
 
 // ---------- textos ----------
 const toward = (net) => (net >= -0.005 ? "a" : "de");
 const batteryText = (s, short) => (S.baterias ? `${short ? "bat." : "batería"} ${Math.round(s.soc * 100)} %` : "sin batería");
-// Lo que pasa en este momento, al lado de la hora del reproductor.
-const say = (s) =>
-  narrow.matches
-    ? `${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`
-    : `placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
-// Lo que pasa a esa hora, para el lector de pantalla (en pantalla lo dice el reproductor).
+// Lo que pasa en este momento, al lado de la hora del reproductor (lo del carro no cabe: lo dice su conducto encendido).
+// Sin Windmar, lo que usa la casa y lo que lleva tomado de LUMA.
+const say = (s) => {
+  const luma = `${toward(s.net)} LUMA ${Math.abs(s.net).toFixed(1)} kWh`;
+  if (!S.windmar) return narrow.matches ? `${s.load.toFixed(1)} kW · ${luma}` : `sin Windmar · usa ${s.load.toFixed(1)} kW · ${luma}`;
+  return narrow.matches ? `${s.pv.toFixed(1)} kW · ${batteryText(s, true)} · ${luma}` : `placas ${s.pv.toFixed(1)} kW · ${batteryText(s, false)} · ${luma}`;
+};
+const cargando = (s) => s.carro > 0.05;
+// Lo que pasa a esa hora, para el lector de pantalla (en pantalla lo dice el reproductor). Mientras se carga el carro,
+// lo que se alimenta es la casa y el carro.
 function explain(h) {
   const s = sample(h);
+  const [casa, toma, usa] = cargando(s) ? ["la casa y el carro", "la casa y el carro toman", "usan la casa y el carro"] : ["la casa", "la casa toma", "usa la casa"];
+  const carro = cargando(s) ? `, carro ${s.carro.toFixed(1)} kW` : "";
+  const day = `${s.net >= -0.005 ? "enviados a" : "tomados de"} LUMA en el día: ${Math.abs(s.net).toFixed(1)} kWh`;
+  if (!S.windmar) return `${cap(MESES[S.mes])}, ${clock(h)} · sin Windmar, ${toma} todo de LUMA. Casa ${(s.load - s.carro).toFixed(1)} kW${carro}; ${day}.`;
   let what;
   if (!S.baterias) {
-    if (s.grid > 0.05) what = "las placas cubren la casa y, sin batería, el sobrante sale a LUMA";
+    if (s.grid > 0.05) what = `las placas cubren ${casa} y, sin batería, el sobrante sale a LUMA`;
     else if (s.pv > 0.05) what = "las placas no alcanzan y, sin batería, LUMA completa";
-    else what = "no hay sol ni batería: la casa toma de LUMA";
-  } else if (s.batt > 0.05 && s.grid > 0.05) what = "las placas cubren la casa, cargan la batería y el resto sale a LUMA";
-  else if (s.batt > 0.05) what = "las placas cubren la casa y cargan la batería";
-  else if (s.grid > 0.05) what = "las placas cubren la casa; con la batería llena, el sobrante sale a LUMA";
-  else if (s.batt < -0.05) what = s.pv > 0.05 ? "las placas ya no alcanzan y la batería completa lo que falta" : "no hay sol: la batería alimenta la casa";
-  else if (s.grid < -0.05) what = s.pv > 0.05 ? "la batería está en su reserva; las placas y LUMA alimentan la casa" : "la batería llegó a su reserva y la casa toma de LUMA";
-  else what = "las placas cubren justo lo que usa la casa";
-  const day = `${s.net >= -0.005 ? "enviados a" : "tomados de"} LUMA en el día: ${Math.abs(s.net).toFixed(1)} kWh`;
+    else what = `no hay sol ni batería: ${toma} de LUMA`;
+  } else if (s.batt > 0.05 && s.grid > 0.05) what = `las placas cubren ${casa}, cargan la batería y el resto sale a LUMA`;
+  else if (s.batt > 0.05) what = `las placas cubren ${casa} y cargan la batería`;
+  else if (s.grid > 0.05) what = `las placas cubren ${casa}; con la batería llena, el sobrante sale a LUMA`;
+  else if (s.batt < -0.05) what = s.pv > 0.05 ? "las placas ya no alcanzan y la batería completa lo que falta" : `no hay sol: la batería alimenta ${casa}`;
+  else if (s.grid < -0.05) what = s.pv > 0.05 ? `la batería está en su reserva; las placas y LUMA alimentan ${casa}` : `la batería llegó a su reserva y ${toma} de LUMA`;
+  else what = `las placas cubren justo lo que ${usa}`;
   const bat = S.baterias ? `batería ${Math.round(s.soc * 100)} %` : "sin batería";
-  return `${cap(MESES[S.mes])}, ${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${s.load.toFixed(1)} kW, ${bat}; ${day}.`;
+  return `${cap(MESES[S.mes])}, ${clock(h)} · ${what}. Placas ${s.pv.toFixed(1)} kW, casa ${(s.load - s.carro).toFixed(1)} kW${carro}, ${bat}; ${day}.`;
 }
 
 // ---------- ficha ----------
@@ -157,8 +176,8 @@ const ficha = { goal: null, show: null, frame: 0, last: 0 };
 // los que se leen con un decimal llegan a su valor con más cuidado
 const FINOS = new Set(["dia", "tsrf", "acceso", "menos"]);
 function updateFicha() {
-  const consumo = S.meses[S.mes];
-  const anual = S.meses.reduce((a, b) => a + b, 0);
+  const consumo = consumoDe(S.mes);
+  const anual = S.meses.reduce((a, _, i) => a + consumoDe(i), 0);
   const prodMes = diaPV * 30;
   const tof = tofDe(S.rumbo);
   // El TSRF y el acceso solar van con un decimal: así se ve lo que les quita una sombra chica, como la
@@ -167,7 +186,8 @@ function updateFicha() {
   ficha.goal = {
     prod: prodMes,
     dia: diaPV,
-    resp: S.baterias ? respaldoHoras(S.baterias, consumo / 30) : 0,
+    // las horas de respaldo son las de la casa: no cuentan cargar el carro en un apagón
+    resp: S.baterias ? respaldoHoras(S.baterias, S.meses[S.mes] / 30) : 0,
     mes: consumo > 0 ? (prodMes / consumo) * 100 : 0,
     anio: anual > 0 ? ((prodMes * 12) / anual) * 100 : 0,
     tsrf: tof * techo.acceso * 100,
@@ -192,8 +212,8 @@ function updateFicha() {
 }
 function renderFicha() {
   const v = ficha.show;
-  const consumo = S.meses[S.mes];
-  const anual = S.meses.reduce((a, b) => a + b, 0);
+  const consumo = consumoDe(S.mes);
+  const anual = S.meses.reduce((a, _, i) => a + consumoDe(i), 0);
   F.prod.textContent = `${fmt(v.prod)} kWh/mes`;
   F.dia.textContent = `${fmt(v.prod * 12)} al año · ${fmt(v.dia, 1)} al día`;
   F.tsrf.textContent = `${fmt(v.tsrf, 1)} %`;
@@ -204,6 +224,7 @@ function renderFicha() {
   F.menos.textContent = v.menos >= 0.05 ? `−${fmt(v.menos, 1)}` : "0.0";
   F.respaldo.textContent = S.baterias ? `${fmt(S.baterias * BASE.bateria, 1)} kWh · respaldo ${Math.round(v.resp)} h` : "toda la noche de LUMA";
   F.mes.textContent = consumo > 0 ? `cubre ${Math.round(v.mes)} %` : "—";
+  // lo que usa es con el carro, como las barras de la gráfica (cuánto es del carro lo dicen sus controles)
   F.mesUsa.textContent = `usa ${fmt(consumo)} kWh${anual > 0 ? ` · el año ${Math.round(v.anio)} %` : ""}`;
 }
 function fichaTick(now) {
@@ -229,7 +250,9 @@ const todosInput = doc("[data-todos]");
 const vatiosInput = doc("[data-vatios]");
 const resetButton = doc("[data-reset]");
 const warn = doc("[data-warn]");
-// placas nuevas y baterías: quien las toca deja lo sugerido
+const carroKwh = doc("[data-carro-kwh]");
+const cargaBotones = [...document.querySelectorAll("[data-carga]")];
+// placas nuevas y baterías: quien las toca deja lo sugerido; el carro anda de 10 en 10 km al día
 Object.assign(PASOS, {
   nuevas: (d) => {
     S.nuevas += d;
@@ -240,7 +263,15 @@ Object.assign(PASOS, {
     S.baterias += d;
     S.manual = true;
   },
+  carro: (d) => (S.carro.km = clamp(S.carro.km + d * CARRO.pasoKm, 0, CARRO.kmMax)),
 });
+// cuándo se carga el carro: con el sol o de noche
+radios(cargaBotones, (b, foco) => {
+  S.carro.carga = b.dataset.carga;
+  marcar(cargaBotones, "carga", S.carro.carga, foco === "carga");
+  recompute();
+  announce();
+}, "carga");
 function updateControls() {
   const total = S.existentes.n + S.nuevas;
   const cabe = capacidad();
@@ -250,6 +281,10 @@ function updateControls() {
   pasoEn("nuevas", S.nuevas > 0, total < cabe);
   pasoEn("existentes", S.existentes.n > 0, S.existentes.n < cabe);
   pasoEn("baterias", S.baterias > D.limites.baterias[0], S.baterias < D.limites.baterias[1]);
+  out.carro.textContent = String(S.carro.km);
+  carroKwh.textContent = S.carro.km ? `${fmt(carroMes())} kWh al mes` : "sin carro eléctrico";
+  pasoEn("carro", S.carro.km > 0, S.carro.km < CARRO.kmMax);
+  marcar(cargaBotones, "carga", S.carro.carga, false);
   resetButton.disabled = !S.manual;
   if (+mesSelect.value !== S.mes) mesSelect.value = String(S.mes);
   if (document.activeElement !== mesInput) mesInput.value = String(S.meses[S.mes]);
@@ -393,20 +428,23 @@ const barPath = (x, y0, y1, rounded) => {
     ? `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + w - r}Q${x + w} ${y1} ${x + w} ${y1 + r}V${y0}Z`
     : `M${x} ${y0}V${y1}H${x + w}V${y0}Z`;
 };
+// las barras son el consumo de cada mes con el carro (la factura más el carro); al arrastrarlas cambia la factura
 function updateChart() {
   chart.prod = diaPV * 30;
-  if (!chart.frozen) chart.top = niceTop(Math.max(...S.meses, chart.prod));
+  if (!chart.frozen) chart.top = niceTop(Math.max(...S.meses.map((_, i) => consumoDe(i)), chart.prod));
   chart.dirty = true;
   if (still.matches || !visibleChart) settleChart();
   for (const c of cols) {
-    const consumo = S.meses[c.i];
-    c.g.setAttribute("aria-label", `${cap(MESES[c.i])}: ${fmt(consumo)} kWh`);
+    const consumo = consumoDe(c.i);
+    c.g.setAttribute("aria-label", `${cap(MESES[c.i])}: ${fmt(consumo)} kWh${S.carro.km ? `, ${fmt(carroMes())} del carro` : ""}`);
     c.g.setAttribute("aria-valuenow", String(consumo));
+    c.g.setAttribute("aria-valuemin", String(D.limites.mes[0] + carroMes()));
+    c.g.setAttribute("aria-valuemax", String(D.limites.mes[1] + carroMes()));
     c.g.classList.toggle("is-sel", c.i === S.mes);
   }
   table.textContent = "";
   for (let i = 0; i < 12; i++) {
-    const consumo = S.meses[i];
+    const consumo = consumoDe(i);
     const cubre = Math.min(consumo, chart.prod);
     const row = document.createElement("tr");
     for (const value of [cap(MESES[i]), `${fmt(consumo)} kWh`, `${fmt(chart.prod)} kWh`, `${fmt(cubre)} kWh`, `${fmt(Math.max(0, consumo - chart.prod))} kWh`]) {
@@ -421,7 +459,7 @@ function updateChart() {
 function settleChart() {
   chart.topShow = chart.top;
   chart.prodShow = chart.prod;
-  for (const c of cols) c.show = { c: S.meses[c.i], p: chart.prod };
+  for (const c of cols) c.show = { c: consumoDe(c.i), p: chart.prod };
 }
 function renderChart() {
   const top = chart.topShow;
@@ -437,7 +475,7 @@ function renderChart() {
     c.luma.setAttribute("d", luma >= 0.5 ? barPath(x, yCubre - 2, Math.min(yCubre - 2, yOf(consumo)), true) : "");
     const sel = c.i === S.mes;
     c.val.setAttribute("y", String(Math.min(yOf(consumo), yOf(c.show.p)) - 6));
-    c.val.textContent = sel ? fmt(S.meses[c.i]) : "";
+    c.val.textContent = sel ? fmt(consumoDe(c.i)) : "";
   }
   const yp = yOf(chart.prodShow);
   prodLine.setAttribute("y1", yp.toFixed(1));
@@ -460,7 +498,7 @@ function chartTick(now) {
   };
   chart.topShow = ease(chart.topShow, chart.top);
   chart.prodShow = ease(chart.prodShow, chart.prod);
-  for (const c of cols) c.show = { c: ease(c.show.c, S.meses[c.i]), p: ease(c.show.p, chart.prod) };
+  for (const c of cols) c.show = { c: ease(c.show.c, consumoDe(c.i)), p: ease(c.show.p, chart.prod) };
   renderChart();
   chartFrame = busy ? requestAnimationFrame(chartTick) : 0;
 }
@@ -482,7 +520,7 @@ new IntersectionObserver((entries) => {
 
 // pasar el puntero, arrastrar y teclado sobre las barras
 const showTip = (c) => {
-  const consumo = S.meses[c.i];
+  const consumo = consumoDe(c.i);
   const prod = diaPV * 30;
   tip.textContent = "";
   const line = (value, label) => {
@@ -496,6 +534,7 @@ const showTip = (c) => {
   head.textContent = cap(MESES[c.i]);
   tip.appendChild(head);
   line(`${fmt(consumo)} kWh`, "consumo");
+  if (S.carro.km) line(`${fmt(carroMes())} kWh`, "del carro");
   line(`${fmt(Math.min(consumo, prod))} kWh`, "cubren las placas");
   line(`${fmt(Math.max(0, consumo - prod))} kWh`, "de LUMA");
   if (prod > consumo) line(`${fmt(prod - consumo)} kWh`, "sobran y van a LUMA");
@@ -512,6 +551,8 @@ const valueAt = (clientY) => {
   const top = chart.frozen ?? chart.top;
   return clamp(Math.round(((CH.base - y) / (CH.base - CH.top)) * top / 10) * 10, D.limites.mes[0], D.limites.mes[1]);
 };
+// la barra que se arrastra es el consumo con el carro: la factura es lo que queda sin él
+const facturaAt = (clientY) => clamp(valueAt(clientY) - carroMes(), D.limites.mes[0], D.limites.mes[1]);
 for (const c of cols) {
   c.g.addEventListener("pointerenter", () => showTip(c));
   c.g.addEventListener("pointerleave", () => {
@@ -528,7 +569,7 @@ for (const c of cols) {
     chart.frozen = chart.top;
     chartSvg.setPointerCapture(event.pointerId);
     if (S.mes !== c.i) S.mes = c.i;
-    S.meses[c.i] = valueAt(event.clientY);
+    S.meses[c.i] = facturaAt(event.clientY);
     recompute();
     showTip(c);
   });
@@ -552,7 +593,7 @@ for (const c of cols) {
 let dragFrame = 0;
 chartSvg.addEventListener("pointermove", (event) => {
   if (!drag || event.pointerId !== drag.id) return;
-  const v = valueAt(event.clientY);
+  const v = facturaAt(event.clientY);
   if (v === S.meses[drag.c.i] || dragFrame) return;
   dragFrame = requestAnimationFrame(() => {
     dragFrame = 0;
@@ -901,16 +942,110 @@ function delTecho() {
   return ` Techo: plan ${m.nombre}, mano de obra de ${años(m.obra)}${m.limpiezas ? " y limpieza cada 2 años" : ""}, sobre ${fmt(area)} pies cuadrados${S.techo.remocion ? `, quitando el ${S.techo.remocion} % del sellado viejo` : ""}: ${dinero(cash)} en cash, o financiado, ${dinero(mes)} al mes a ${PLAZO / 12} años.`;
 }
 
+// ---------- sin y con Windmar ----------
+// "Sin Windmar" enseña la misma casa como está hoy: sin placas ni baterías (ni el inversor y sus conductos), sin los
+// productos del plano y con el techo sin sellar; toda la luz, también la del carro, viene de LUMA. Lo escogido se guarda
+// y vuelve con "Con Windmar". Mientras tanto los pasos de las pestañas se quedan quietos (inert) con lo que lleva con
+// Windmar, salvo el del aguacero, y la ficha compara lo de hoy con lo que da con Windmar: lo que se toma al pasar, con
+// los mismos cálculos de cada pestaña. El cambio va con un fundido corto del dibujo y de la ficha (sin él, con el
+// movimiento reducido).
+S.windmar = true;
+const windmarBotones = [...document.querySelectorAll("[data-windmar]")];
+const sinNota = doc("[data-sin-nota]");
+const quietos = [...document.querySelectorAll(".sr-panel > .sr-group")].filter((s) => !s.contains(aguaceroBoton));
+let guardado = null;
+let conW = null;
+let cambiando = false;
+// lo que dan las placas, las baterías, el Anker, el calentador, la cisterna y el sellado escogidos
+function conWindmar() {
+  const prod = diaPV * 30;
+  const deLuma = (i) => Math.max(0, consumoDe(i) - prod);
+  const cis = cisternaDe(S.escogido);
+  return {
+    mes: deLuma(S.mes),
+    anio: S.meses.reduce((a, _, i) => a + deLuma(i), 0),
+    respaldo: S.baterias ? respaldoHoras(S.baterias, S.meses[S.mes] / 30) : 0,
+    esencial: respaldoDe() && anker ? anker.horas : 0,
+    calentador: calentadorDe(S.escogido) ? Math.max(0, agua.electricoMes - agua.ahorroMes) : null,
+    reserva: cis ? agua.reserva : null,
+    plan: modeloDe(S.escogido, "sellado"),
+  };
+}
+const kwh = (v) => `${fmt(v)} kWh`;
+const diasDe = (d) => (d >= 1 ? `${fmt(d, 1)} ${d === 1 ? "día" : "días"}` : `unas ${Math.max(1, Math.round(d * 24))} horas`);
+const anioSin = () => S.meses.reduce((a, _, i) => a + consumoDe(i), 0);
+function updateSin() {
+  const c = conW;
+  pon("sinMesL", `De LUMA en ${MESES[S.mes]}`);
+  pon("sinMes", kwh(consumoDe(S.mes)));
+  pon("sinMesCon", kwh(c.mes));
+  pon("sinAnio", kwh(anioSin()));
+  pon("sinAnioCon", kwh(c.anio));
+  pon("sinApagon", "Sin luz");
+  pon("sinApagonCon", c.respaldo ? `${Math.round(c.respaldo)} h` : c.esencial ? `${Math.round(c.esencial)} h lo esencial` : "falta la batería");
+  pon("sinCal", `${kwh(agua.electricoMes)} al mes`);
+  pon("sinCalCon", c.calentador === null ? "falta el calentador" : `${kwh(c.calentador)} al mes`);
+  pon("sinAAA", "Sin agua");
+  pon("sinAAACon", c.reserva === null ? "falta la cisterna" : diasDe(c.reserva));
+  pon("sinTecho", "Sin sellar");
+  pon("sinTechoCon", c.plan ? `sellado ${c.plan.nombre}` : "falta el sellado");
+  sinNota.textContent = `Así está hoy la casa: toda la luz${S.carro.km ? ", también la del carro," : ""} viene de LUMA, en un apagón se queda sin luz y el techo está sin sellar (en Roofing, el aguacero enseña por dónde se mete el agua). Lo de las pestañas es lo que lleva con Windmar: para cambiarlo, pasa a Con Windmar.`;
+}
+function ponWindmar(con) {
+  if (cambiando || con === S.windmar) return;
+  cambiando = true;
+  for (const b of windmarBotones) b.setAttribute("aria-pressed", String((b.dataset.windmar === "con") === con));
+  const cambia = () => {
+    if (con) {
+      S.escogido = guardado;
+      guardado = null;
+      // el techo vuelve sellado de una vez, sin la obra
+      azotea.plan = S.escogido.sellado;
+    } else {
+      conW = conWindmar();
+      guardado = S.escogido;
+      S.escogido = { ...SIN_NADA };
+    }
+    S.windmar = con;
+    vistosDelTecho();
+    sinNota.hidden = con;
+    for (const s of quietos) s.inert = !con;
+    for (const el of document.querySelectorAll("[data-ficha]")) el.hidden = el.dataset.ficha !== (con ? modo : "sin");
+    recompute({ calm: true });
+    announce();
+    cambiando = false;
+  };
+  if (still.matches) return cambia();
+  mainEl.classList.add("sr-cambia");
+  setTimeout(() => {
+    cambia();
+    mainEl.classList.remove("sr-cambia");
+  }, 125);
+}
+for (const b of windmarBotones) b.addEventListener("click", () => ponWindmar(b.dataset.windmar === "con"));
+
 // ---------- lo de la casa que llama live.js ----------
 let spin = 0;
+// lo puesto en la casa: las placas del techo y las baterías (sin Windmar, nada)
+const puestasEnCasa = () => (S.windmar ? [S.existentes.n + S.nuevas, S.baterias] : [0, 0]);
 const ESCENA_VIVA = {
   // lo puesto que tapa el sol: las placas del techo y las baterías
-  puestas: () => [S.existentes.n + S.nuevas, S.baterias],
-  // el sistema del cotizador con lo que cabe en el techo, y su día con el rumbo y la sombra del techo
+  puestas: puestasEnCasa,
+  // mientras se ve "Sin Windmar", la ficha es la que compara y los paneles se quedan como estaban (live.js)
+  comparando: () => !S.windmar,
+  // el sistema del cotizador con lo que cabe en el techo, y su día con el rumbo y la sombra del techo; sin Windmar, un día
+  // sin placas ni baterías (lo del cotizador se queda como estaba, para volver)
   recompute() {
+    const carro = { kwh: S.carro.km * CARRO.kwhPorKm, ...CARRO.horarios[S.carro.carga] };
+    if (!S.windmar) {
+      const sim = simulate({ diaPV: 0, baterias: 0, diaCasa: S.meses[S.mes] / 30, carro });
+      samples = Object.fromEntries(KEYS.map((key) => [key, sim.rows.map((row) => row[key])]));
+      pvPeak = 1;
+      return;
+    }
     const cabe = capacidad();
     S.existentes.n = clamp(S.existentes.n, 0, cabe);
-    sug = sugerencia(S.meses, S.existentes);
+    sug = sugerencia(S.meses.map((_, i) => consumoDe(i)), S.existentes);
     if (!S.manual) {
       S.nuevas = sug.nuevas;
       S.baterias = sug.baterias;
@@ -923,7 +1058,7 @@ const ESCENA_VIVA = {
     const t = sombrasDelTecho();
     factor = factorRumbo(S.rumbo);
     diaPV = produccionDia({ existentes: S.existentes, nuevas: S.nuevas }) * factor * t.acceso;
-    const sim = simulate({ diaPV, baterias: S.baterias, diaCasa: S.meses[S.mes] / 30, perfil: t.perfil });
+    const sim = simulate({ diaPV, baterias: S.baterias, diaCasa: S.meses[S.mes] / 30, perfil: t.perfil, carro });
     samples = Object.fromEntries(KEYS.map((key) => [key, sim.rows.map((row) => row[key])]));
     pvPeak = sim.pico || 1;
     const total = S.existentes.n + S.nuevas;
@@ -933,9 +1068,9 @@ const ESCENA_VIVA = {
     const sum = inRow.reduce((a, b) => a + b, 0) || 1;
     shares = { row0: inRow[0] / sum, row3: inRow[3] / sum, row23: (inRow[2] + inRow[3]) / sum, row123: (inRow[1] + inRow[2] + inRow[3]) / sum };
   },
-  // las placas entran de una en una (y las que se quitan salen al revés), las cajas de fila y las baterías
+  // las placas entran de una en una (y las que se quitan salen al revés), las cajas de fila, las baterías y el inversor
   targets() {
-    const total = S.existentes.n + S.nuevas;
+    const [total, baterias] = puestasEnCasa();
     const appear = [];
     const vanish = [];
     slots.forEach((s, i) => {
@@ -969,13 +1104,19 @@ const ESCENA_VIVA = {
       }
     }
     batGroups.forEach((b, i) => {
-      const want = i < S.baterias ? 1 : 0;
+      const want = i < baterias ? 1 : 0;
       if (want !== b.target) {
         b.target = want;
         b.wait = want ? i * 0.08 : (3 - i) * 0.05;
         moving.add(b);
       }
     });
+    const sistema = total > 0 || baterias > 0 ? 1 : 0;
+    if (sistema !== sistemaGroup.target) {
+      sistemaGroup.target = sistema;
+      sistemaGroup.wait = 0;
+      moving.add(sistemaGroup);
+    }
     // un plan de sellado escogido desde "Sin" se aplica por partes; sin plan, la obra se deja
     if (azotea.plan === "sin" && hay(S.escogido, "sellado")) empezarObra();
     if (!hay(S.escogido, "sellado")) azotea.obra = null;
@@ -983,8 +1124,13 @@ const ESCENA_VIVA = {
     vistosDelTecho();
   },
   // la ficha, los controles de Energía, la gráfica y lo del techo (lo que ocupa lugares de placas lo dice la nota del
-  // calentador)
+  // calentador); sin Windmar, la ficha que compara y lo del techo (la nota del aguacero dice lo del techo sin sellar)
   actualiza() {
+    if (!S.windmar) {
+      updateSin();
+      updateTecho();
+      return;
+    }
     updateFicha();
     updateControls();
     updateChart();
@@ -1003,7 +1149,7 @@ const ESCENA_VIVA = {
     for (const el of suns) el.style.opacity = sun;
     for (const { el, i } of leds) el.style.opacity = (0.12 + 0.88 * Math.min(1, Math.max(0, s.soc * D.leds - i))).toFixed(3);
     invLed.style.opacity = (0.15 + 0.85 * smooth(0.02, 0.3, s.pv)).toFixed(3);
-    if (!calm) spin = (spin + (40 + 150 * s.load) * dt) % 360;
+    if (!calm) spin = (spin + (40 + 150 * (s.load - s.carro)) * dt) % 360;
     fan.setAttribute("transform", `rotate(${spin.toFixed(1)})`);
     const value = (s.net >= -0.005 ? "+" : "−") + Math.abs(s.net).toFixed(1);
     if (lcd.textContent !== value) lcd.textContent = value;
@@ -1011,9 +1157,14 @@ const ESCENA_VIVA = {
   dice: (s) => (modo === "roofing" ? sayTecho() : say(s)),
   explica: (h) => explain(h),
   anuncia() {
+    if (!S.windmar) {
+      const c = conW;
+      return `Sin Windmar: toda la luz viene de LUMA, ${kwh(consumoDe(S.mes))} en ${MESES[S.mes]} y ${kwh(anioSin())} en el año; con Windmar, ${kwh(c.mes)} y ${kwh(c.anio)}. En un apagón no hay luz${c.respaldo ? `; con Windmar, ${Math.round(c.respaldo)} horas` : ""}. Calentar el agua con luz gasta ${kwh(agua.electricoMes)} al mes${c.calentador === null ? "" : `; con Windmar, ${kwh(c.calentador)}`}. Si corta la AAA no hay agua${c.reserva === null ? "" : `; con Windmar, ${diasDe(c.reserva)}`}. El techo está sin sellar${c.plan ? `; con Windmar, sellado ${c.plan.nombre}` : ""}.`;
+    }
     const g = ficha.goal;
     const enTecho = techo.porque ? `, con agua en el techo: TSRF ${fmt(g.tsrf, 1)} %, ${fmt(g.menos, 1)} menos${techo.porque}, y acceso solar ${fmt(g.acceso, 1)} %` : `: TSRF ${fmt(g.tsrf, 1)} %`;
-    return `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: cubre ${Math.round(g.anio)} %.${delAgua()}${delAnker()}${delTecho()}`;
+    const delCarro = S.carro.km ? ` El carro eléctrico anda ${S.carro.km} km al día: suma ${fmt(carroMes())} kWh al mes y se carga ${CARRO.horarios[S.carro.carga].texto}.` : "";
+    return `${S.nuevas} placas nuevas de ${D.vatios} W, ${S.existentes.n} que ya tenía de ${S.existentes.w} W, ${S.baterias} Powerwall, mirando al ${rumboDe(S.rumbo).nombre.toLowerCase()}${enTecho}. ${F.mesNombre.textContent}: ${F.mes.textContent}. En el año: cubre ${Math.round(g.anio)} %.${delCarro}${delAgua()}${delAnker()}${delTecho()}`;
   },
   // la gráfica se dibuja al ancho de su columna, y se achata en ventanas bajas
   arranca() {

@@ -39,6 +39,10 @@ export const opciones = (key, label, lista, columnas = 5, sin = true) =>
   `<div class="sr-opciones" role="radiogroup" aria-label="${label}" data-opciones="${key}"${columnasDe(columnas)}>` +
   [...(sin ? [["sin", "Sin", `Sin ${label.toLowerCase()}`]] : []), ...lista].map(([id, corto, largo]) => radio("opcion", id, corto, largo, id === "sin")).join("") +
   `</div>`;
+// Botones de una sola escogida que son de la escena y no del plano (cuándo se carga el carro): `attr` es su grupo,
+// `lista` trae [id, corto, largo] y `valor`, el que arranca escogido.
+export const escogeUna = (attr, label, lista, valor) =>
+  `<div class="sr-opciones" role="radiogroup" aria-label="${label}"${columnasDe(lista.length)}>${lista.map(([id, corto, largo]) => radio(attr, id, corto, largo, id === valor)).join("")}</div>`;
 const interruptorHtml = (p) => `<div class="sr-row"><button type="button" class="sr-switch" role="switch" aria-checked="false" data-${p.interruptor.id}><span class="sr-switch-pista" aria-hidden="true"></span>${p.interruptor.texto}</button></div>`;
 // La sección de un producto del plano (productos.mjs): su título (con su número de paso, si va en pasos), un botón por
 // modelo (y "Sin"), su nota y su interruptor, si tiene. `data-producto` es a donde lleva su botón de "Le falta".
@@ -94,11 +98,12 @@ export function respaldoHtml(ps, otro = "") {
 }
 // La ficha de la tarjeta: una por pestaña, y se ve la de la pestaña escogida. Cada celda lleva su nombre, su valor y
 // una línea debajo (data-f: los llena la página); la última, "Le falta", los productos que no se han puesto, como
-// botones que llevan a su paso (live.js). --n y --n2 son las columnas en una fila o en dos.
+// botones que llevan a su paso (live.js), salvo en la que compara sin y con Windmar. --n y --n2 son las columnas en una
+// fila o en dos.
 export const kpi = (l, v, s) => `<div class="sr-kpi"><span class="sr-kpi-l">${l}</span><span class="sr-kpi-v" data-f="${v}"></span><span class="sr-kpi-s" data-f="${s}"></span></div>`;
-export function fichaDe(tab, label, celdas, visible = false) {
+export function fichaDe(tab, label, celdas, visible = false, { faltan = true } = {}) {
   // con un número impar de celdas, "Le falta" ocupa dos columnas para no dejar un hueco en la última fila
-  const todas = [...celdas, `<div class="sr-kpi${celdas.length % 2 ? "" : " sr-kpi-ancha"}"><span class="sr-kpi-l">Le falta</span><span class="sr-faltan" data-faltan></span></div>`];
+  const todas = faltan ? [...celdas, `<div class="sr-kpi${celdas.length % 2 ? "" : " sr-kpi-ancha"}"><span class="sr-kpi-l">Le falta</span><span class="sr-faltan" data-faltan></span></div>`] : celdas;
   return `<div class="sr-kpis" role="group" aria-label="${label}" data-ficha="${tab}" style="--n:${todas.length};--n2:${Math.ceil(todas.length / 2)}"${visible ? "" : " hidden"}>${todas.join("")}</div>`;
 }
 // El rumbo: ocho botones en el orden de la brújula (en la casa, hacia dónde miran las placas; en el apartamento,

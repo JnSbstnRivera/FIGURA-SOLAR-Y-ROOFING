@@ -135,11 +135,27 @@ body.iso{font-family:var(--sr-font)}
    mirilla de la cisterna deja ver el nivel */
 .sr-flow.sr-agua{stroke:var(--wm-blue-400)}
 .sr-flow.sr-caliente{stroke:color-mix(in srgb,var(--wm-orange-600) 70%,#c0392b)}
-.sr-colector .iso-fill,.sr-colector .iso-top{fill:color-mix(in srgb,var(--wm-blue-800) 74%,var(--anatomy-shade-1))}
-.sr-colector .iso-shade[data-shade="0"]{fill:color-mix(in srgb,var(--wm-blue-800) 80%,var(--anatomy-shade-0))}
-.sr-colector .iso-shade[data-shade="1"]{fill:color-mix(in srgb,var(--wm-blue-800) 76%,var(--anatomy-shade-1))}
-.sr-colector .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-blue-800) 72%,var(--anatomy-shade-2))}
-.sr-colector .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-blue-800) 66%,var(--anatomy-shade-3))}
+/* (el vidrio de los colectores y el de la cabina del Tesla) */
+.sr-colector .iso-fill,.sr-colector .iso-top,.sr-cristal .iso-fill,.sr-cristal .iso-top{fill:color-mix(in srgb,var(--wm-blue-800) 74%,var(--anatomy-shade-1))}
+.sr-colector .iso-shade[data-shade="0"],.sr-cristal .iso-shade[data-shade="0"]{fill:color-mix(in srgb,var(--wm-blue-800) 80%,var(--anatomy-shade-0))}
+.sr-colector .iso-shade[data-shade="1"],.sr-cristal .iso-shade[data-shade="1"]{fill:color-mix(in srgb,var(--wm-blue-800) 76%,var(--anatomy-shade-1))}
+.sr-colector .iso-shade[data-shade="2"],.sr-cristal .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-blue-800) 72%,var(--anatomy-shade-2))}
+.sr-colector .iso-shade[data-shade="3"],.sr-cristal .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-blue-800) 66%,var(--anatomy-shade-3))}
+/* el Tesla de la entrada (carro.mjs): los huecos de las ruedas, los rines, el reflejo en la ventana y los faros, que de
+   noche se prenden (blancos: el naranja de la marca solo resalta) */
+.sr-hueco{fill:color-mix(in srgb,var(--wm-ink) 78%,var(--anatomy-shade-3))}
+.sr-neumatico .iso-fill,.sr-neumatico .iso-top,.sr-neumatico .iso-shade{fill:color-mix(in srgb,var(--wm-ink) 70%,var(--anatomy-shade-2))}
+.sr-rin{fill:color-mix(in srgb,var(--wm-gray-500) 60%,var(--anatomy-shade-1));stroke:var(--anatomy-mid);stroke-width:.35}
+.sr-reflejo{fill:var(--wm-white);opacity:.16;pointer-events:none}
+.sr-faro{fill:color-mix(in srgb,var(--wm-white) calc((1 - var(--dia)) * 100%),var(--anatomy-shade-2))}
+.sr-faro-halo{fill:var(--wm-white);opacity:calc((1 - var(--dia)) * .4);mix-blend-mode:screen;pointer-events:none}
+/* la calle: asfalto gris oscuro de la escala de la marca y la raya del centro, blanca (más tenue de noche) */
+.sr-asfalto .iso-fill,.sr-asfalto .iso-top{fill:color-mix(in srgb,var(--wm-gray-700) 62%,var(--anatomy-shade-1))}
+.sr-asfalto .iso-shade[data-shade="0"]{fill:color-mix(in srgb,var(--wm-gray-700) 70%,var(--anatomy-shade-0))}
+.sr-asfalto .iso-shade[data-shade="1"]{fill:color-mix(in srgb,var(--wm-gray-700) 66%,var(--anatomy-shade-1))}
+.sr-asfalto .iso-shade[data-shade="2"]{fill:color-mix(in srgb,var(--wm-gray-700) 62%,var(--anatomy-shade-2))}
+.sr-asfalto .iso-shade[data-shade="3"]{fill:color-mix(in srgb,var(--wm-gray-700) 56%,var(--anatomy-shade-3))}
+.sr-raya{fill:var(--wm-white);opacity:calc(.5 + .4 * var(--dia))}
 .sr-cobre{fill:none;stroke:color-mix(in srgb,var(--wm-orange-600) 65%,var(--wm-gray-500));stroke-width:.35;stroke-linecap:round}
 .sr-calor{fill:none;stroke:var(--wm-orange);stroke-width:.75;stroke-linecap:round;opacity:0}
 .sr-agua-caliente{fill:color-mix(in srgb,var(--wm-orange) 70%,#c0392b);stroke:none;mix-blend-mode:multiply;opacity:0}
@@ -175,8 +191,11 @@ body.iso{font-family:var(--sr-font)}
 /* las paredes y los techos del cuarto de equipos y de la caseta de los Powerwall, y los del apartamento: de bloques,
    como la casa; con "Ver adentro" son del todo transparentes (quedan sus bordes; lo dibujado en su cara, como puertas,
    ventanas y rejillas, se borra con ellos) y apagado se cierran */
-.sr-main{--sr-pared:0;--sr-tabique:0;--sr-techo:0}
-.sr-main[data-paredes="cerradas"]{--sr-pared:1;--sr-tabique:1;--sr-techo:1}
+.sr-main{--sr-pared:0;--sr-tabique:0;--sr-techo:0;--sr-otros:.25}
+.sr-main[data-paredes="cerradas"]{--sr-pared:1;--sr-tabique:1;--sr-techo:1;--sr-otros:1}
+/* los pisos de arriba y de abajo del apartamento: con "Ver adentro" se aclaran para ver la unidad, cerrado se ven
+   enteros (además se desvanecen con la altura: su máscara, apartamento.mjs) */
+[data-otro]{opacity:var(--sr-otros);transition:opacity .35s}
 .sr-pared .iso-fill,.sr-pared .iso-top,.sr-pared .iso-shade{fill-opacity:var(--sr-pared);transition:fill-opacity .35s}
 .sr-tabique .iso-fill,.sr-tabique .iso-top,.sr-tabique .iso-shade{fill-opacity:var(--sr-tabique);transition:fill-opacity .35s}
 .sr-techo .iso-fill,.sr-techo .iso-top,.sr-techo .iso-shade{fill-opacity:var(--sr-techo);transition:fill-opacity .35s}
@@ -462,6 +481,23 @@ input.sr-input{width:5.6em}
 .sr-tab:hover{color:var(--anatomy-strong)}
 .sr-tab[aria-selected="true"]{color:var(--anatomy-strong);background:var(--sr-sel);box-shadow:inset 0 -2px 0 var(--wm-orange)}
 .sr-tab:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
+/* Sin Windmar | Con Windmar, arriba de las pestañas: como ellas, pero más alto y con letra más fuerte, porque cambia
+   toda la escena; la escogida con fondo y la línea naranja. Mientras se ve "Sin Windmar", su nota lo explica y los pasos
+   de las pestañas se quedan quietos (inert) y apagados. */
+.sr-windmar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-lo)}
+.sr-windmar-b{min-height:38px;padding:0 10px;font:700 13px/1 var(--sr-font);color:var(--anatomy-text);background:none;border:0;cursor:pointer;transition:color .15s,background-color .15s}
+.sr-windmar-b+.sr-windmar-b{border-left:1px solid var(--anatomy-lo)}
+.sr-windmar-b:hover{color:var(--anatomy-strong)}
+.sr-windmar-b[aria-pressed="true"]{color:var(--anatomy-strong);background:var(--sr-sel);box-shadow:inset 0 -2px 0 var(--wm-orange)}
+.sr-windmar-b:focus-visible{outline:2px solid var(--sr-focus);outline-offset:2px}
+.sr-sin-nota{color:var(--anatomy-strong)}
+.sr-controls [inert]{opacity:.45}
+/* la ficha que compara: debajo de lo de hoy, lo que da con Windmar */
+.sr-con{font-weight:700;color:var(--anatomy-strong)}
+/* el paso de sin a con Windmar: el dibujo y la ficha se apagan y vuelven (125 ms cada vez) */
+.sr-main .sr-vista,.sr-main .sr-kpis{transition:opacity .125s ease}
+.sr-main.sr-cambia .sr-vista,.sr-main.sr-cambia .sr-kpis{opacity:.12}
+@media (prefers-reduced-motion:reduce){.sr-main .sr-vista,.sr-main .sr-kpis{transition:none}}
 .sr-panel{display:grid;gap:inherit}
 .sr-panel[hidden]{display:none}
 .sr-panel>.sr-group:first-child{padding-top:0;border-top:0}
@@ -528,7 +564,7 @@ input.sr-input{width:5.6em}
 }
 /* Con el dedo, cada control mide al menos 44 px. */
 @media (pointer:coarse){
-  .sr-btn,.sr-input,.sr-speed,.sr-switch,.sr-tab,.sr-escenas a{min-height:44px}
+  .sr-btn,.sr-input,.sr-speed,.sr-switch,.sr-tab,.sr-windmar-b,.sr-escenas a{min-height:44px}
   .sr-falta{min-height:36px}
   .sr-pm{min-width:44px}
   .sr-zoom-b{width:44px;height:44px}
@@ -575,6 +611,7 @@ input.sr-input{width:5.6em}
   .sr-group{gap:7px;padding-top:9px}
   .sr-btn,.sr-input,.sr-switch{min-height:28px}
   .sr-tab{min-height:30px}
+  .sr-windmar-b{min-height:32px}
   .sr-btn{padding:4px 8px}
   .sr-pm{min-width:28px}
   .sr-system{gap:6px 16px}

@@ -18,11 +18,29 @@ export const BASE = {
 };
 export const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 export const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-export const LIMITES = { mes: [0, 3000], placas: 32, baterias: [0, 4], vatios: [200, 500] };
+export const LIMITES = { mes: [0, 3000], placas: 48, baterias: [0, 4], vatios: [200, 500] };
 // Factura de ejemplo: promedio 600 y pico 700 kWh (agosto), con el verano más alto por el aire.
 export const EJEMPLO = { meses: [540, 520, 540, 560, 600, 660, 690, 700, 670, 610, 560, 550], existentes: { n: 0, w: BASE.vatiosExistentes }, mes: 7 };
 
 export const kwhPorPlacaDia = (w) => (w / 1000) * BASE.horasSol * BASE.rendimiento;
+
+// El carro eléctrico del cliente (supuestos): el Tesla Model Y gasta unos 0.18 kWh por km contando lo que se pierde al
+// cargarlo (la EPA le da unos 28 kWh por cada 100 millas, medidos en la pared), y por defecto anda 40 km al día. Se
+// carga en la casa en un bloque de 4 horas: con el sol (de 11 am a 3 pm, con lo que sobra de las placas) o de noche
+// (de 10 pm a 2 am, de la batería o de LUMA). Lo que gasta se suma a la factura de cada mes: la del cliente no lo trae
+// (si ya lo carga en la casa, va en 0 km).
+export const CARRO = {
+  kwhPorKm: 0.18,
+  km: 40,
+  kmMax: 150,
+  pasoKm: 10,
+  horarios: {
+    sol: { desde: 11, horas: 4, corto: "Con el sol", texto: "con el sol, de 11 de la mañana a 3 de la tarde" },
+    noche: { desde: 22, horas: 4, corto: "De noche", texto: "de noche, de 10 de la noche a 2 de la mañana" },
+  },
+};
+// lo que suma el carro a cada mes, de 30 días como en la regla del cotizador (redondeado, para que 40 km den 216 justos)
+export const kwhCarroMes = (km) => Math.round(km * CARRO.kwhPorKm * 30 * 1000) / 1000;
 
 // Regla del cotizador de LUMA, también para clientes que ya tienen placas:
 // meta = max(promedio × 1.10, pico); kW necesarios = (meta / 30) / (4.5 × 0.82);
@@ -77,8 +95,10 @@ const HORAS_CONSUMO = integral(crudo);
 // Un día del mes elegido: las placas cubren la casa, el excedente carga la batería y el resto sale a LUMA;
 // sin sol, la batería entrega hasta su reserva y después entra LUMA. Sin pérdidas de batería (supuesto).
 // `perfil` (opcional, steps + 1 valores) es la forma de la producción en el día con el rumbo y las
-// sombras (sol.mjs); se escala para que el día sume diaPV.
-export function simulate({ diaPV, baterias, diaCasa, perfil = null }, steps = 288) {
+// sombras (sol.mjs); se escala para que el día sume diaPV. `carro` (opcional): { kwh, desde, horas }, la carga del
+// día repartida pareja en su bloque de horas (que puede cruzar la medianoche); se suma a lo que usa la casa, y cada
+// fila dice cuánto va al carro.
+export function simulate({ diaPV, baterias, diaCasa, perfil = null, carro = null }, steps = 288) {
   const dt = 24 / steps;
   const cap = baterias * BASE.bateria;
   const area = perfil ? perfil.slice(0, steps).reduce((a, b) => a + b, 0) * dt : 0;
@@ -86,7 +106,9 @@ export function simulate({ diaPV, baterias, diaCasa, perfil = null }, steps = 28
   const pico = perfil ? Math.max(...perfil) * escalaPV : diaPV / HORAS_FORMA;
   const escala = diaCasa / HORAS_CONSUMO;
   const pvAt = (t, i) => (perfil ? perfil[i] * escalaPV : pico * forma(t));
-  const loadAt = (t) => crudo(t) * escala;
+  const cargaCarro = carro && carro.kwh > 0 ? carro.kwh / carro.horas : 0;
+  const carroAt = (t) => (cargaCarro && (t - carro.desde + 24) % 24 < carro.horas ? cargaCarro : 0);
+  const loadAt = (t) => crudo(t) * escala + carroAt(t);
   let soc = cap * 0.5;
   let rows = [];
   for (let day = 0; day < 6; day++) {
@@ -108,7 +130,7 @@ export function simulate({ diaPV, baterias, diaCasa, perfil = null }, steps = 28
         batt = -out;
         grid = surplus + out;
       }
-      rows.push({ t, pv, load, batt, grid, soc: cap ? soc / cap : 0, net: sent - taken });
+      rows.push({ t, pv, load, carro: carroAt(t), batt, grid, soc: cap ? soc / cap : 0, net: sent - taken });
       if (i < steps) {
         soc = Math.min(cap, Math.max(0, soc + batt * dt));
         sent += Math.max(0, grid) * dt;

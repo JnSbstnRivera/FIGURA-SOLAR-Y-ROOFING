@@ -84,6 +84,8 @@ export function simularAgua({ personas, calentador = null, cisterna = null, cort
     potableDia,
     reserva: cisterna ? cisterna.gal / usoDia : 0,
     resistencia,
+    // la luz de calentar el agua con resistencia, al mes (lo que gasta la casa sin calentador solar)
+    electricoMes: electrico * 30,
     ahorroMes: calentador ? Math.max(0, electrico - resistencia) * 30 : 0,
     maxima: Math.max(...filas.map((f) => f.T)),
   };

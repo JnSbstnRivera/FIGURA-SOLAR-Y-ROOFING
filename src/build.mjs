@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as k from "../vendor/anatomy/kit/iso-kit.mjs";
 import * as G from "../vendor/anatomy/kit/lathe.mjs";
 import * as A from "../vendor/anatomy/kit/audit.mjs";
-import { BASE, LIMITES, EJEMPLO, MESES, kwhPorPlacaDia, sugerencia } from "./model.mjs";
+import { BASE, LIMITES, EJEMPLO, MESES, CARRO, kwhCarroMes, kwhPorPlacaDia, sugerencia } from "./model.mjs";
 import { SOL, factorRumbo, tofDe, rumboDe } from "./sol.mjs";
 import { AGUA } from "./agua.mjs";
 import { ANKER as ANKER_MODELO, esencialEn } from "./anker.mjs";
@@ -16,7 +16,8 @@ import { PRODUCTOS, PRODUCTO, nuncaJuntas } from "./productos.mjs";
 import { LOGO } from "./logo.mjs";
 import { taller } from "./taller.mjs";
 import { PULG, PS400_MEDIDAS, PS200_MEDIDAS, normalPs400, piezas } from "./piezas.mjs";
-import { escribirPagina, fichaDe, kpi, stepper, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
+import { tesla, TESLA } from "./carro.mjs";
+import { escribirPagina, fichaDe, kpi, stepper, escogeUna, seccionDe, respaldoHtml, rumbosHtml, tag } from "./pagina.mjs";
 
 const fmtN = (v) => Math.round(v).toLocaleString("en-US");
 const pctN = (f) => `${Math.round(f * 100)} %`;
@@ -29,19 +30,26 @@ const EL = 33;
 // El kit dibuja de x a y en el sentido del reloj visto desde arriba, así que con x al sur la y apunta al
 // oeste (con y al este la casa quedaba en espejo). Los nombres viejos que dicen "East" o ".e" (louverEast,
 // win.e1, gargola.e) son de la cara +y: la fachada oeste.
-// Base ceñida a la casa, el equipo y el poste, para que la casa salga lo más grande posible.
-const PLATE = { x: -74, y: -102, w: 134, d: 186, r: 10 };
+// La casa se alargó hacia el este dos veces, y la fachada oeste, con todo el equipo, se quedó donde estaba: 5 el
+// 22-oct, para que las cisternas grandes quepan en la franja oeste del techo, y ALARGUE (cuatro columnas de placas,
+// unos 4.3 m) el 30-oct, para que en el techo quepan 48 placas y no 32: de unos 10 × 11 m a 10 × 16 m.
+const ALARGUE = 4 * (11 + 0.4);
+// Al frente (al sur) la base sigue hasta la calle (30-oct): la entrada del carro, la acera y un carril, cortado en el
+// borde (ver "el frente", más abajo).
+const FRENTE = 95;
+// Base ceñida a la casa, el equipo, el poste y la calle, para que la casa salga lo más grande posible.
+const PLATE = { x: -74, y: -102 - ALARGUE, w: 134 + FRENTE, d: 186 + ALARGUE, r: 10 };
 const PLATE_H = 10;
 const FOOT_H = 5;
 
-// La casa se alargó 5 hacia el este (22-oct) para que las cisternas grandes quepan en la franja oeste del techo,
-// entre las placas y el borde: las placas se corrieron con ella y la fachada oeste quedó donde estaba.
 const HX1 = 44;
 const HY1 = 24;
-const PLINTH = { x: -63, y: -96, w: 108, d: 121, r: 0.6 };
-const WALLS = { x: -62, y: -95, w: 106, d: 119, r: 0.5 };
+const PLINTH = { x: -63, y: -96 - ALARGUE, w: 108, d: 121 + ALARGUE, r: 0.6 };
+const WALLS = { x: -62, y: -95 - ALARGUE, w: 106, d: 119 + ALARGUE, r: 0.5 };
 const WALL_Z = [3, 40];
-const SLAB = { x: -63.5, y: -96.5, w: 109, d: 122, r: 0.5 };
+const SLAB = { x: -63.5, y: -96.5 - ALARGUE, w: 109, d: 122 + ALARGUE, r: 0.5 };
+// el portón del garaje en la fachada sur (ver "el frente")
+const GARAJE = { y0: -133, y1: -103, alto: 24 };
 const SLAB_Z = [40, 45];
 const PRIMER_Z = [45, 45.8];
 const COAT_Z = [45.8, 48.2];
@@ -50,11 +58,11 @@ const NOTCH = { primer: 9, coat: 18 };
 
 const BETA = (10 * Math.PI) / 180;
 const PANEL = { w: 11, l: 19.7, t: 1, gap: 0.4 };
-const COLS = 8;
+const COLS = 12;
 const ROWS = 4;
 const PITCH = PANEL.l * Math.cos(BETA) + 6;
 const ROWS_XS = Array.from({ length: ROWS }, (_, row) => 36 - row * PITCH);
-const ARRAY_Y0 = -93;
+const ARRAY_Y0 = -93 - ALARGUE;
 const LIFT = 6;
 const PAD_H = 0.8;
 const RAIL_D = [0.25, 0.75].map((f) => f * PANEL.l * Math.cos(BETA));
@@ -275,6 +283,7 @@ const LLUVIA_TECHO = [
   [[18, -90], [34, -80], [SE[0] - 0.05, -70]],
   [[20, -48], [36, -62], [SE[0] - 0.05, -70]],
   [[40, -8], [42.6, -40], [SE[0] - 0.05, -70]],
+  [[-10, -134], [30, -106], [SE[0] - 0.05, -70]],
 ];
 const lluviaEnLaCapa = LLUVIA_TECHO.map((pts) => `<path class="sr-flow sr-agua" data-flow="lluvia" data-s0="0" d="${enLaCapa(pts)}"/>`).join("");
 layer("roof.primer", notched(NOTCH.primer), PRIMER_Z[0], PRIMER_Z[1], { tone: "mid" }, { wrap: "sr-primer", capa: sombraCapa("roof.primer", NOTCH.primer, PRIMER_Z[0], PRIMER_Z[1], ROOF_TAPA), attrs: SELLADO.capas.attrs, owner: "techo" });
@@ -285,9 +294,9 @@ layer("roof.coat", notched(NOTCH.coat), COAT_Z[0], COAT_Z[1], { tone: "hi" }, { 
 // 10 % de remoción, en el orden en que se va viendo; live-casa.js los prende) y, con el aguacero, el concreto mojado, los
 // charcos que crecen con las ondas de la lluvia, la grieta mojada y el agua que corre hacia ella. Encima lleva la piel donde la página pinta el sellado mientras se aplica: el techo mojado por la limpieza, el
 // agua a presión, el imprimador y la silicona con su franja fresca, y el borde que avanza con su brillo.
-const VIEJOS = [[-20, 16, 7, 5], [14, 19, 6, 4.6], [-56, 6, 6.5, 5], [36, 4, 5.5, 4.4], [-22, -50, 7, 5.5], [-50, -28, 6.5, 5], [41, -86, 3.6, 5.5], [-55, -80, 6, 5], [28, -40, 6, 5], [5, -72, 6.5, 5]];
+const VIEJOS = [[-20, 16, 7, 5], [14, 19, 6, 4.6], [-56, 6, 6.5, 5], [36, 4, 5.5, 4.4], [-22, -50, 7, 5.5], [-50, -118, 6.5, 5], [41, -86, 3.6, 5.5], [-55, -80, 6, 5], [30, -128, 6, 5], [5, -72, 6.5, 5]];
 // los charcos, en lo libre del techo (fuera del aire, de la cisterna y de las primeras filas de placas)
-const CHARCOS = [[-26, 6, 6, 3.4], [22, 8, 5, 3], [-56, -52, 6, 3.6], [32, 18, 4.4, 2.6], [-8, 1.5, 5, 3], [13, 20.5, 4.4, 2.6], [-36, -22, 6.4, 3.6], [-22, -70, 5.6, 3.2], [40, 5, 3.6, 2.2], [-50, 3, 4.6, 2.8]];
+const CHARCOS = [[-26, 6, 6, 3.4], [22, 8, 5, 3], [-56, -120, 6, 3.6], [32, 18, 4.4, 2.6], [-8, 1.5, 5, 3], [13, 20.5, 4.4, 2.6], [-36, -22, 6.4, 3.6], [-24, -128, 5.6, 3.2], [40, 5, 3.6, 2.2], [-50, 3, 4.6, 2.8]];
 const GRIETA_ABIERTA = [[SE[0] - 15, SE[1] - 0.5], ...GRIETA, [SE[0] - 0.6, SE[1] - 10]];
 // el agua que corre por el techo sin sellar hasta la grieta
 const A_LA_GRIETA = [
@@ -392,6 +401,69 @@ louverEast("win.e1", 28, 40, 24.4, 33.4);
   box("door.step", [PLINTH.x + PLINTH.w, y0 - 2, 0], [PLINTH.x + PLINTH.w + 5, y1 + 2, WALL_Z[0]], { tone: "mid" }, { r: 0.4 });
 }
 
+// ---------- el frente: el garaje, la entrada del carro, la acera y la calle ----------
+// El garaje es el extremo este de la casa, bajo el mismo techo (sus placas cuentan en las 48): su portón seccional, de
+// unos 2.9 × 2 m, abre a la fachada sur sobre el zócalo, a ras de su frente, y una rampa corta sube de la entrada al
+// portón (cortar el zócalo para bajar el portón al suelo deja un ciclo zócalo-pared-portón sin orden de pintado).
+// Delante, la entrada de concreto con el Tesla (carro.mjs), con la cola hacia el portón; después la acera con su
+// encintado y un carril de la calle, cortado en el borde de la base.
+const ENTRADA = { x0: PLINTH.x + PLINTH.w, x1: 105, y0: -136, y1: -100, z: 0.4, rampa: 6.5 };
+const ACERA = { x0: ENTRADA.x1, x1: 118, z: 1.2 };
+const CALLE = { x0: ACERA.x1, x1: 149, z: 0.25 };
+{
+  const X = ENTRADA.x0;
+  const { y0, y1, alto } = GARAJE;
+  const z0 = WALL_Z[0];
+  const marco = path3([[X, y0 + 1.2, z0 + 0.6], [X, y1 - 1.2, z0 + 0.6], [X, y1 - 1.2, alto - 1.2], [X, y0 + 1.2, alto - 1.2]], true);
+  const tablas = [1, 2, 3].map((i) => path3([[X, y0 + 1.2, z0 + 0.6 + ((alto - z0 - 1.8) * i) / 4], [X, y1 - 1.2, z0 + 0.6 + ((alto - z0 - 1.8) * i) / 4]])).join("");
+  box("garage.door", [HX1, y0, z0], [X, y1, alto], { tone: "hi" }, { r: 0.2, extra: Ln(marco + tablas, { tone: "mid" }) });
+  // la rampa: una cuña de concreto, de la entrada al frente del zócalo
+  const cuna = [[X, ENTRADA.z], [X + ENTRADA.rampa, ENTRADA.z], [X, z0]];
+  const lado = (y) => cuna.map(([x, z]) => [x, y, z]);
+  const capa = (fill) => recibeSol("garage.rampa", fill, [...carasAnillo(lado(y0), lado(y1), { tapa: false }), cara([0, 1, 0], lado(y1))]);
+  prism("garage.rampa", G.frameOf([0, 0, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1]), cuna, y0, y1, { tone: "hi" }, { wrap: "sr-concrete", capa });
+}
+{
+  const { x0, x1, y0, y1, z } = ENTRADA;
+  const juntas = [x0 + (x1 - x0) / 3, x0 + (2 * (x1 - x0)) / 3].map((x) => path3([[x, y0, z], [x, y1, z]])).join("") + path3([[x0, (y0 + y1) / 2, z], [x1, (y0 + y1) / 2, z]]);
+  box("stand.entrada", [x0, y0, 0], [x1, y1, z], { tone: "hi" }, { r: 0.3, wrap: "sr-concrete", extra: Ln(juntas, { tone: "faint" }), sombra: "recibe" });
+}
+{
+  const { x0, x1, z } = ACERA;
+  const [y0, y1] = [PLATE.y + 3, PLATE.y + PLATE.d - 3];
+  const juntas = Array.from({ length: Math.floor((y1 - y0) / 14) }, (_, i) => y0 + 14 * (i + 1)).map((y) => path3([[x0, y, z], [x1, y, z]])).join("");
+  box("stand.acera", [x0, y0, 0], [x1, y1, z], { tone: "hi" }, { r: 0.3, extra: Ln(juntas, { tone: "faint" }), sombra: "recibe" });
+}
+{
+  const { x0, x1, z } = CALLE;
+  const [y0, y1] = [PLATE.y + 5, PLATE.y + PLATE.d - 5];
+  // la raya del centro, blanca y a trozos, cerca del borde: el otro carril queda fuera de la base
+  const xr = x1 - 4;
+  const rayas = Array.from({ length: Math.floor((y1 - y0 - 6) / 18) }, (_, i) => y0 + 6 + 18 * i).map((y) => path3([[xr - 0.5, y, z + 0.01], [xr + 0.5, y, z + 0.01], [xr + 0.5, y + 10, z + 0.01], [xr - 0.5, y + 10, z + 0.01]], true)).join("");
+  box("stand.calle", [x0, y0, 0], [x1, y1, z], { tone: "mid" }, { r: 0.2, wrap: "sr-asfalto", extra: `<path class="sr-raya" d="${rayas}"/>`, sombra: "recibe" });
+}
+tesla(TALLER, { x0: ENTRADA.x0 + ENTRADA.rampa + 1, yc: (GARAJE.y0 + GARAJE.y1) / 2, z0: ENTRADA.z });
+// El cargador del Tesla: un Wall Connector en la pared, al este del portón, algo más grande que el de verdad para que se
+// lea. Su circuito sale de la casa por una caja de paso entre la ventana y el portón y corre en un conducto por la
+// fachada, por encima del portón. El cable baja por la pared al suelo y sube al puerto de carga, en la esquina de atrás
+// del lado del chofer (el costado de −y, que la cámara no ve). Mientras se carga, la energía corre por el conducto y
+// por el cable (live-casa.js, canal "carro").
+const CARGADOR = { x1: HX1 + 1.8, y0: -138.2, y1: -135.8, z0: 13.4, z1: 18.8 };
+{
+  const { x1, y0, y1, z0, z1 } = CARGADOR;
+  const yc = (y0 + y1) / 2;
+  const luz = Ln(faceX(x1, [[yc - 0.5, z1 - 1.5], [yc + 0.5, z1 - 1.5]], false), { tone: "lo", free: true });
+  box("cargador", [HX1, y0, z0], [x1, y1, z1], { tone: "hi" }, { r: 0.4, extra: Ln(faceX(x1, rect(y0 + 0.4, y1 - 0.4, z0 + 0.5, z1 - 0.5)), { tone: "faint" }) + luz });
+  const caja = { x1: HX1 + 1.8, y0: -95.6, y1: -91.6, z0: 32, z1: 36 };
+  box("cargador.caja", [HX1, caja.y0, caja.z0], [caja.x1, caja.y1, caja.z1], { tone: "mid" }, { r: 0.2, extra: Ln(faceX(caja.x1, rect(caja.y0 + 0.5, caja.y1 - 0.5, caja.z0 + 0.5, caja.z1 - 0.5)), { tone: "faint" }) });
+  const xc = HX1 + 0.9;
+  const zc = (caja.z0 + caja.z1) / 2;
+  pipe("carro", [[xc, caja.y0, zc], [xc, yc, zc], [xc, yc, z1]], 0.5, { channel: "carro" });
+  // el puerto de carga, en el costado de atrás a la izquierda (su tapa va en la calavera)
+  const puerto = [ENTRADA.x0 + ENTRADA.rampa + 1 + 1.2, (GARAJE.y0 + GARAJE.y1) / 2 - TESLA.ancho / 2, ENTRADA.z + 8.3];
+  pipe("carro.cable", [[xc, yc, z0], [HX1 + 1.9, yc, 1], [puerto[0] - 1.1, -133.6, 1], [puerto[0], puerto[1] - 2.9, 1], [puerto[0], puerto[1] - 2.3, puerto[2]], puerto], 0.35, { flowOf: () => "carro", bend: 1, touch: ["tesla.carroceria"] });
+}
+
 // Las rectificaciones del sellado (pestaña Roofing): mientras se sella, todo lo del techo sube para que el sellado pase
 // por debajo, y cada cosa baja cuando la silicona ya pasó (live-casa.js): las placas con sus rieles, sus postes, sus
 // cajas y sus conductos, el aire, el calentador y la cisterna. Sube lo que lleva su marca; los sellos de Roof Patch donde
@@ -400,7 +472,7 @@ const SUBE = { placas: ` data-rectifica="placas"`, aire: ` data-rectifica="aire"
 // cuánto sube (unos 85 cm)
 const LEVANTA = 9;
 
-// ---------- placas: 32 posiciones; la factura decide cuántas se ven ----------
+// ---------- placas: 48 posiciones (12 columnas × 4 filas); la factura decide cuántas se ven ----------
 // Se llenan por filas desde el frente y, en cada fila, desde el oeste, así el extremo oeste de cada
 // fila (donde está su caja) no cambia.
 const n3 = [Math.sin(BETA), 0, Math.cos(BETA)];
@@ -477,7 +549,11 @@ for (const b of ROWBOX) {
   });
 }
 const RIM = Math.sqrt(TEE.r ** 2 - 1.2 ** 2);
-ball("tee", [TEE.x, TEE.y, TEE.z], TEE.r, { tone: "mid" }, { attrs: SUBE.placas });
+// la T y el conducto de las placas (aquí y en "conductos de energía") se ven con la primera fila: sin placas no hay nada
+// que recoger (ni en "Sin Windmar"); el inversor y su salida al panel, con placas o baterías (live-casa.js)
+const CON_PLACAS = ` data-rows="1"`;
+const CON_SISTEMA = ` data-sistema`;
+ball("tee", [TEE.x, TEE.y, TEE.z], TEE.r, { tone: "mid" }, { attrs: SUBE.placas + CON_PLACAS });
 {
   // ramal norte: de la fila 4 a la T, atravesando las cajas de las filas 3 y 2
   const start = ROWBOX[3].x1;
@@ -492,7 +568,7 @@ ball("tee", [TEE.x, TEE.y, TEE.z], TEE.r, { tone: "mid" }, { attrs: SUBE.placas 
     flowOf: (piece) => `trunk-${segOf(piece)}`,
     attrsOf: (piece) => ` data-rows="${{ a: 4, b: 3, c: 2 }[segOf(piece)]}"${SUBE.placas}`,
   });
-  pipe("trunk.s", [[ROWBOX[0].x0, TRUNK_Y, ZC], [TEE.x + RIM, TRUNK_Y, ZC]], 1.2, { flowOf: () => "trunk-s", attrsOf: () => SUBE.placas });
+  pipe("trunk.s", [[ROWBOX[0].x0, TRUNK_Y, ZC], [TEE.x + RIM, TRUNK_Y, ZC]], 1.2, { flowOf: () => "trunk-s", attrsOf: () => SUBE.placas + CON_PLACAS });
 }
 
 // ---------- unidad de aire acondicionado en el techo ----------
@@ -878,7 +954,8 @@ function dibujarCalentador(p) {
     turned(`caltanque${cal.id}`, TF, [[y0, t.r - 0.5], [y0 + 0.5, t.r], [y1 - 0.5, t.r], [y1, t.r - 0.5]], { tone: "hi" }, { inner: fajas, extra: logo, owner: "calentador", attrs: attrs + SUBE.calentador, capa });
     // los dos tubos bajan rectos de debajo del tanque y entran al techo por botas selladas: el agua fría
     // entra y la caliente sale a la casa
-    const ajenos = (name) => (name.startsWith("caltanque") && !name.startsWith(`caltanque${cal.id}`)) || /^(rack|panel)\.s(28|29|30|31)\b/.test(name);
+    // (las placas de los últimos cuatro lugares, los del calentador, nunca se ven con él)
+    const ajenos = (name) => (name.startsWith("caltanque") && !name.startsWith(`caltanque${cal.id}`)) || +(/^(?:rack|panel)\.s(\d+)\b/.exec(name)?.[1] ?? -1) >= ROWS * COLS - 4;
     for (const [i, tipo] of ["caliente", "fria"].entries()) {
       const yp = yc + (tipo === "caliente" ? 2.2 : -2.2);
       cyl(`caltanque${cal.id}.parche${i}`, xt, yp, 1.5, TOPZ, TOPZ + 0.6, { tone: "lo" }, { steps: 16, sombra: "recibe", owner: "calentador", on, attrs });
@@ -904,7 +981,8 @@ for (const p of PRODUCTOS) DIBUJOS[p.id].dibujar(p);
     [0, 1, 2].map((i) => Ln(faceY(y, rect(INV.x0 + 3 + i * 3.6, INV.x0 + 5.6 + i * 3.6, INV.z0 + 2.6, INV.z0 + 3.4)), { tone: "lo" })).join("") +
     `<circle class="sr-led" data-part="inv-led" cx="${f2(at([INV.x1 - 3, y, INV.z1 - 9.6])[0])}" cy="${f2(at([INV.x1 - 3, y, INV.z1 - 9.6])[1])}" r="0.9"/>` +
     Dots([at([INV.x0 + 1.4, y, INV.z1 - 1.4]), at([INV.x1 - 1.4, y, INV.z1 - 1.4]), at([INV.x0 + 1.4, y, INV.z0 + 1.4]), at([INV.x1 - 1.4, y, INV.z0 + 1.4])], { size: 0.4 });
-  box("inverter", [INV.x0, INV.y0, INV.z0], [INV.x1, INV.y1, INV.z1], { tone: "hi" }, { r: 0.8, steps: 3, bevel: 0.5, extra: extra + Ln(fins, { tone: "lo" }) });
+  // el inversor y su salida al panel se ven si hay sistema (placas o baterías): sin nada, o en "Sin Windmar", no está
+  box("inverter", [INV.x0, INV.y0, INV.z0], [INV.x1, INV.y1, INV.z1], { tone: "hi" }, { r: 0.8, steps: 3, bevel: 0.5, extra: extra + Ln(fins, { tone: "lo" }), attrs: CON_SISTEMA, on: "sistema" });
 }
 const LEDS = 10;
 BATS.forEach((B, bi) => {
@@ -1069,11 +1147,12 @@ let DC_CORTE;
   const straps = [arcWhere(probe, (p) => p[0] > TEE.x - 0.01 && p[2] <= DC_Z - 0.5), arcWhere(probe, (p) => p[2] < DC_CORRE + 0.01 && p[0] <= 2)];
   // lo que va antes de la abrazadera del borde de la losa sube con las placas en las rectificaciones; desde ahí el
   // conducto se estira (DC_CORTE, más abajo) y lo de la fachada se queda
-  const route = pipe("dc", points, 1.2, { channel: "pv", gaps: straps.map((s) => [s - 0.6, s + 0.6]), attrsOf: (piece) => (piece.to <= straps[0] - 0.5 ? SUBE.placas : "") });
+  const route = pipe("dc", points, 1.2, { channel: "pv", gaps: straps.map((s) => [s - 0.6, s + 0.6]), attrsOf: (piece) => (piece.to <= straps[0] - 0.5 ? SUBE.placas : "") + CON_PLACAS });
   DC_CORTE = G.pointAlong(route, straps[0] - 0.6);
-  strap("dc.strap0", route, straps[0], "dc", 1.2, [[TEE.x - 0.6, SE[1], DC_Z - 1.3], [TEE.x + 0.6, DC_Y - 1.65 + 0.05, DC_Z + 0.3]]);
-  strap("dc.strap1", route, straps[1], "dc", 1.2, [[2 - 0.6, HY1, DC_CORRE - 0.8], [2 + 0.6, DC_Y - 1.65 + 0.05, DC_CORRE + 0.8]]);
-  pipe("dc.dentro", [[CUARTO.x1 - CUARTO.muro, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, INV.z1]], 1.2, { channel: "pv" });
+  const conPlacas = { attrs: CON_PLACAS, on: "rows:1" };
+  strap("dc.strap0", route, straps[0], "dc", 1.2, [[TEE.x - 0.6, SE[1], DC_Z - 1.3], [TEE.x + 0.6, DC_Y - 1.65 + 0.05, DC_Z + 0.3]], conPlacas);
+  strap("dc.strap1", route, straps[1], "dc", 1.2, [[2 - 0.6, HY1, DC_CORRE - 0.8], [2 + 0.6, DC_Y - 1.65 + 0.05, DC_CORRE + 0.8]], conPlacas);
+  pipe("dc.dentro", [[CUARTO.x1 - CUARTO.muro, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, DC_CORRE], [DC_ENTRA, DC_Y, INV.z1]], 1.2, { channel: "pv", attrsOf: () => CON_PLACAS });
 }
 const BAT1X = (BATS[0].x0 + BATS[0].x1) / 2;
 // del inversor al primer Powerwall, en su caseta: cruza la pared sur del cuarto por debajo del techo de la caseta
@@ -1081,7 +1160,7 @@ const BAT_Z = 19.2;
 pipe("bat", [[INV.x1, 27.3, BAT_Z], [CUARTO.x1 - CUARTO.muro, 27.3, BAT_Z]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
 pipe("bat.fuera", [[CUARTO.x1, 27.3, BAT_Z], [BAT1X, 27.3, BAT_Z], [BAT1X, 27.3, BATS[0].z1]], 1.2, { channel: "bat", attrsOf: () => ` data-bat="1"` });
 for (let k = 0; k < 3; k++) pipe(`bat.l${k + 1}`, [[BATS[k].x1, 27.3, 7], [BATS[k + 1].x0, 27.3, 7]], 0.8, { channel: `bat.l${k + 1}`, attrsOf: () => ` data-bat="${k + 2}"` });
-pipe("ac", [[INV.x0, 27.4, 24], [MAIN.x1, 27.4, 24]], 1.2, { channel: "ac" });
+pipe("ac", [[INV.x0, 27.4, 24], [MAIN.x1, 27.4, 24]], 1.2, { channel: "ac", attrsOf: () => CON_SISTEMA });
 pipe("casa", [[-38.5, 26.6, MAIN.z1], [-38.5, 26.6, LB.z0]], 1.2, { channel: "casa" });
 // del panel a la base del medidor, que va afuera: cruza la pared norte del cuarto
 pipe("red", [[-41, 27.4, MAIN.z0], [-41, 27.4, 5.5], [CUARTO.x0 + CUARTO.muro, 27.4, 5.5]], 1.2, { channel: "red" });
@@ -1146,7 +1225,9 @@ const PUNTAS = [
 ];
 const { CIELO, cieloFondo, cielo, defs } = cieloDe({ puntas: PUNTAS, centro: [-9, -33, 30] });
 
-const SUG = sugerencia(EJEMPLO.meses, EJEMPLO.existentes);
+// lo que sugiere el cotizador con la factura de ejemplo y el carro de siempre (40 km al día), como abre la página
+const CARRO_MES = kwhCarroMes(CARRO.km);
+const SUG = sugerencia(EJEMPLO.meses.map((m) => m + CARRO_MES), EJEMPLO.existentes);
 const DATA = { P, start: START, flows: {}, leds: LEDS, cols: COLS, slots: ROWS * COLS, vatios: BASE.vatios, ejemplo: EJEMPLO, limites: LIMITES, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180 };
 DATA.agua = { personas: 4 };
 DATA.medidas = MEDIDAS;
@@ -1167,6 +1248,7 @@ Object.assign(DATA.flows, {
   "bat.l3": "batl3",
   ac: "ac",
   casa: "casa",
+  carro: "carro",
   red: "red",
   "red.fuera": "red",
   mast: "red",
@@ -1215,7 +1297,7 @@ DATA.techo = {
 }
 // El tramo del conducto de las placas que se estira mientras están levantadas: un tubo de lo que sube, recortado a lo que
 // sube en cada momento (live-casa.js mueve el recorte); va encima de todo, como el agua que cae.
-const CONDUCTO_ESTIRA = `<g class="sr-estira" aria-hidden="true"><clipPath id="sr-estira"><rect data-estira x="0" y="0" width="0" height="0"/></clipPath><g clip-path="url(#sr-estira)">${tuboSuelto([DC_CORTE, [DC_CORTE[0], DC_CORTE[1], DC_CORTE[2] + LEVANTA + 1]], 1.2)}</g></g>`;
+const CONDUCTO_ESTIRA = `<g class="sr-estira" aria-hidden="true"${CON_PLACAS}><clipPath id="sr-estira"><rect data-estira x="0" y="0" width="0" height="0"/></clipPath><g clip-path="url(#sr-estira)">${tuboSuelto([DC_CORTE, [DC_CORTE[0], DC_CORTE[1], DC_CORTE[2] + LEVANTA + 1]], 1.2)}</g></g>`;
 
 // El agua que cae, encima de todo: con el sellado, la de las gárgolas, que baja del borde del techo por el canto de la
 // losa, corre por la gárgola y cae de su punta (la del sur, sobre la placa del rótulo; la del oeste, al techo del cuarto,
@@ -1243,18 +1325,24 @@ const AGUA_QUE_CAE = (() => {
 })();
 
 const LABEL_TEXT =
-  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone el respaldo de Anker SOLIX, aparte de las placas del techo: el portátil con su transfer switch en la pared y de una a ocho placas abiertas en el patio, o el E10 para toda la casa, con sus baterías, su caja en la pared y el generador afuera; y aparte, la nevera EverFrost. Con la pestaña Roofing se escoge el plan de sellado: sin plan, el techo es el concreto como está, con su grieta y el sellado viejo que hay que quitar, y con el aguacero el concreto se moja, el agua se queda en charcos, se mete por la grieta, gotea y mancha las paredes de la esquina; con un plan, el sellado se aplica por partes, con todo lo del techo levantado mientras se sella debajo, y el agua corre a las gárgolas. Lo que va en el suelo junto a la pared queda en un cuarto de equipos de bloques, y las baterías en una caseta más baja a su lado, con sus paredes y sus techos transparentes para ver adentro. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Los trazos naranja corren por los conductos en el sentido en que va la energía, con el conducto encendido mientras pasa; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
+  "Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home: el techo sellado con silicona (imprimador y capa blanca, cortados en escalones en una esquina), placas en filas sobre patas selladas con una caja por fila y un conducto que las recoge, una unidad de aire en el techo, el inversor, de cero a cuatro baterías con su columna de luces, el panel de breakers, el medidor de LUMA con su mástil y la acometida al poste. Al frente, el garaje en el extremo este de la casa, con su portón; en la pared, al lado del portón, el cargador del Tesla, con su conducto desde la casa, y en la entrada un Tesla Model Y blanco con la cola hacia el portón y el cable del cargador puesto; después la acera y la calle. Con la pestaña Agua se ponen un calentador solar al fondo del techo, en el lugar de las últimas placas, una cisterna en el techo, con su bomba y su presurizado junto a la pared, y el suavizador donde el agua entra a la casa: prefiltro, tanque de resina, tanque de sal y luz UV. Con la pestaña Anker se pone el respaldo de Anker SOLIX, aparte de las placas del techo: el portátil con su transfer switch en la pared y de una a ocho placas abiertas en el patio, o el E10 para toda la casa, con sus baterías, su caja en la pared y el generador afuera; y aparte, la nevera EverFrost. Con la pestaña Roofing se escoge el plan de sellado: sin plan, el techo es el concreto como está, con su grieta y el sellado viejo que hay que quitar, y con el aguacero el concreto se moja, el agua se queda en charcos, se mete por la grieta, gotea y mancha las paredes de la esquina; con un plan, el sellado se aplica por partes, con todo lo del techo levantado mientras se sella debajo, y el agua corre a las gárgolas. Lo que va en el suelo junto a la pared queda en un cuarto de equipos de bloques, y las baterías en una caseta más baja a su lado, con sus paredes y sus techos transparentes para ver adentro. En la base, una brújula cuya tarjeta gira con el rumbo de las placas. Con Sin Windmar se ve la misma casa como está hoy: sin placas, inversor ni baterías, sin calentador, cisterna, suavizador ni Anker, y con el techo sin sellar; toda la luz viene de LUMA. Los trazos naranja corren por los conductos en el sentido en que va la energía, con el conducto encendido mientras pasa; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), la luz pasa del día a la noche y cada pieza echa la sombra de ese momento, del lado contrario.";
 const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, CONDUCTO_ESTIRA, AGUA_QUE_CAE, cielo] });
 
-const about = `<p>Corre el día con el reproductor y mira a dónde va la energía: a la casa, a la batería o a LUMA. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En Energía suma o quita placas y baterías, cambia hacia dónde miran las placas (la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora: TOF, acceso solar y TSRF) y escribe el consumo de cada mes para compararlo con lo que sugiere el cotizador. En Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y el panel dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio. En Anker escoge el respaldo (el portátil con sus placas o el E10 para toda la casa), su modelo y cuántas placas o baterías lleva: de día lo cargan sus placas, de noche mantiene lo esencial y el panel dice para cuántas horas alcanza sin LUMA. En Roofing escoge el plan de sellado (Silver, Gold o Platinum, con sus garantías), cuánto del sellado viejo se quita y el área del techo, y la ficha da el precio en cash y la mensualidad financiada: "Ver cómo se sella" lo aplica por partes, con todo lo del techo levantado para sellar debajo, y el aguacero muestra por dónde corre el agua, con el techo sellado o sin sellar.</p>`;
+const about = `<p>Corre el día con el reproductor y mira a dónde va la energía: a la casa, a la batería o a LUMA. Arriba de las pestañas, Sin Windmar enseña la misma casa como está hoy, sin nada de Windmar y con el techo sin sellar, y la ficha compara cada cosa con lo que tendría con Windmar; Con Windmar vuelve a lo escogido. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En Energía suma o quita placas y baterías, cambia hacia dónde miran las placas (la brújula gira, las sombras se mueven y la ficha dice cuánto sol les llega, con las mismas medidas que Aurora: TOF, acceso solar y TSRF) y escribe el consumo de cada mes, con los km del carro eléctrico y cuándo se carga, para compararlo con lo que sugiere el cotizador. En Agua escoge cuántas personas viven en la casa, el calentador solar, la cisterna y el suavizador: el calentador ocupa lugares de placas al fondo del techo, el agua corre por los tubos con el uso de cada hora, el tanque se calienta con el sol y el panel dice cuánta luz ahorra y para cuántos días alcanza la cisterna si la AAA corta el servicio. En Anker escoge el respaldo (el portátil con sus placas o el E10 para toda la casa), su modelo y cuántas placas o baterías lleva: de día lo cargan sus placas, de noche mantiene lo esencial y el panel dice para cuántas horas alcanza sin LUMA. En Roofing escoge el plan de sellado (Silver, Gold o Platinum, con sus garantías), cuánto del sellado viejo se quita y el área del techo, y la ficha da el precio en cash y la mensualidad financiada: "Ver cómo se sella" lo aplica por partes, con todo lo del techo levantado para sellar debajo, y el aguacero muestra por dónde corre el agua, con el techo sellado o sin sellar.</p>`;
 const monthOptions = MESES.map((m, i) => `<option value="${i}"${i === EJEMPLO.mes ? " selected" : ""}>${m[0].toUpperCase() + m.slice(1)}</option>`).join("");
-// Panel de controles: en pantalla ancha va a la derecha de la figura. Arriba, las pestañas Energía, Agua, Anker y
-// Roofing, y cada una en pasos numerados: en Energía, las placas y las baterías (primero, para sumarlas sin bajar), hacia
-// dónde miran y el consumo del cliente; en Agua, las personas, el calentador solar, la cisterna y el suavizador; en
-// Anker, el respaldo en pasos (pagina.mjs) y aparte la nevera; en Roofing, el plan de sellado, el sellado viejo que se
-// quita, el área del techo y lo que se mira: cómo se sella y el aguacero. Solo se ve lo que aplica a lo escogido.
+// Panel de controles: en pantalla ancha va a la derecha de la figura. Arriba, Sin Windmar | Con Windmar (live-casa.js),
+// con la línea que dice qué se ve sin Windmar, y las pestañas Energía, Agua, Anker y Roofing, cada una en pasos
+// numerados: en Energía, las placas y las baterías (primero, para sumarlas sin bajar), hacia dónde miran y el consumo
+// del cliente; en Agua, las personas, el calentador solar, la cisterna y el suavizador; en Anker, el respaldo en pasos
+// (pagina.mjs) y aparte la nevera; en Roofing, el plan de sellado, el sellado viejo que se quita, el área del techo y lo
+// que se mira: cómo se sella y el aguacero. Solo se ve lo que aplica a lo escogido.
 const controls = `
 <div class="sr-controls">
+  <div class="sr-windmar" role="group" aria-label="La casa del cliente">
+    <button type="button" class="sr-windmar-b" data-windmar="sin" aria-pressed="false">Sin Windmar</button>
+    <button type="button" class="sr-windmar-b" data-windmar="con" aria-pressed="true">Con Windmar</button>
+  </div>
+  <p class="sr-nota sr-sin-nota" data-sin-nota hidden></p>
   <div class="sr-tabs" role="tablist" aria-label="Qué mirar">
     <button type="button" class="sr-tab" role="tab" id="sr-tab-energia" aria-controls="sr-panel-energia" aria-selected="true" data-tab="energia">Energía</button>
     <button type="button" class="sr-tab" role="tab" id="sr-tab-agua" aria-controls="sr-panel-agua" aria-selected="false" tabindex="-1" data-tab="agua">Agua</button>
@@ -1278,12 +1366,16 @@ const controls = `
   <section class="sr-group" aria-label="Consumo del cliente por mes">
     ${tag("Consumo del cliente", 3)}
     <div class="sr-row">
-      <label>Mes <select class="sr-input" data-mes>${monthOptions}</select></label>
-      <label><input class="sr-input" type="number" data-mes-kwh min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="${EJEMPLO.meses[EJEMPLO.mes]}" aria-label="Consumo del mes elegido en kWh"> kWh</label>
+      <label>Factura de <select class="sr-input" data-mes>${monthOptions}</select></label>
+      <label><input class="sr-input" type="number" data-mes-kwh min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="${EJEMPLO.meses[EJEMPLO.mes]}" aria-label="Consumo de la factura del mes elegido, en kWh"> kWh</label>
     </div>
     <div class="sr-row">
       <label>Llenar los 12 meses con <input class="sr-input" type="number" data-todos min="${LIMITES.mes[0]}" max="${LIMITES.mes[1]}" step="10" inputmode="numeric" value="600"> kWh</label>
       <button type="button" class="sr-btn" data-fill>Llenar</button>
+    </div>
+    <div class="sr-system">
+      <span class="sr-lab">Carro eléctrico, km al día</span><span class="sr-inline">${stepper("carro", `${CARRO.pasoKm} km al día`)}<span class="sr-hint" data-carro-kwh></span></span>
+      <span class="sr-lab">Lo carga</span>${escogeUna("carga", "Cuándo se carga el carro", Object.entries(CARRO.horarios).map(([id, h]) => [id, h.corto, `Lo carga ${h.texto}`]), "sol")}
     </div>
     <figure class="sr-chart">
       <div class="sr-chart-head"><span class="sr-chart-title">Consumo de cada mes y lo que cubren las placas</span><span class="sr-chart-keys"><span class="sr-key"><i class="sr-sw" data-k="placas"></i>Cubren las placas</span><span class="sr-key"><i class="sr-sw" data-k="luma"></i>De LUMA</span><span class="sr-key"><i class="sr-sw sr-sw-line"></i>Producción al mes</span></span></div>
@@ -1336,14 +1428,25 @@ const controls = `
 // que se cotiza.
 const tsrfKpi = `<div class="sr-kpi"><span class="sr-kpi-l">TSRF (Aurora)</span><span class="sr-kpi-v"><span data-f="tsrf"></span><span class="sr-kpi-d" data-f="tanque" title="Lo que baja el TSRF por la sombra de lo que hay de agua en el techo" hidden><span data-f="menos"></span><span class="sr-kpi-dl" data-f="porque"></span></span></span><span class="sr-kpi-s" data-f="tof"></span></div>`;
 const mesKpi = `<div class="sr-kpi"><span class="sr-kpi-l" data-f="mesNombre"></span><span class="sr-kpi-v" data-f="mes"></span><span class="sr-kpi-s" data-f="mesUsa"></span></div>`;
+const compara = (etiqueta, v, con) => `<div class="sr-kpi"><span class="sr-kpi-l">${etiqueta}</span><span class="sr-kpi-v" data-f="${v}"></span><span class="sr-kpi-s"><b class="sr-con">Con Windmar:</b> <span data-f="${con}"></span></span></div>`;
 const ficha =
   fichaDe("energia", "Resumen de la energía", [kpi("Placas", "kw", "placas"), kpi("Producción", "prod", "dia"), mesKpi, kpi("Baterías", "bat", "respaldo"), tsrfKpi], true) +
   fichaDe("agua", "Resumen del agua", [kpi("Uso de agua", "uso", "usoDe"), kpi("Calentador", "cal", "calDe"), kpi("Cisterna", "cisterna", "reserva"), kpi("Suavizador", "poe", "poeDe")]) +
   fichaDe("anker", "Resumen del Anker", [kpi("Respaldo", "anker", "ankerKwh"), kpi("Del sol", "sol", "solDe"), kpi("Sin LUMA", "horas", "horasDe"), kpi("Nevera", "nevera", "neveraDe")]) +
-  fichaDe("roofing", "Resumen del techo", [kpi("Plan", "plan", "planDe"), kpi("Cash", "cash", "cashDe"), kpi("Financiado", "financia", "financiaDe"), kpi("Mantenimiento", "limpia", "limpiaDe"), kpi("Área", "area", "areaDe")]);
+  fichaDe("roofing", "Resumen del techo", [kpi("Plan", "plan", "planDe"), kpi("Cash", "cash", "cashDe"), kpi("Financiado", "financia", "financiaDe"), kpi("Mantenimiento", "limpia", "limpiaDe"), kpi("Área", "area", "areaDe")]) +
+  // con "Sin Windmar", en cualquier pestaña: cada celda dice lo de hoy y, debajo, lo que tendría con Windmar
+  fichaDe("sin", "Sin y con Windmar", [
+    compara(`<span data-f="sinMesL"></span>`, "sinMes", "sinMesCon"),
+    compara("De LUMA en el año", "sinAnio", "sinAnioCon"),
+    compara("En un apagón", "sinApagon", "sinApagonCon"),
+    compara("Luz del agua caliente", "sinCal", "sinCalCon"),
+    compara("Si corta la AAA", "sinAAA", "sinAAACon"),
+    compara("El techo", "sinTecho", "sinTechoCon"),
+  ], false, { faltan: false });
 const caption =
-  `Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home. El techo lleva el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, sin uniones. En la esquina se ven el concreto con una grieta reparada, el imprimador y la capa; cada pata de la estructura, el tubo de ventilación, la bota del aire y la unidad de aire van sobre sellos de Roof Patch. ` +
-  `El consumo de los 12 meses arma el sistema con la regla del cotizador de LUMA de Sun Bot, la misma que usa con clientes que ya tienen placas: la meta es el mayor entre 110 % del promedio y el mes pico; con ${BASE.horasSol} horas de sol pico todo el año y ${BASE.rendimiento} de rendimiento, cada placa da sus vatios × ${BASE.horasSol} × ${BASE.rendimiento} ÷ 1000 kWh al día (${kwhPorPlacaDia(BASE.vatios).toFixed(2)} una QCells de ${BASE.vatios} W); a los kW que hacen falta se les restan los de las placas que ya tiene y el resto se cubre con placas de ${BASE.vatios} W. Los Powerwall de ${BASE.bateria} kWh cubren la mitad del consumo diario, al menos uno, y con batería el cotizador pide al menos ${BASE.placasConBateria} placas; el respaldo de noche es la fórmula de la herramienta Enseres (baterías × ${BASE.bateria} ÷ consumo diario × 24 horas). Con la factura de ejemplo (promedio 600 kWh, pico 700 en agosto) salen ${SUG.nuevas} placas nuevas y ${SUG.baterias} Powerwall. ` +
+  `Maqueta de una casa de techo plano en Puerto Rico con el sistema Solar y Roofing de Windmar Home. El techo lleva el sellado de silicona Gardner de los Planes de Sellado: imprimador Elasto Prime y una capa continua de silicona blanca, sin uniones. En la esquina se ven el concreto con una grieta reparada, el imprimador y la capa; cada pata de la estructura, el tubo de ventilación, la bota del aire y la unidad de aire van sobre sellos de Roof Patch. La casa mide unos 10 × 16 m y en su techo caben 48 placas; el garaje es su extremo este, bajo el mismo techo, y en la entrada está parado un Tesla Model Y a escala (4.75 × 1.92 m), antes de la acera y la calle. ` +
+  `El consumo de los 12 meses arma el sistema con la regla del cotizador de LUMA de Sun Bot, la misma que usa con clientes que ya tienen placas: la meta es el mayor entre 110 % del promedio y el mes pico; con ${BASE.horasSol} horas de sol pico todo el año y ${BASE.rendimiento} de rendimiento, cada placa da sus vatios × ${BASE.horasSol} × ${BASE.rendimiento} ÷ 1000 kWh al día (${kwhPorPlacaDia(BASE.vatios).toFixed(2)} una QCells de ${BASE.vatios} W); a los kW que hacen falta se les restan los de las placas que ya tiene y el resto se cubre con placas de ${BASE.vatios} W. Los Powerwall de ${BASE.bateria} kWh cubren la mitad del consumo diario, al menos uno, y con batería el cotizador pide al menos ${BASE.placasConBateria} placas; el respaldo de noche es la fórmula de la herramienta Enseres (baterías × ${BASE.bateria} ÷ consumo diario × 24 horas). Con la factura de ejemplo (promedio 600 kWh, pico 700 en agosto) y el carro eléctrico de ${CARRO.km} km al día salen ${SUG.nuevas} placas nuevas y ${SUG.baterias} Powerwall. ` +
+  `El carro eléctrico se suma a la factura de cada mes, que no lo trae (si ya se carga en la casa, va en 0 km): el Tesla Model Y gasta unos ${CARRO.kwhPorKm} kWh por km contando lo que se pierde al cargarlo (la EPA le da unos 28 kWh por cada 100 millas, medidos en la pared), así que ${CARRO.km} km al día son ${fmtN(CARRO_MES)} kWh al mes. Se carga en el Wall Connector, en la pared junto al portón del garaje, en un bloque de ${CARRO.horarios.sol.horas} horas: ${CARRO.horarios.sol.texto}, con lo que sobra de las placas, o ${CARRO.horarios.noche.texto}, de la batería o de LUMA. Las horas de respaldo de la ficha son las de la casa: no cuentan cargar el carro en un apagón. ` +
   `De madrugada la batería llega a su reserva y entra LUMA; en la mañana las placas cubren la casa y cargan la batería; ya llena, el sobrante sale a LUMA por el medidor bidireccional; de noche la batería alimenta la casa. El ventilador del aire gira más rápido cuanto más consume la casa. ` +
   `La brújula de la base gira con el rumbo de las placas y su marca fija señala hacia dónde miran. El rumbo cambia lo que dan las placas según PVWatts v8 de NREL para San Juan a ${SOL.inclinacion}° de inclinación: al sur, ${fmtN(rumboDe(180).kwh)} kWh por kW al año; al este, ${pctN(factorRumbo(90))} de eso; al oeste, ${pctN(factorRumbo(270))}; al norte, ${pctN(factorRumbo(0))}. Con el sur, la figura da lo mismo que el cotizador. ` +
   `Las sombras salen del sol de cada momento y de las piezas del dibujo: el aire, el tubo de ventilación, el mástil, el poste, las mismas filas de placas y lo que se ponga de agua en el techo. La Hércules 600 va en la franja oeste del techo, al lado de las placas: con las placas al sur su sombra les cae de tarde a las del extremo oeste, y al norte, de mañana. Como a esas horas el sol ya está bajo, en el año les quita poco: la placa más cercana pierde de 3 a 4 % de su sol y el sistema, unas décimas, que la ficha muestra al lado del TSRF. Como en Aurora, el acceso solar es la parte del sol del año (directo y difuso, del año típico de PVGIS) que les llega a las placas con esas sombras; el TOF es el sol que recibe su plano frente al mejor plano de San Juan (sur a unos 17°, ${pctN(tofDe(180))} para el sur a ${SOL.inclinacion}°), y el TSRF es TOF × acceso solar. La producción de la ficha y de la gráfica es la del cotizador por el rumbo y por el acceso solar, y en el día la producción sigue al sol directo y difuso de marzo y septiembre (PVGIS) sobre el plano de las placas, menos lo que tapan las sombras. ` +
@@ -1351,7 +1454,8 @@ const caption =
   `La pestaña Anker pone el respaldo de Anker SOLIX, del cotizador Anker de Sun Bot, con sus kWh, kW y medidas de las fichas de Anker, aparte de las placas del techo y paso a paso: el tipo, el modelo, sus placas o sus baterías y los extras. El portátil es la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800), con sus placas abiertas en el patio: con − y + se ponen de una hasta las que admite su entrada solar, según las fichas (dos PS400 o cuatro PS200 la F2600, que tiene una sola entrada de 1,000 W; ocho PS400 la F3800 Plus, que tiene dos de 1,600 W). El SOLIX E10 es para toda la casa: su módulo de 7.68 kW sobre una a cinco baterías B6000 de 6.144 kWh (con cuatro o más, en la montura de pared), su caja en la pared (la Smart Inlet Box o la Power Dock), las 4 placas de 400 W del kit solar y el Smart Generator 5500 afuera. Aparte va la nevera EverFrost, con su propia batería. Mantiene lo esencial de la casa: de día lo cubren sus placas y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA (o el generador del E10). La estación, el E10 y la nevera van en el cuarto de equipos: la F2600 no tiene protección contra el agua y la F3800 Plus no es impermeable, así que nada de eso va a la intemperie. Las placas sí van afuera. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las placas entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol de su propio plano, inclinado 40° hacia donde miran las del techo, menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. ` +
   `La pestaña Roofing pone los Planes de Sellado del cotizador de Roofing de Sun Bot y su PDF: la misma silicona Gardner sobre imprimador Elasto Prime en los tres, en una capa continua y sin uniones, con la garantía del fabricante limitada de por vida; la de la mano de obra, que incluye las rectificaciones (el aire, el calentador y lo demás del techo), es de 1 año en Silver y de 10 en Gold y Platinum, y Platinum trae la limpieza del techo y de las placas cada 2 años por 10 años. La remoción del sellado viejo va de 0 a 100 %, de 10 en 10, como en el cotizador, y se cotizan al menos ${fmtN(DATA.techo.minimo.estandar)} pies² (${fmtN(DATA.techo.minimo.clienteSolar)} si ya es cliente solar de Windmar). La ficha da el precio de la pantalla del cotizador, sin pronto, sin descuentos de cliente VIP o de empleado y sin WindMar Protect: el área cotizada por el precio por pie² del plan (${PRODUCTO.sellado.modelos.map((m) => `${m.nombre}, $${m.pie.toFixed(2)}`).join("; ")}), más $${PRODUCTO.sellado.precio.remocion.toFixed(2)} por cada pie² de sellado viejo que se quita; en cash, ${Math.round(PRODUCTO.sellado.precio.cash * 100)} % menos, con el IVU de ${(PRODUCTO.sellado.precio.ivu * 100).toFixed(1)} %, y financiado, la mensualidad a 10 años al ${(PRODUCTO.sellado.precio.tasas[120] * 100).toFixed(2)} % del precio con el IVU. Sin plan, el techo es el concreto como está: su grieta abierta en la esquina y un parche de sellado viejo por cada 10 % de remoción. "Ver cómo se sella" lo aplica por partes, de norte a sur, en unos 15 segundos: primero se levanta todo lo del techo (las rectificaciones: las placas con sus rieles, sus cajas y sus conductos, el aire, el calentador y la cisterna; sus sellos de Roof Patch se quedan, y el conducto de las placas se estira desde su abrazadera del borde de la losa), después vienen la limpieza a presión, la remoción, las grietas con Roof Patch, el imprimador y la silicona, y cada cosa baja cuando la silicona ya pasó por debajo; las placas, al final. El tubo de ventilación atraviesa la losa y no se levanta. El aguacero muestra por dónde corre el agua: con el sellado, a las dos gárgolas y de ellas al suelo; sin él, el concreto se moja, los charcos crecen, el agua corre hacia la grieta, gotea por debajo de la losa, escurre por la pared y las manchas de humedad se extienden en las dos fachadas de la esquina. La lluvia es para verlo: no cambia la energía del día. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.calientePorPersona} de ellos de agua caliente a ${AGUA.uso} °F, el agua que llega a ${AGUA.fria} °F, colectores que le pasan al agua la mitad del sol que reciben, el tanque que pierde un poco de calor por hora y deja de calentar a ${AGUA.maximo} °F, y la AAA que llena la cisterna mientras da servicio. El ahorro de luz compara con calentar la misma agua con una resistencia eléctrica. ` +
-  `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. El techo mide unos 1,250 pies², el promedio del cotizador, y le caben hasta ${ROWS * COLS} placas; el inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. Fuera de la ficha de Roofing, no muestra dinero.`;
+  `Sin Windmar es la misma casa como está hoy: sin placas, inversor ni baterías, sin los productos de las pestañas y con el techo sin sellar, así que toda la luz, también la del carro, viene de LUMA. Su ficha compara, con los mismos cálculos de cada pestaña y con lo que se escogió: la luz que se toma de LUMA en el mes y en el año (con Windmar, lo que no cubren las placas en cada mes, como en la gráfica), las horas con luz en un apagón (con los Powerwall, o lo esencial con el Anker), la luz de calentar el agua (con resistencia, o lo que gasta la resistencia de respaldo del calentador solar), los días con agua si corta la AAA (con la cisterna) y el techo (el plan de sellado). ` +
+  `Supuestos del dibujo: el reparto del consumo por hora, la reserva del 20 %, la batería sin pérdidas, el sol del equinoccio (sale 6:25, se pone 18:25) con la luna llena de esa noche y el mes de 30 días del cotizador. El sol y la luna se dibujan por fuera de la maqueta, en la dirección de donde viene su luz vista desde esta cámara: nunca pasan por detrás de la casa y las sombras caen del lado contrario; si no caben dentro del dibujo, asoman por el borde. Las placas que ya tenía se dibujan del mismo tamaño que las nuevas. La casa mide unos 10 × 16 m (unos 1,700 pies², con el garaje) y en su techo caben hasta ${ROWS * COLS} placas; el área que se cotiza abre en 1,250 pies², el techo promedio del cotizador, y se cambia en Roofing. El inversor se dibuja más grande que en la realidad para que se lea, y el Powerwall 3 lo trae integrado aunque aquí va aparte. Fuera de la ficha de Roofing, no muestra dinero.`;
 
 const { page } = escribirPagina({
   escena: "casa",

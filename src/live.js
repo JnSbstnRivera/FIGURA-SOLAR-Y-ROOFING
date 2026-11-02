@@ -174,13 +174,15 @@ function sombraDe(K, f, ns, Ss) {
   const h = casco(pts);
   return h.length >= 3 ? h : null;
 }
-// Una placa, una batería, una caja de fila o una pieza de un producto del plano solo tapan el sol si están puestas.
+// Una placa, una batería, una caja de fila o una pieza de un producto del plano solo tapan el sol si están puestas; el
+// inversor, si hay sistema (placas o baterías).
 function activoPara(on, total, baterias, escogidos) {
   if (!on) return true;
   const [tipo, n, parte] = on.split(":");
   if (tipo === "slot") return +n < total;
   if (tipo === "bat") return +n <= baterias;
   if (tipo === "rows") return Math.ceil(total / D.cols) >= +n;
+  if (tipo === "sistema") return total > 0 || baterias > 0;
   if (tipo === "p") return parteSeVe(escogidos, n, parte);
   return true;
 }
@@ -548,7 +550,8 @@ function dibujaRosa(rumbo) {
 const S = { rumbo: D.rumbo, agua: { personas: D.agua.personas, cortado: false }, escogido: { ...SIN_NADA, ...PUESTOS } };
 
 // Cada cambio rehace el día: primero lo de la escena (en la casa, el sistema del cotizador y la sombra del techo),
-// después el agua y el Anker, las piezas que entran y salen y los textos.
+// después el agua y el Anker, las piezas que entran y salen y los textos. Mientras la escena compara (en la casa, "Sin
+// Windmar") los paneles se quedan como estaban: muestran lo que lleva con Windmar.
 function recompute({ calm = false } = {}) {
   ESCENA_VIVA.recompute();
   sombra.version++;
@@ -556,7 +559,7 @@ function recompute({ calm = false } = {}) {
   recomputeAnker();
   setTargets(calm || still.matches);
   ESCENA_VIVA.actualiza();
-  updateAgua();
+  if (!ESCENA_VIVA.comparando?.()) updateAgua();
   if (!frame) draw(0, true);
 }
 
@@ -966,10 +969,12 @@ const sayAgua = (w) => {
   if (potableDe(S.escogido)) partes.push(`de beber ${fmt(w.potable, 1)} gal/h`);
   return partes.join(" · ");
 };
+// (en el celular, más corta, para que quepa al lado de la hora)
 const sayAnker = (a) => {
   const r = respaldoDe();
   if (!a || !r) return "sin Anker";
   const e10 = Boolean(r.m.kwhB6000);
+  if (narrow.matches) return `${fmt(a.ps400, 1)} kW · esencial ${fmt(a.esencial, 1)} kW · bat. ${Math.round(a.soc * 100)} %${a.gen > 0.005 ? " · gen." : ""}`;
   return `${e10 ? "placas" : conPs200(r.m, S.escogido) ? "PS200" : "PS400"} ${fmt(a.ps400, 1)} kW · lo esencial ${fmt(a.esencial, 1)} kW · ${e10 ? "E10" : "Anker"} ${Math.round(a.soc * 100)} %${a.gen > 0.005 ? " · generador" : ""}`;
 };
 // ---------- pestañas: Energía, Agua, Anker y Roofing ----------
@@ -988,13 +993,18 @@ function setTab(nombre, focus = false) {
     if (on && focus) t.focus();
   }
   for (const [key, el] of Object.entries(paneles)) el.hidden = key !== nombre;
-  // la ficha de la tarjeta es la de la pestaña
-  for (const el of enPanel("[data-ficha]")) el.hidden = el.dataset.ficha !== nombre;
+  // la ficha de la tarjeta es la de la pestaña, salvo mientras la escena compara (en la casa, "Sin Windmar")
+  const comparando = ESCENA_VIVA.comparando?.() ?? false;
+  for (const el of enPanel("[data-ficha]")) el.hidden = el.dataset.ficha !== (comparando ? "sin" : nombre);
   mainEl.dataset.modo = nombre;
   // la primera vez que se abre una pestaña sin nada escogido en ella, bajan los productos que tienen modelo
   // inicial (en la del agua, el calentador que sugiere el cotizador y la Hércules 600); después se cambian o se
-  // quitan con sus botones
+  // quitan con sus botones. Mientras se compara no: lo escogido está guardado y la pestaña se cuenta al volver.
   const deAqui = PRODUCTOS.filter((p) => p.pestaña === nombre);
+  if (comparando) {
+    if (!frame) draw(0, true);
+    return;
+  }
   if (!vistas.has(nombre) && deAqui.some((p) => p.inicial) && deAqui.every((p) => S.escogido[p.id] === "sin")) {
     for (const p of deAqui) if (p.inicial) S.escogido[p.id] = p.inicial === "sugerido" ? sugeridoPara(p, S.agua.personas).id : p.inicial;
     marcarOpciones();

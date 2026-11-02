@@ -242,12 +242,13 @@ export function taller({ W, AZ, EL, FIT, PAD = 12 }) {
     const route = G.fillet(points, Math.max(r * 2.6, 1.2), 10, { P, tube: r });
     return tubePieces(route, r, P, { maxLength: 1000, spacing: Math.max(0.5, Math.min(1.4, r)) }).map((piece) => tubeSvg(piece, { tone })).join("");
   }
-  // Abrazadera: un anillo alrededor del tubo (que queda cortado debajo) y un taco hasta la pared.
-  function strap(name, route, s, pipeName, r, block) {
+  // Abrazadera: un anillo alrededor del tubo (que queda cortado debajo) y un taco hasta la pared. `attrs` y `on`, los de su
+  // tubo cuando se prende y se apaga con algo (el conducto de las placas, con la primera fila).
+  function strap(name, route, s, pipeName, r, block, { attrs = "", on = null } = {}) {
     const centre = G.pointAlong(route, s);
     const F = G.frameAlong(centre, G.tangentAlong(route, s));
-    ringOn(`${name}.ring`, F, -0.6, 0.6, r, r + 0.45, { tone: "mid" }, { owner: pipeName });
-    box(`${name}.block`, block[0], block[1], { tone: "mid" }, { r: 0.2, owner: pipeName, sombra: "recibe" });
+    ringOn(`${name}.ring`, F, -0.6, 0.6, r, r + 0.45, { tone: "mid" }, { owner: pipeName, attrs });
+    box(`${name}.block`, block[0], block[1], { tone: "mid" }, { r: 0.2, owner: pipeName, sombra: "recibe", attrs, on });
   }
 
   // El logo de Windmar (logo.mjs) sobre un cilindro, como una calcomanía: cada punto se envuelve alrededor del

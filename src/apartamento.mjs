@@ -41,13 +41,8 @@ const CAMA = { x0: 1, x1: 15.7, y0: 27.4, y1: AP.y1 - 0.8 };
 const COMODA = { x0: CUARTOS.x + TABIQUE / 2, x1: CUARTOS.x + TABIQUE / 2 + 5, y0: 30, y1: 42, alto: PISO + 9 };
 // el baño: el lavamanos y el inodoro contra la pared norte, y la ducha en la esquina, con su vidrio
 const BANO = { lavamanos: [24.2, 30.4], inodoro: [32.2, 36.2], ducha: 10.5 };
-// la base de la maqueta, ceñida al apartamento y al balcón, con una franja al oeste para la brújula y la placa de
-// rótulo
-const PLATE = { x: AP.x0 - MURO - 7, y: AP.y0 - MURO - 7, w: BALCON.x1 + 7 - (AP.x0 - MURO - 7), d: AP.y1 + MURO + 20 - (AP.y0 - MURO - 7), r: 10 };
-const PLATE_H = 10;
-const FOOT_H = 5;
-const BRUJULA = { x: 24, y: AP.y1 + MURO + 10, r: 8, z0: 0.7, z1: 2.8, carta: 6.6 };
-const LABEL = { x: -22, y: AP.y1 + MURO + 5.8, w: 28, d: 8.6, r: 1.2 };
+// la brújula, en el piso del balcón, en la punta oeste (las placas y su cable van al este)
+const BRUJULA = { x: 40.5, y: 38, r: 6, z0: BALCON.z + 0.3, z1: BALCON.z + 1.6, carta: 4.9 };
 
 // la cocina contra la pared norte: la nevera, los gabinetes con el tope y el fregadero, y el gabinete del fregadero
 // abierto para ver la ósmosis
@@ -76,6 +71,17 @@ const LAMPARAS = [
   { x: -29, y: 35, piso: 11, cuarto: [AP.x0, CUARTOS.x - TABIQUE / 2, CUARTOS.y + TABIQUE, AP.y1] },
 ];
 const LUZ = { r: 2.4, alto: 0.8, halo: 5 };
+// El edificio: un piso arriba y uno abajo, iguales a este, de piso a piso ENTREPISO (unos 2.7 m), sin base: la unidad
+// queda en su edificio. Del de arriba se ven su balcón con la baranda y la parte baja de sus paredes; del de abajo, la
+// parte alta de sus paredes, con su puerta y sus ventanas, y su baranda. Se dibujan vacíos y se desvanecen con la altura
+// hacia el borde de la tarjeta (DESVANECE: en z, de lleno a nada); con "Ver adentro" se aclaran para ver la unidad
+// (page.css). El encuadre toma la unidad y su balcón, con lo de los otros pisos que cabe arriba y abajo.
+const ENTREPISO = TECHO.z0 + TECHO.grueso - PISO;
+const ARRIBA = PISO + ENTREPISO;
+const DESVANECE = { arriba: [ARRIBA + 10, ARRIBA + 26], abajo: [-4, -26] };
+const CAJA = { x: AP.x0 - MURO, y: AP.y0 - MURO, w: AP.x1 - AP.x0 + 2 * MURO, d: AP.y1 - AP.y0 + 2 * MURO };
+const BALCON_PLAN = { x: BALCON.x0, y: BALCON.y0, w: BALCON.x1 - BALCON.x0, d: BALCON.y1 - BALCON.y0 };
+const ENCUADRE = [-16, ARRIBA + 11];
 
 // ---------- el plano: cómo se dibuja cada producto en el apartamento ----------
 // Como en la casa (build.mjs): cada producto con su dibujo y sus partes; `mide` le pasa a la página lo que midió el
@@ -96,27 +102,78 @@ const DIBUJOS = {
 };
 
 // Las puntas del dibujo: el lienzo (taller.mjs) toma su proporción exacta, sin franjas vacías.
-const FIT = [...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0), ...k.boxCorners({ x: AP.x0 - MURO, y: AP.y0 - MURO, w: AP.x1 - AP.x0 + 2 * MURO, d: AP.y1 - AP.y0 + 2 * MURO }, 0, TECHO.z0 + TECHO.grueso)];
+const FIT = [...k.boxCorners(CAJA, ...ENCUADRE), ...k.boxCorners(BALCON_PLAN, ...ENCUADRE)];
 const TALLER = taller({ W, AZ, EL, FIT });
-const { H, P, KS, at, S, Ln, Dots, path3, f2, R, record, p3, recibeSol, carasAnillo, anilloEn, faceY, faceX, rect, box, cyl, turned, pipe, cieloDe, SOMBRA } = TALLER;
+const { H, P, KS, at, S, Ln, Dots, path3, f2, R, record, p3, recibeSol, carasAnillo, carasCaja, anilloEn, faceY, faceX, rect, box, cyl, turned, pipe, tuboSuelto, cieloDe, SOMBRA } = TALLER;
 const { cuerpoCisterna, bomba, presurizado, estacionAnker, bateriaExpansion, nevera, transferSwitch, ps400 } = piezas(TALLER, { mide });
 
-// ---------- base ----------
-const back = [];
-back.push(`<path class="iso-halo" d="${k.haloOf(PLATE, -PLATE_H - FOOT_H, PLATE_H, P)}"/>`);
-const byDepth = (points) => [...points].sort((a, b) => k.depthOf([a[0], a[1], 0], P) - k.depthOf([b[0], b[1], 0], P));
-for (const [x, y] of byDepth(k.corners(PLATE, 22))) {
-  back.push(S(k.cylinder(x, y, 7, -PLATE_H - FOOT_H, 1.6, P, 28), { tone: "lo" }));
-  back.push(S(k.cylinder(x, y, 5.4, -PLATE_H - FOOT_H + 1.6, FOOT_H - 1.6, P, 28), { tone: "mid" }));
+// El desvanecido de los otros pisos: cada plano de pared lleva una máscara con un degradado que sigue la altura (z) de
+// ese plano, lleno hasta `lleno` y del todo transparente desde `nada`. En pantalla, las líneas de una misma z corren
+// como el eje y en una pared que mira a ±x, y como el eje x en una que mira a ±y.
+const MASCARAS = [];
+function desvanece(id, eje, c, lleno, nada) {
+  const o = at([0, 0, 0]);
+  const resta = (p) => [p[0] - o[0], p[1] - o[1]];
+  const corre = resta(at(eje === "x" ? [0, 1, 0] : [1, 0, 0]));
+  const largo = Math.hypot(corre[0], corre[1]);
+  const n = [-corre[1] / largo, corre[0] / largo];
+  const zv = resta(at([0, 0, 1]));
+  const a = at(eje === "x" ? [c, 0, lleno] : [0, c, lleno]);
+  const t = (nada - lleno) * (zv[0] * n[0] + zv[1] * n[1]);
+  const b = [a[0] + n[0] * t, a[1] + n[1] * t];
+  const m = 60;
+  MASCARAS.push(
+    `<linearGradient id="${id}-g" gradientUnits="userSpaceOnUse" x1="${f2(a[0])}" y1="${f2(a[1])}" x2="${f2(b[0])}" y2="${f2(b[1])}"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient>` +
+      `<mask id="${id}" maskUnits="userSpaceOnUse" x="${-m}" y="${-m}" width="${W + 2 * m}" height="${f2(H + 2 * m)}"><rect x="${-m}" y="${-m}" width="${W + 2 * m}" height="${f2(H + 2 * m)}" fill="url(#${id}-g)"/></mask>`,
+  );
+  return ` mask="url(#${id})"`;
 }
-const PLATE_PATHS = k.slabOf(PLATE, -PLATE_H, PLATE_H, P, 8, 1.6);
-back.push(S(PLATE_PATHS, { tone: "mid", inner: Ln(k.sideSeam(PLATE, -4, P, 8), { tone: "faint" }) }));
-back.push(Ln(k.planOutline(k.insetPlan(PLATE, 5), 0, P), { tone: "lo" }));
-const plateScrews = k.corners(PLATE, 7);
-back.push(Ln(plateScrews.map(([x, y]) => k.ring(x, y, 2.2, 0, P, 16)).join(""), { tone: "lo" }));
-back.push(Dots(plateScrews.map(([x, y]) => at([x, y, 0])), { size: 0.5 }));
-record(A.slab(PLATE, -PLATE_H, PLATE_H, { name: "stand.plate", ground: true }, 8));
-back.push(recibeSol("stand.plate", PLATE_PATHS.fill, carasAnillo(anilloEn(k.ringOf(PLATE, 8), -PLATE_H), anilloEn(k.ringOf(PLATE, 8), 0))));
+// lo de los otros pisos se aclara con "Ver adentro" (page.css)
+const otro = (mascara = "") => ` data-otro${mascara}`;
+
+// ---------- el piso de abajo ----------
+// Detrás de todo, en este orden: nada suyo tapa la unidad, que va encima. Se ven sus caras del sur y del oeste (la
+// unidad lo tapa por arriba) y su baranda; su balcón queda en lo que ya se desvaneció. Apoyan en el suelo del edificio
+// ("stand.").
+const back = [];
+{
+  const [lleno, nada] = DESVANECE.abajo;
+  const z0 = PISO - ENTREPISO;
+  const dz = -ENTREPISO;
+  const pieza = (name, a, b, mascara, extra = "", wrap = "") => {
+    const plan = { x: a[0], y: a[1], w: b[0] - a[0], d: b[1] - a[1], r: 0.15 };
+    record(A.slab(plan, a[2], b[2] - a[2], { name: `stand.abajo.${name}`, ground: true }, 2));
+    const paths = k.slabOf(plan, a[2], b[2] - a[2], P, 2, 0);
+    // el vidrio no recibe sombra (como el de la unidad)
+    const cuerpo = S(paths, { tone: wrap ? "lo" : "mid" }) + extra;
+    back.push(`<g${otro(mascara)}>${wrap ? `<g class="${wrap}">${cuerpo}</g>` : cuerpo + recibeSol(`stand.abajo.${name}`, paths.fill, carasCaja(a, b))}</g>`);
+  };
+  const sur = desvanece("sr-abajo-sur", "x", AP.x1 + MURO, lleno, nada);
+  const oeste = desvanece("sr-abajo-oeste", "y", AP.y1 + MURO, lleno, nada);
+  // la puerta del balcón: sus dos hojas de vidrio, metidas en el hueco de la pared
+  const yM = (PUERTA.y0 + PUERTA.y1) / 2;
+  pieza("hoja.e", [AP.x1 + 0.3, PUERTA.y0, z0 + 0.25], [AP.x1 + 0.7, yM + 0.6, z0 + PUERTA.alto], sur, "", "sr-vidrio");
+  pieza("hoja.o", [AP.x1 + 0.9, yM - 0.6, z0 + 0.25], [AP.x1 + 1.3, PUERTA.y1, z0 + PUERTA.alto], sur, "", "sr-vidrio");
+  // la pared sur, a los lados de la puerta y encima, con la ventana de la alcoba; la oeste, con las suyas
+  const X = AP.x1 + MURO;
+  const ventanaSur = faceX(X, rect(28, 44, z0 + 9, z0 + 20)) + faceX(X, rect(28.8, 43.2, z0 + 9.8, z0 + 19.2)) + faceX(X, [[36, z0 + 9.8], [36, z0 + 19.2]], false);
+  pieza("sur.este", [AP.x1, AP.y0, z0], [X, PUERTA.y0, 0], sur);
+  pieza("sur.oeste", [AP.x1, PUERTA.y1, z0], [X, AP.y1, 0], sur, Ln(ventanaSur, { tone: "lo" }));
+  pieza("sur.dintel", [AP.x1, PUERTA.y0, z0 + PUERTA.alto], [X, PUERTA.y1, 0], sur);
+  const Y = AP.y1 + MURO;
+  const ventana = (x0, x1, za, zb) => faceY(Y, rect(x0, x1, za, zb)) + faceY(Y, rect(x0 + 0.8, x1 - 0.8, za + 0.8, zb - 0.8)) + faceY(Y, [[(x0 + x1) / 2, za + 0.8], [(x0 + x1) / 2, zb - 0.8]], false);
+  pieza("oeste", [AP.x0, AP.y1, z0], [X, Y, 0], oeste, Ln(ventana(0, 16, z0 + 9, z0 + 20) + ventana(-31, -25, z0 + 15, z0 + 20), { tone: "lo" }));
+  // la baranda de vidrio de su balcón y el pasamanos, que ya va medio desvanecido
+  const zb = BALCON.z + dz;
+  const zv = zb + 10.4 - 0.32;
+  const xb = BALCON.x1 - 0.6;
+  const { y0, y1 } = BALCON;
+  pieza("baranda.sur", [xb - 0.15, y0 + 0.6, zb], [xb + 0.15, y1 - 0.6, zv], desvanece("sr-abajo-baranda-s", "x", xb + 0.15, lleno, nada), "", "sr-vidrio");
+  pieza("baranda.este", [BALCON.x0 + 0.4, y0 + 0.45, zb], [xb - 0.6, y0 + 0.75, zv], desvanece("sr-abajo-baranda-e", "y", y0 + 0.75, lleno, nada), "", "sr-vidrio");
+  pieza("baranda.oeste", [BALCON.x0 + 3, y1 - 0.75, zb], [xb - 0.6, y1 - 0.45, zv], desvanece("sr-abajo-baranda-o", "y", y1 - 0.45, lleno, nada), "", "sr-vidrio");
+  const zp = zb + 10.4;
+  back.push(`<g${otro()}><g style="opacity:${((zp - nada) / (lleno - nada)).toFixed(2)}">${tuboSuelto([[BALCON.x0, y0 + 0.6, zp], [xb, y0 + 0.6, zp], [xb, y1 - 0.6, zp], [BALCON.x0 + 2.4, y1 - 0.6, zp]], 0.32)}</g></g>`);
+}
 
 // La losa del apartamento y la del balcón, un poco más baja: van con la base, debajo de todo, para que los cables de
 // las PS400 corran por el piso. Las baldosas del piso son de 60 cm.
@@ -143,24 +200,14 @@ back.push(
 losa("balcon.losa", { x: BALCON.x0, y: BALCON.y0, w: BALCON.x1 - BALCON.x0, d: BALCON.y1 - BALCON.y0, r: 0.4 }, BALCON.z, true);
 
 // ---------- brújula: como en la casa, la tarjeta gira para que su N mire al norte y la marca fija apunta hacia donde
-// mira el balcón ----------
-cyl("compass.flange", BRUJULA.x, BRUJULA.y, BRUJULA.r + 0.8, 0, BRUJULA.z0, { tone: "lo" }, { steps: 56, sombra: "recibe" });
+// mira el balcón; va en el piso del balcón ----------
+cyl("compass.flange", BRUJULA.x, BRUJULA.y, BRUJULA.r + 0.8, BALCON.z, BRUJULA.z0, { tone: "lo" }, { steps: 56, sombra: "recibe" });
 {
   const { x, y, r, z1, carta } = BRUJULA;
   const screws = [45, 135, 225, 315].map((a) => [x + (r - 0.9) * Math.cos((a * Math.PI) / 180), y + (r - 0.9) * Math.sin((a * Math.PI) / 180)]);
   const extra = Ln(k.ring(x, y, carta + 0.1, z1, P, 72), { tone: "lo" }) + `<g data-part="rosa"></g>` + Ln(k.lineOnTop([x + carta + 0.1, y], [x + r, y], z1, P), { tone: "hi" }) + Dots(screws.map(([sx, sy]) => at([sx, sy, z1])), { size: 0.45 });
   cyl("compass", x, y, r, BRUJULA.z0, z1, { tone: "mid" }, { steps: 64, bevel: 0.4, extra });
 }
-// placa de rótulo, como la de la casa, a lo largo de la franja
-{
-  const z = 0.8;
-  const cy = LABEL.y + LABEL.d / 2;
-  const text = k.faceTextSvg(k.topMatrix([LABEL.x + LABEL.w / 2, cy + 1.1], z, P, "x"), "WINDMAR HOME", { size: 2.3, tone: "mid", anchor: "middle" });
-  const rule = (dy, from, to) => Ln(k.lineOnTop([LABEL.x + from, cy + dy], [LABEL.x + to, cy + dy], z, P), { tone: "lo", free: true });
-  const extra = Ln(k.planOutline(k.insetPlan(LABEL, 1.4), z, P, 4), { tone: "faint" }) + text + rule(-1.4, 6, LABEL.w - 6) + rule(-2.8, 8, LABEL.w - 8) + Dots([at([LABEL.x + 3, cy, z]), at([LABEL.x + LABEL.w - 3, cy, z])], { size: 0.45 });
-  box("stand.label", [LABEL.x, LABEL.y, 0], [LABEL.x + LABEL.w, LABEL.y + LABEL.d, z], { tone: "lo" }, { r: LABEL.r, steps: 4, extra, sombra: "recibe" });
-}
-
 // ---------- paredes ----------
 // Las paredes norte y este, enteras hasta el techo; las del sur y el oeste también, con la puerta corrediza del
 // balcón y las ventanas, pero transparentes, como el techo y los tabiques, para ver adentro. Dan sombra como de verdad:
@@ -358,6 +405,52 @@ const BARANDA = { x: BALCON.x1 - 0.6, z1: BALCON.z + 10.4 };
   pipe("pasamanos", [[BALCON.x0, y0 + 0.6, BARANDA.z1], [BARANDA.x, y0 + 0.6, BARANDA.z1], [BARANDA.x, y1 - 0.6, BARANDA.z1], [BALCON.x0 + 2.4, y1 - 0.6, BARANDA.z1], [BALCON.x0 + 2.4, y1 - 0.6, BALCON.z]], 0.32, { tone: "mid", bend: 1.2, touch: ["baranda.sur", "baranda.este", "baranda.oeste", "muro.este"] });
 }
 
+// ---------- el piso de arriba ----------
+// Sus cuatro paredes, sobre el techo de la unidad, con la puerta de su balcón y sus ventanas (las del norte y el este se
+// ven por dentro); su balcón, encima del de la unidad, con su baranda: está de verdad, así que les echa su sombra a las
+// placas del balcón de abajo. Con "Ver adentro" sus paredes no echan sombra en el dibujo, como las de la unidad.
+{
+  const [lleno, nada] = DESVANECE.arriba;
+  const z0 = ARRIBA;
+  const X = AP.x1 + MURO;
+  const Y = AP.y1 + MURO;
+  const sur = otro(desvanece("sr-arriba-sur", "x", X, lleno, nada));
+  const oeste = otro(desvanece("sr-arriba-oeste", "y", Y, lleno, nada));
+  const norte = otro(desvanece("sr-arriba-norte", "x", AP.x0, lleno, nada));
+  const este = otro(desvanece("sr-arriba-este", "y", AP.y0, lleno, nada));
+  const pared = (name, a, b, attrs, extra = "") => {
+    box(name, a, b, PARED, { r: 0.15, attrs, extra });
+    SOMBRA.transparentes.push(name);
+  };
+  pared("arriba.norte", [AP.x0 - MURO, AP.y0 - MURO, z0], [AP.x0, Y, nada], norte);
+  pared("arriba.este", [AP.x0, AP.y0 - MURO, z0], [X, AP.y0, nada], este);
+  const ventana = (x0, x1, za, zb) => faceY(Y, rect(x0, x1, za, zb)) + faceY(Y, rect(x0 + 0.8, x1 - 0.8, za + 0.8, zb - 0.8)) + faceY(Y, [[(x0 + x1) / 2, za + 0.8], [(x0 + x1) / 2, zb - 0.8]], false);
+  pared("arriba.oeste", [AP.x0, AP.y1, z0], [X, Y, nada], oeste, Ln(ventana(0, 16, z0 + 9, z0 + 20) + ventana(-31, -25, z0 + 15, z0 + 20), { tone: "lo" }));
+  const ventanaSur = faceX(X, rect(28, 44, z0 + 9, z0 + 20)) + faceX(X, rect(28.8, 43.2, z0 + 9.8, z0 + 19.2)) + faceX(X, [[36, z0 + 9.8], [36, z0 + 19.2]], false);
+  pared("arriba.sur.este", [AP.x1, AP.y0, z0], [X, PUERTA.y0, nada], sur);
+  pared("arriba.sur.oeste", [AP.x1, PUERTA.y1, z0], [X, AP.y1, nada], sur, Ln(ventanaSur, { tone: "lo" }));
+  pared("arriba.sur.dintel", [AP.x1, PUERTA.y0, z0 + PUERTA.alto], [X, PUERTA.y1, nada], sur);
+  const yM = (PUERTA.y0 + PUERTA.y1) / 2;
+  const hoja = (name, x0, ya, yb) => box(name, [x0, ya, z0], [x0 + 0.4, yb, z0 + PUERTA.alto], { tone: "lo" }, { r: 0.05, wrap: "sr-vidrio", sombra: false, attrs: sur });
+  hoja("arriba.hoja.e", AP.x1 + 0.3, PUERTA.y0, yM + 0.6);
+  hoja("arriba.hoja.o", AP.x1 + 0.9, yM - 0.6, PUERTA.y1);
+  // su balcón, con sus baldosas, y la baranda de vidrio con su pasamanos
+  const zb = BALCON.z + ENTREPISO;
+  const baldosas = [];
+  for (let x = BALCON.x0 + 6.3; x < BALCON.x1 - 0.5; x += 6.3) baldosas.push(k.lineOnTop([x, BALCON.y0], [x, BALCON.y1], zb, P));
+  for (let y = BALCON.y0 + 6.3; y < BALCON.y1 - 0.5; y += 6.3) baldosas.push(k.lineOnTop([BALCON.x0, y], [BALCON.x1, y], zb, P));
+  box("arriba.balcon", [BALCON.x0, BALCON.y0, zb - BALCON.z], [BALCON.x1, BALCON.y1, zb], PARED, { r: 0.4, attrs: otro(), extra: Ln(baldosas.join(""), { tone: "faint" }) });
+  const { y0, y1 } = BALCON;
+  const xb = BARANDA.x;
+  const zv = zb + 10.4 - 0.32;
+  const vidrio = (name, a, b) => box(name, a, b, { tone: "lo" }, { r: 0.05, wrap: "sr-vidrio", sombra: false, attrs: otro() });
+  vidrio("arriba.baranda.sur", [xb - 0.15, y0 + 0.6, zb], [xb + 0.15, y1 - 0.6, zv]);
+  vidrio("arriba.baranda.este", [BALCON.x0 + 0.4, y0 + 0.45, zb], [xb - 0.6, y0 + 0.75, zv]);
+  vidrio("arriba.baranda.oeste", [BALCON.x0 + 3, y1 - 0.75, zb], [xb - 0.6, y1 - 0.45, zv]);
+  const zp = zb + 10.4;
+  pipe("arriba.pasamanos", [[BALCON.x0, y0 + 0.6, zp], [xb, y0 + 0.6, zp], [xb, y1 - 0.6, zp], [BALCON.x0 + 2.4, y1 - 0.6, zp], [BALCON.x0 + 2.4, y1 - 0.6, zb]], 0.32, { tone: "mid", bend: 1.2, touch: ["arriba.baranda.sur", "arriba.baranda.este", "arriba.baranda.oeste", "arriba.este"], attrsOf: () => otro() });
+}
+
 // ---------- cisterna Torre 150: adentro, en la esquina noreste ----------
 // Del PDF maestro de Water (Sun Bot): la Ecowater de 150 galones, de 25" × 72", con su bomba de ½ HP y su presurizado
 // de 6 gal (en apartamento el kit de bombeo más grande no es obligatorio). El agua de la AAA le entra arriba por la
@@ -507,20 +600,18 @@ R.items.sort((a, b) => a.key - b.key);
 const groups = R.items.map((item) => `<g class="it" data-name="${item.name}"${item.attrs ?? ""}>${item.svg}</g>`);
 
 // ---------- cielo: el sol y la luna pasan por encima de la maqueta (cieloDe, en taller.mjs) ----------
-const PUNTAS = [
-  ...k.boxCorners(PLATE, -PLATE_H - FOOT_H, 0),
-  ...k.boxCorners({ x: AP.x0 - MURO, y: AP.y0 - MURO, w: AP.x1 - AP.x0 + 2 * MURO, d: AP.y1 - AP.y0 + 2 * MURO }, PISO, TECHO.z0 + TECHO.grueso),
-];
+// (el edificio entero que se ve, de lo de abajo a lo que se desvanece arriba)
+const PUNTAS = [...k.boxCorners(CAJA, ENCUADRE[0], DESVANECE.arriba[1]), ...k.boxCorners(BALCON_PLAN, ENCUADRE[0], DESVANECE.arriba[1])];
 const { CIELO, cieloFondo, cielo, defs } = cieloDe({ puntas: PUNTAS, centro: [0, 0, 10] });
 
 const START = 12.5;
 const DATA = { P, start: START, flows: { agua: "agua", potable: "potable", ps400: "ps400", anker: "anker" }, sombra: SOMBRA, brujula: BRUJULA, cielo: CIELO, rumbo: 180, agua: { personas: 3 }, medidas: MEDIDAS, ps400: { normal: normalPs400().map((v) => Math.round(v * 1e6) / 1e6) } };
 
 const LABEL_TEXT =
-  "Maqueta de un apartamento en Puerto Rico con lo de Windmar Home que va adentro, con sus paredes, sus tabiques y su techo transparentes para ver adentro: sala con la cocina contra la pared norte, con la nevera y el fregadero, una alcoba y un baño al oeste, el panel de breakers en la pared este y el balcón al sur, con su puerta corrediza y su baranda de vidrio; de noche sus cuatro plafones quedan prendidos. Con la pestaña Anker se pone un Anker SOLIX en el piso debajo del panel, con su transfer switch de apartamento en la pared y sus placas abiertas en el balcón, y aparte la nevera EverFrost en la cocina. Con la pestaña Agua se ponen la cisterna Torre 150 en la esquina, con su bomba y su presurizado, y la ósmosis inversa debajo del fregadero, con su dispensador en el tope. En la base, una brújula cuya tarjeta gira con el rumbo del balcón. Los trazos corren por los cables y los tubos en el sentido en que va la energía o el agua; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), y cada pieza echa la sombra de ese momento.";
-const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, halos, cielo] });
+  "Maqueta de un apartamento en Puerto Rico en su edificio, con lo de Windmar Home que va adentro: arriba se ve el piso de arriba, con su balcón encima del de este, y abajo la parte alta del piso de abajo, los dos aclarados y desvaneciéndose hacia los bordes. El apartamento tiene sus paredes, sus tabiques y su techo transparentes para ver adentro: sala con la cocina contra la pared norte, con la nevera y el fregadero, una alcoba y un baño al oeste, el panel de breakers en la pared este y el balcón al sur, con su puerta corrediza y su baranda de vidrio; de noche sus cuatro plafones quedan prendidos. Con la pestaña Anker se pone un Anker SOLIX en el piso debajo del panel, con su transfer switch de apartamento en la pared y sus placas abiertas en el balcón, y aparte la nevera EverFrost en la cocina. Con la pestaña Agua se ponen la cisterna Torre 150 en la esquina, con su bomba y su presurizado, y la ósmosis inversa debajo del fregadero, con su dispensador en el tope. En el piso del balcón, una brújula cuya tarjeta gira con el rumbo del balcón. Los trazos corren por los cables y los tubos en el sentido en que va la energía o el agua; el sol y la luna pasan por encima de la maqueta, de un lado al otro (salen por el del este), y cada pieza echa la sombra de ese momento.";
+const svg = k.figureSvg({ width: W, height: H, label: LABEL_TEXT, body: [defs, `<defs>${MASCARAS.join("")}</defs>`, cieloFondo, ...back, `<g class="sr-scene">${groups.join("")}</g>`, halos, cielo] });
 
-const about = `<p>Corre el día con el reproductor y mira a dónde va la energía del Anker y el agua del apartamento. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En la pestaña Anker escoge el modelo, cuántas placas van en el balcón y hacia dónde mira el balcón: la brújula gira, las sombras se mueven y la ficha dice cuánto les dan las placas a lo esencial y para cuántas horas alcanza la batería sin LUMA. En la pestaña Agua escoge cuántas personas viven, la cisterna Torre 150 y la ósmosis inversa: el agua corre por los tubos con el uso de cada hora y la ficha dice para cuánto alcanza la cisterna si la AAA corta el servicio y cuánta agua de beber da la ósmosis.</p>`;
+const about = `<p>Corre el día con el reproductor y mira a dónde va la energía del Anker y el agua del apartamento. El apartamento va en su edificio, con un piso arriba y uno abajo que "Ver adentro" aclara: el balcón de arriba les da sombra a las placas del balcón, y la ficha lo cuenta. Cada pestaña va en pasos numerados, y solo se ve lo que aplica a lo escogido. En la pestaña Anker escoge el modelo, cuántas placas van en el balcón y hacia dónde mira el balcón: la brújula gira, las sombras se mueven y la ficha dice cuánto les dan las placas a lo esencial y para cuántas horas alcanza la batería sin LUMA. En la pestaña Agua escoge cuántas personas viven, la cisterna Torre 150 y la ósmosis inversa: el agua corre por los tubos con el uso de cada hora y la ficha dice para cuánto alcanza la cisterna si la AAA corta el servicio y cuánta agua de beber da la ósmosis.</p>`;
 const controls = `
 <div class="sr-controls">
   <div class="sr-tabs" role="tablist" aria-label="Qué mirar">
@@ -553,8 +644,8 @@ const ficha =
   fichaDe("anker", "Resumen del Anker", [kpi("Anker", "anker", "ankerKwh"), kpi("Placas", "ps", "psN"), kpi("Del sol", "sol", "solDe"), kpi("Sin LUMA", "horas", "horasDe"), kpi("Nevera", "nevera", "neveraDe")], true) +
   fichaDe("agua", "Resumen del agua", [kpi("Uso de agua", "uso", "usoDe"), kpi("Cisterna", "cisterna", "reserva"), kpi("Ósmosis", "osmosis", "beber")]);
 const caption =
-  `Maqueta de un apartamento en Puerto Rico de unos 6.9 × 8 m, con sala y cocina, una alcoba y un baño. Sus paredes, sus tabiques y su techo se dibujan transparentes para ver adentro ("Ver adentro" los cierra): lo de Windmar va bajo techo, nada a la intemperie (las placas sí van afuera, en el balcón: son para el sol y la lluvia), y de noche sus cuatro plafones quedan prendidos. ` +
-  `La pestaña Anker pone, paso a paso, un Anker SOLIX del cotizador Anker de Sun Bot, con los kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800). En el apartamento el transfer switch es el de apartamento del cotizador y las placas van en el balcón, donde caben dos (con − y + se pone una o dos; con la F2600 pueden ser PS200), abiertas sobre sus patas, inclinadas 40° hacia donde mira el balcón, con su cable por el piso hasta la estación. Aparte va la nevera EverFrost, en la cocina. Mantiene lo esencial del apartamento por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol que les llega a su propio plano (40°, hacia donde mira el balcón), directo y difuso del equinoccio (PVGIS), menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. El balcón se dibuja sin el piso de arriba: en un balcón techado, el techo les quita a las PS400 el sol del mediodía. ` +
+  `Maqueta de un apartamento en Puerto Rico de unos 6.9 × 8 m, con sala y cocina, una alcoba y un baño, en su edificio: el piso de arriba y el de abajo son iguales, vacíos, y se ven en corte, desvaneciéndose hacia los bordes de la tarjeta (del de arriba, su balcón y la parte baja de sus paredes; del de abajo, la parte alta de sus paredes, su puerta, sus ventanas y su baranda). Sus paredes, sus tabiques y su techo se dibujan transparentes, y los otros pisos aclarados, para ver adentro ("Ver adentro" los cierra): lo de Windmar va bajo techo, nada a la intemperie (las placas sí van afuera, en el balcón: son para el sol y la lluvia), y de noche sus cuatro plafones quedan prendidos. ` +
+  `La pestaña Anker pone, paso a paso, un Anker SOLIX del cotizador Anker de Sun Bot, con los kWh, kW y medidas de las fichas de Anker: la F2600 (2.56 kWh y 2.4 kW, con transfer switch manual) o la F3800 Plus (3.84 kWh y 6 kW, con transfer switch automático), cada una con o sin su batería de expansión (la BP2600 o la BP3800). En el apartamento el transfer switch es el de apartamento del cotizador y las placas van en el balcón, donde caben dos (con − y + se pone una o dos; con la F2600 pueden ser PS200), abiertas sobre sus patas, inclinadas 40° hacia donde mira el balcón, con su cable por el piso hasta la estación. Aparte va la nevera EverFrost, en la cocina. Mantiene lo esencial del apartamento por su transfer switch: de día lo cubren las PS400 y lo que sobra carga la batería; de noche lo da la batería, y si llega a su reserva, LUMA. Supuestos del Anker: lo esencial (nevera, internet, luces y abanicos) suma unos ${(Array.from({ length: 288 }, (_, i) => esencialEn((i + 0.5) / 12)).reduce((a, b) => a + b, 0) / 12).toFixed(1)} kWh al día; las PS400 entregan el ${pctN(ANKER_MODELO.rinde)} de su potencia con el sol que les llega a su propio plano (40°, hacia donde mira el balcón), directo y difuso del equinoccio (PVGIS), menos lo que les tapan las sombras; la batería no baja de ${pctN(ANKER_MODELO.reserva)}; y las horas sin LUMA son las de la batería sola con lo esencial, como en la fórmula de Enseres. Como en un edificio, el balcón tiene encima el del piso de arriba: su losa les quita a las PS400 el sol del mediodía (con el balcón al sur, de unos 3.9 a 3.0 kWh al día), y la ficha lo cuenta. ` +
   `La pestaña Agua pone los equipos de Windmar Water con los datos del cotizador Water de Sun Bot y su PDF maestro. La cisterna Torre 150 (Ecowater de 150 galones, 25" × 72", "ideal para apartamentos") va adentro, en la esquina, con su bomba de ½ HP y su presurizado de 6 galones: en apartamento el kit de bombeo más grande del cotizador no es obligatorio. La ósmosis inversa de 7 etapas va debajo del fregadero: prefiltro de sedimento de 5 micras, dos de carbón en bloque de 10 micras, la membrana TFC de 100 GPD, el cartucho de PFAS y microplásticos, el alcalino BioCera y el post-filtro de carbón, con su tanque de 4 galones y el dispensador de largo alcance en el tope (y la conexión a la nevera, de ser posible); sin tanque, el Tankless RO del cotizador produce al momento, con electricidad y al menos 40 psi. La ósmosis se dibuja más grande que en la realidad para que se lea. ` +
   `Supuestos del agua: ${AGUA.porPersona} galones al día por persona, ${AGUA.beber} de ellos de beber y cocinar (los de la ósmosis), y la AAA que llena la cisterna mientras da servicio. El día es el del equinoccio (sale 6:25, se pone 18:25), con la luna llena de esa noche.`;
 
@@ -567,7 +658,7 @@ const { page } = escribirPagina({
   about,
   keys: [
     { mark: "dashed", label: "Energía y agua: corren en el sentido del flujo" },
-    { mark: "raised", label: "Paredes y techo transparentes para ver adentro (\"Ver adentro\" los cierra)" },
+    { mark: "raised", label: "Paredes y techo transparentes, y los otros pisos aclarados, para ver adentro (\"Ver adentro\" los cierra)" },
   ],
   caption,
   svg,
